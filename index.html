@@ -24,17 +24,17 @@ html, body { height: 100%; width: 100%; background: var(--cream); color: var(--i
 
 /* ── TERMINAL BAR ── */
 #termBar {
-  position: fixed; bottom: -80px; left: 0; right: 0; height: 72px;
-  background: #0a0a0a; z-index: 50;
+  position: fixed; bottom: -110px; left: 0; right: 0; height: 96px;
+  background: #080808; z-index: 50;
   display: flex; align-items: center;
-  padding: 0 24px; gap: 0;
+  padding: 0 28px; gap: 0;
   border-top: 1px solid #1a3a1a;
   transition: bottom 0.7s cubic-bezier(0.16,1,0.3,1);
   font-family: 'Space Mono', monospace;
 }
 #termBar.visible { bottom: 0; }
-.term-prompt { color: #2a6a2a; font-size: 0.65rem; letter-spacing: 0.05em; margin-right: 8px; flex-shrink: 0; }
-.term-line { color: #00cc44; font-size: 0.65rem; letter-spacing: 0.04em; flex: 1; }
+.term-prompt { color: #2a6a2a; font-size: 0.82rem; letter-spacing: 0.05em; margin-right: 10px; flex-shrink: 0; }
+.term-line { color: #00cc44; font-size: 0.82rem; letter-spacing: 0.04em; flex: 1; }
 .term-cursor { display: inline-block; width: 7px; height: 0.9em; background: #00cc44; vertical-align: text-bottom; animation: termBlink 0.8s step-end infinite; margin-left: 2px; }
 @keyframes termBlink { 0%,100%{opacity:1} 50%{opacity:0} }
 
@@ -92,7 +92,7 @@ html, body { height: 100%; width: 100%; background: var(--cream); color: var(--i
 .scan-left::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 100px; background: linear-gradient(180deg, var(--cream) 20%, transparent 100%); z-index: 2; pointer-events: none; }
 .scan-left::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 80px; background: linear-gradient(0deg, var(--cream) 20%, transparent 100%); z-index: 2; pointer-events: none; }
 .scan-header { position: absolute; top: 50%; left: 12vw; right: 5vw; transform: translateY(-50%); z-index: 3; pointer-events: none; }
-.scan-wordmark { font-weight: 700; font-size: clamp(2rem, 4.5vw, 3.8rem); letter-spacing: -0.03em; color: var(--ink); line-height: 1; margin-bottom: 4px; opacity: 0; animation: riseIn 1s 0.2s ease forwards; display: inline-block; }
+.scan-wordmark { font-weight: 700; font-size: clamp(2.4rem, 5.5vw, 4.8rem); letter-spacing: -0.03em; color: var(--ink); line-height: 1; margin-bottom: 4px; opacity: 0; animation: riseIn 1s 0.2s ease forwards; display: inline-block; }
 .scan-wordmark .red-dot { display: inline-block; width: 0.14em; height: 0.14em; border-radius: 50%; background: var(--red); margin-left: 0.05em; vertical-align: middle; margin-bottom: 0.04em; animation: dotPulse 2s ease-in-out infinite; }
 @keyframes dotPulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.6); opacity: 0.4; } }
 .scan-tagline { font-size: clamp(0.48rem, 0.9vw, 0.6rem); font-weight: 400; letter-spacing: 0.3em; color: var(--muted); text-transform: uppercase; opacity: 0; animation: riseIn 0.8s 0.6s ease forwards; }
@@ -156,12 +156,13 @@ html, body { height: 100%; width: 100%; background: var(--cream); color: var(--i
 
 .tw-text, .tw-text2, .tw-text3 {
   font-family: 'Space Mono', monospace;
-  font-size: clamp(0.9rem, 1.6vw, 1.35rem);
+  font-size: clamp(1.05rem, 1.9vw, 1.6rem);
   color: #1a1a18;
   font-weight: 400;
+  font-style: italic;
   letter-spacing: -0.02em;
-  line-height: 1.55;
-  min-height: 1.6em;
+  line-height: 1.6;
+  min-height: 1.7em;
   display: block;
 }
 
@@ -412,42 +413,43 @@ document.getElementById('sessionId').textContent = dataReady['session']||'BSI-�
 
 // ── SCAN DEFS ──
 const scanDefs = [
-  {key:'IP Address',id:'ip',s:0,wait:1100,pause:680},
-  {key:'Location',id:'loc',s:0,wait:1000,pause:600},
-  {key:'Timezone',id:'tz',s:0,wait:860,pause:520},
-  {key:'Device',id:'dev',s:0,wait:800,pause:460},
-  {key:'Connection',id:'conn',s:1,wait:680,pause:370},
-  {key:'Display',id:'disp',s:1,wait:560,pause:310},
-  {key:'Battery',id:'bat',s:1,wait:490,pause:260},
-  {key:'Language',id:'langs',s:1,wait:420,pause:220},
-  {key:'Platform',id:'platform',s:2,wait:350,pause:170},
-  {key:'CPU Cores',id:'cores',s:2,wait:290,pause:140},
-  {key:'Memory',id:'mem',s:2,wait:250,pause:115},
-  {key:'Color Depth',id:'depth',s:2,wait:210,pause:95},
-  {key:'Pixel Ratio',id:'dpr',s:3,wait:170,pause:72},
-  {key:'Touch Input',id:'touch',s:3,wait:140,pause:58},
-  {key:'ISP',id:'isp',s:3,wait:120,pause:46},
-  {key:'Region',id:'region',s:3,wait:105,pause:38},
-  {key:'Postal Code',id:'postal',s:4,wait:88,pause:30},
-  {key:'Currency',id:'currency',s:4,wait:72,pause:24},
-  {key:'Calling Code',id:'calling',s:4,wait:60,pause:19},
-  {key:'RTT Latency',id:'rtt',s:4,wait:50,pause:15},
-  {key:'Orientation',id:'orient',s:4,wait:43,pause:12},
-  {key:'WebGL',id:'webgl',s:5,wait:36,pause:9},
-  {key:'Storage',id:'storage',s:5,wait:30,pause:7},
-  {key:'Cookies',id:'cookies',s:5,wait:25,pause:6},
-  {key:'Plugins',id:'plugins',s:5,wait:21,pause:5},
-  {key:'Referrer',id:'ref',s:5,wait:18,pause:4},
-  {key:'Viewport',id:'viewport',s:5,wait:15,pause:4},
-  {key:'History',id:'history_len',s:5,wait:13,pause:3},
-  {key:'Network',id:'online',s:5,wait:11,pause:3},
-  {key:'Country Area',id:'country_area',s:5,wait:10,pause:3},
-  {key:'Country Pop.',id:'country_pop',s:5,wait:9,pause:2},
-  {key:'Charging',id:'charging',s:5,wait:8,pause:2},
-  {key:'Timestamp',id:'time',s:5,wait:7,pause:2},
-  {key:'User Agent',id:'ua',s:5,wait:6,pause:2},
-  {key:'ASN',id:'asn',s:5,wait:5,pause:2},
-  {key:'route_depth',id:'route_depth',s:5,wait:5,pause:2},
+    // Gradual speed curve — fills screen slowly then accelerates smoothly
+  {key:'IP Address',id:'ip',s:0,wait:1100,pause:900},
+  {key:'Location',id:'loc',s:0,wait:1000,pause:820},
+  {key:'Timezone',id:'tz',s:0,wait:880,pause:740},
+  {key:'Device',id:'dev',s:0,wait:820,pause:680},
+  {key:'Connection',id:'conn',s:0,wait:740,pause:620},
+  {key:'Display',id:'disp',s:0,wait:680,pause:560},
+  {key:'Battery',id:'bat',s:1,wait:620,pause:500},
+  {key:'Language',id:'langs',s:1,wait:560,pause:440},
+  {key:'Platform',id:'platform',s:1,wait:500,pause:390},
+  {key:'CPU Cores',id:'cores',s:1,wait:440,pause:340},
+  {key:'Memory',id:'mem',s:1,wait:390,pause:300},
+  {key:'Color Depth',id:'depth',s:2,wait:340,pause:260},
+  {key:'Pixel Ratio',id:'dpr',s:2,wait:290,pause:220},
+  {key:'Touch Input',id:'touch',s:2,wait:250,pause:185},
+  {key:'ISP',id:'isp',s:2,wait:210,pause:155},
+  {key:'Region',id:'region',s:2,wait:175,pause:128},
+  {key:'Postal Code',id:'postal',s:3,wait:145,pause:105},
+  {key:'Currency',id:'currency',s:3,wait:118,pause:85},
+  {key:'Calling Code',id:'calling',s:3,wait:95,pause:68},
+  {key:'RTT Latency',id:'rtt',s:3,wait:76,pause:54},
+  {key:'Orientation',id:'orient',s:3,wait:60,pause:42},
+  {key:'WebGL',id:'webgl',s:4,wait:48,pause:33},
+  {key:'Storage',id:'storage',s:4,wait:38,pause:26},
+  {key:'Cookies',id:'cookies',s:4,wait:30,pause:20},
+  {key:'Plugins',id:'plugins',s:4,wait:24,pause:15},
+  {key:'Referrer',id:'ref',s:4,wait:19,pause:12},
+  {key:'Viewport',id:'viewport',s:5,wait:15,pause:9},
+  {key:'History',id:'history_len',s:5,wait:12,pause:7},
+  {key:'Network',id:'online',s:5,wait:9,pause:5},
+  {key:'Country Area',id:'country_area',s:5,wait:7,pause:4},
+  {key:'Country Pop.',id:'country_pop',s:5,wait:6,pause:3},
+  {key:'Charging',id:'charging',s:5,wait:5,pause:3},
+  {key:'Timestamp',id:'time',s:5,wait:5,pause:2},
+  {key:'User Agent',id:'ua',s:5,wait:4,pause:2},
+  {key:'ASN',id:'asn',s:5,wait:4,pause:2},
+  {key:'route_depth',id:'route_depth',s:5,wait:4,pause:2},
 ];
 
 const extraKeys = ['Packet Depth','Cipher Suite','TLS Version','HTTP Version','DNS Resolver','Cache Headers','Entropy Score','Fingerprint Hash','Beacon Interval','Session Token','Socket ID','Render Engine','Event Loop','Worker Count','Frame Rate','Heap Size','GC Cycles','Paint Count','Layer Count','Composite Score','Shadow DOM','Mutation Rate','Event Queue','Input Lag','GPU Vendor','VRAM Estimate','Shader Model','Canvas Fingerprint','AudioContext','Sample Rate'];
@@ -611,9 +613,9 @@ function termShowSpeed(val, onDone) {
 function handDragBox(onDone) {
   const hand=document.getElementById('handImg');
   const box=document.getElementById('drawnBox');
-  const boxTargX=W*0.54, boxTargY=H*0.18;
-  const boxEndX=W*0.94,  boxEndY=H*0.65;
-  const tipX=68, tipY=8;
+  const boxTargX=W*0.56, boxTargY=H*0.18;
+  const boxEndX=W*0.96,  boxEndY=H*0.68;
+  const tipX=36, tipY=76;
   box.style.position='fixed';
   box.style.left=boxTargX+'px'; box.style.top=boxTargY+'px';
   box.style.width='0px'; box.style.height='0px';
@@ -650,30 +652,25 @@ function handDragBox(onDone) {
 }
 
 // ── REVERSE ANIMATION ──
-// Rows stream downward from the top, fast at first then decelerating
-// until it grinds to a halt on route_depth: orphaned, large and red
+// Prepends rows at the TOP of the existing scanLines container
+// Fast at first, decelerating to a halt on route_depth: orphaned
 function doReverse(onDone) {
-  const wrap = document.getElementById('scanLinesWrap');
   const container = document.getElementById('scanLines');
+  const wrap = document.getElementById('scanLinesWrap');
 
-  // Clear existing lines — we're rewinding fresh
-  container.innerHTML = '';
-
-  // Reset wrap so rows flow from top downward
+  // Switch wrap to overflow visible, top-aligned, so prepended rows appear from top
   wrap.style.justifyContent = 'flex-start';
-  wrap.style.height = '100vh';
-  wrap.style.overflow = 'hidden';
+  wrap.style.overflow = 'visible';
+  wrap.style.height = 'auto';
+  wrap.style.minHeight = '100vh';
   wrap.style.padding = '0';
-  container.style.gap = '2px';
+  container.style.gap = '3px';
 
-  // The data we'll rewind through — real keys from scanDefs in reverse
-  const rewindKeys = [
+  // Rewind data — real keys in reverse order
+  const rewindData = [
     ['ASN', dataReady['asn']||'—'],
-    ['User Agent', dataReady['ua']||'—'],
+    ['User Agent', (dataReady['ua']||'—').slice(0,40)+'...'],
     ['Timestamp', dataReady['time']||'—'],
-    ['Charging', dataReady['charging']||'—'],
-    ['Country Pop.', dataReady['country_pop']||'—'],
-    ['Country Area', dataReady['country_area']||'—'],
     ['Network', dataReady['online']||'—'],
     ['History', dataReady['history_len']||'—'],
     ['Viewport', dataReady['viewport']||'—'],
@@ -705,140 +702,129 @@ function doReverse(onDone) {
     ['IP Address', dataReady['ip']||'—'],
   ];
 
-  // Speed schedule: start fast, decelerate, pause on last item
-  // interval in ms between each row appearing
-  // starts at 60ms, ends at 800ms
-  const totalRows = rewindKeys.length;
-  let rowIdx = 0;
-  let currentInterval = 55; // ms — starts fast
-  let timeoutId = null;
+  const total = rewindData.length;
+  let idx = 0;
 
-  // Speed display steps
-  const speedDisplay = [1.0,0.9,0.78,0.65,0.52,0.40,0.30,0.21,0.14,0.09,0.05,0.02,0.01,0.00];
-  let speedDisplayIdx = 0;
+  const speedDisplay = [1.0,0.88,0.74,0.61,0.49,0.38,0.28,0.20,0.13,0.08,0.04,0.01,0.00];
+  let sdIdx = 0;
 
-  function addRow() {
-    if(rowIdx >= totalRows) {
-      // All done — final orphaned line, large, red, centered
-      showOrphanedLine();
+  function addRewindRow() {
+    if(idx >= total) {
+      showOrphanedFinal();
       return;
     }
 
-    const [key, val] = rewindKeys[rowIdx];
-    const progress = rowIdx / totalRows; // 0 at start, 1 at end
+    const [key, val] = rewindData[idx];
+    const progress = idx / total; // 0=start fast, 1=end slow
 
-    // Font size grows as we slow down — tiny at start, readable at end
-    const fontSize = 0.32 + progress * 1.1;
-    const keySize  = 0.28 + progress * 0.32;
-    const opacity  = 0.3 + progress * 0.7;
+    // Font size: tiny at start (fast), grows to readable (slow)
+    const fontSize = 0.3 + progress * 1.05;
+    const keySize  = 0.26 + progress * 0.3;
+    const op       = 0.25 + progress * 0.75;
 
     const line = document.createElement('div');
     line.style.display = 'flex';
     line.style.alignItems = 'baseline';
-    line.style.gap = '20px';
-    line.style.padding = '1px 12vw';
-    line.style.opacity = opacity;
-    line.style.flexShrink = '0';
+    line.style.gap = '16px';
+    line.style.padding = '0 12vw';
+    line.style.opacity = op;
     line.style.whiteSpace = 'nowrap';
     line.style.overflow = 'hidden';
+    line.style.flexShrink = '0';
 
-    const keyEl = document.createElement('span');
-    keyEl.style.fontFamily = "'Space Grotesk', sans-serif";
-    keyEl.style.fontSize = keySize+'rem';
-    keyEl.style.letterSpacing = '0.16em';
-    keyEl.style.color = 'var(--muted)';
-    keyEl.style.textTransform = 'uppercase';
-    keyEl.style.fontWeight = '500';
-    keyEl.style.minWidth = '120px';
-    keyEl.style.display = 'inline-block';
-    keyEl.style.flexShrink = '0';
-    keyEl.textContent = key;
+    const k = document.createElement('span');
+    k.style.fontFamily = "'Space Grotesk', sans-serif";
+    k.style.fontSize = keySize + 'rem';
+    k.style.letterSpacing = '0.15em';
+    k.style.color = 'var(--muted)';
+    k.style.textTransform = 'uppercase';
+    k.style.fontWeight = '500';
+    k.style.minWidth = '100px';
+    k.style.flexShrink = '0';
+    k.textContent = key;
 
-    const valEl = document.createElement('span');
-    valEl.style.fontFamily = "'Space Mono', monospace";
-    valEl.style.fontSize = fontSize+'rem';
-    valEl.style.color = 'var(--ink)';
-    valEl.style.letterSpacing = '-0.01em';
-    valEl.style.lineHeight = '1.2';
-    valEl.style.overflow = 'hidden';
-    valEl.style.textOverflow = 'ellipsis';
-    valEl.textContent = val;
+    const v = document.createElement('span');
+    v.style.fontFamily = "'Space Mono', monospace";
+    v.style.fontSize = fontSize + 'rem';
+    v.style.color = 'var(--ink)';
+    v.style.letterSpacing = '-0.01em';
+    v.style.overflow = 'hidden';
+    v.style.textOverflow = 'ellipsis';
+    v.textContent = val;
 
-    line.appendChild(keyEl);
-    line.appendChild(valEl);
-    container.appendChild(line);
+    line.appendChild(k);
+    line.appendChild(v);
 
-    // Keep only last N lines visible — older ones scroll off top
-    const maxVisible = 18;
-    while(container.children.length > maxVisible) {
-      container.removeChild(container.firstChild);
+    // PREPEND — new rows appear at TOP, pushing old ones down
+    container.insertBefore(line, container.firstChild);
+
+    // Remove excess from bottom to keep it tidy
+    while(container.children.length > 24) {
+      container.removeChild(container.lastChild);
     }
 
-    rowIdx++;
+    idx++;
 
-    // Update speed display
-    const sdIdx = Math.floor(progress * speedDisplay.length);
-    if(sdIdx > speedDisplayIdx) {
-      speedDisplayIdx = sdIdx;
-      termShowSpeed(speedDisplay[Math.min(sdIdx, speedDisplay.length-1)].toFixed(2)+'x');
+    // Terminal speed display
+    const sdi = Math.floor(progress * speedDisplay.length);
+    if(sdi > sdIdx) {
+      sdIdx = sdi;
+      termShowSpeed(speedDisplay[Math.min(sdi, speedDisplay.length-1)].toFixed(2)+'x');
     }
 
-    // Update progress bar — rewinds from 100 down to ~45
+    // Progress bar rewinds
     const pct = Math.round(100 - progress * 55);
     document.getElementById('progressFill').style.width = pct+'%';
     document.getElementById('progressLabel').textContent = 'REVERSING';
 
-    // Decelerate — interval gets longer as we approach the end
-    // ease from 55ms to 750ms
+    // Interval: fast at start (30ms), slow at end (900ms) — smooth cubic curve
     const t = progress;
-    const eased = t * t * t; // cubic ease in — slow acceleration of slowdown
-    currentInterval = 55 + eased * 695;
-
-    timeoutId = setTimeout(addRow, currentInterval);
+    const interval = 30 + (t * t * t) * 870;
+    setTimeout(addRewindRow, interval);
   }
 
-  function showOrphanedLine() {
-    // Clear remaining rows, show the orphaned line large and centered
+  function showOrphanedFinal() {
+    // Clear container, show ONE big red line
     container.innerHTML = '';
+    wrap.style.justifyContent = 'center';
+    wrap.style.alignItems = 'flex-start';
+    wrap.style.paddingTop = '20vh';
 
     const line = document.createElement('div');
     line.style.display = 'flex';
     line.style.alignItems = 'baseline';
     line.style.gap = '20px';
-    line.style.padding = '20px 12vw';
-    line.style.flexShrink = '0';
+    line.style.padding = '0 12vw';
     line.style.whiteSpace = 'nowrap';
 
-    const keyEl = document.createElement('div');
-    keyEl.style.fontFamily = "'Space Grotesk', sans-serif";
-    keyEl.style.fontSize = '0.75rem';
-    keyEl.style.letterSpacing = '0.2em';
-    keyEl.style.color = 'var(--red)';
-    keyEl.style.textTransform = 'uppercase';
-    keyEl.style.fontWeight = '500';
-    keyEl.style.minWidth = '130px';
-    keyEl.style.flexShrink = '0';
-    keyEl.textContent = 'route_depth';
+    const k = document.createElement('span');
+    k.style.fontFamily = "'Space Grotesk', sans-serif";
+    k.style.fontSize = '0.8rem';
+    k.style.letterSpacing = '0.2em';
+    k.style.color = 'var(--red)';
+    k.style.textTransform = 'uppercase';
+    k.style.fontWeight = '500';
+    k.style.flexShrink = '0';
+    k.textContent = 'route_depth';
 
-    const valEl = document.createElement('div');
-    valEl.style.fontFamily = "'Space Mono', monospace";
-    valEl.style.fontSize = '1.6rem';
-    valEl.style.color = 'var(--red)';
-    valEl.style.letterSpacing = '-0.01em';
-    valEl.style.background = 'rgba(232,55,42,0.07)';
-    valEl.style.padding = '4px 10px';
-    valEl.style.borderLeft = '3px solid var(--red)';
-    valEl.textContent = 'orphaned';
+    const v = document.createElement('span');
+    v.style.fontFamily = "'Space Mono', monospace";
+    v.style.fontSize = '1.8rem';
+    v.style.color = 'var(--red)';
+    v.style.letterSpacing = '-0.01em';
+    v.style.background = 'rgba(232,55,42,0.07)';
+    v.style.padding = '4px 12px';
+    v.style.borderLeft = '3px solid var(--red)';
+    v.textContent = 'orphaned';
 
-    line.appendChild(keyEl);
-    line.appendChild(valEl);
+    line.appendChild(k);
+    line.appendChild(v);
     container.appendChild(line);
 
-    // Store ref so handFixLine can find it
+    // Store refs for the fix animation
     orphanedLineEl = line;
-    // also store valEl for the fix animation
-    orphanedLineEl._valEl = valEl;
-    orphanedLineEl._keyEl = keyEl;
+    orphanedLineEl._valEl = v;
+    orphanedLineEl._keyEl = k;
 
     termShowSpeed('0.00x');
     document.getElementById('progressLabel').textContent = 'HALTED';
@@ -847,16 +833,14 @@ function doReverse(onDone) {
     if(onDone) setTimeout(onDone, 500);
   }
 
-  // Kick off
-  addRow();
+  addRewindRow();
 }
-
 // ── HAND FIX (FLIPPED) ──
 function handFixLine(targetLine, onDone) {
   const hand=document.getElementById('handImgFlipped');
   const lineRect=targetLine.getBoundingClientRect();
   const valEl=targetLine._valEl || targetLine.querySelector('.scan-line-val') || targetLine.querySelector('div:last-child');
-  const tipX=92, tipY=8;
+  const tipX=36, tipY=76;
   const targetY=lineRect.top+lineRect.height/2-tipY;
   const targetX=lineRect.right-tipX-20;
   hand.style.position='fixed';
@@ -931,7 +915,7 @@ function startConductorSequence() {
                   // 5. pause visual — darken + VHS fullscreen
                   setTimeout(()=>{
                     // type pause command in terminal
-                    termType('session.pause()','execution halted — all processes frozen',50,()=>{
+                    termType('session.pause()','execution halted — all processes frozen',70,()=>{
                       // full screen darken + VHS
                       document.getElementById('vhsOverlay').classList.add('active');
                       document.getElementById('scanPhase').classList.add('vhs');
@@ -940,12 +924,10 @@ function startConductorSequence() {
                       // hold the freeze visually for 2.5s
                       setTimeout(()=>{
                         // 6. type reverse command
-                        termType('session.reverse()',null,50,()=>{
-                          document.getElementById('vhsOverlay').classList.remove('active');
-                          document.getElementById('scanPhase').classList.remove('vhs');
+                        termType('session.reverse()',null,70,()=>{
                           document.getElementById('progressLabel').textContent='REVERSING';
 
-                          // start reverse animation
+                          // vhs stays on during reverse, removed when orphaned line appears
                           doReverse(()=>{
                             // speed has wound down to 0 — show final halt
                             termShowSpeed('0.00x');
@@ -954,9 +936,12 @@ function startConductorSequence() {
                             setTimeout(()=>{
                               if(orphanedLineEl){
                                 orphanedLineEl.scrollIntoView({behavior:'smooth',block:'center'});
-                                // hold 2.2s so user sees the red line
+                                // remove vhs now that we've stopped on the line
+                                document.getElementById('vhsOverlay').classList.remove('active');
+                                document.getElementById('scanPhase').classList.remove('vhs');
+                                // hold so user sees the red line clearly
                                 setTimeout(()=>{
-                                  termType('session.set(route_depth, "resolved")','patching entry point...',45,()=>{
+                                  termType('session.set(route_depth, "resolved")','patching entry point...',65,()=>{
                                     // 8. flipped hand fixes the line
                                     setTimeout(()=>{
                                       handFixLine(orphanedLineEl,()=>{
@@ -965,7 +950,7 @@ function startConductorSequence() {
                                         document.getElementById('progressLabel').textContent='RESOLVED';
 
                                         // terminal confirms
-                                        termType('session.resume()','route_depth resolved — access pathway open',50,()=>{
+                                        termType('session.resume()','route_depth resolved — access pathway open',65,()=>{
                                           // 10. type "try again." with double enter before
                                           setTimeout(()=>{
                                             const t2El=document.getElementById('twText2');
@@ -980,9 +965,15 @@ function startConductorSequence() {
                                               t3El.insertAdjacentHTML('beforeend','<br>');
                                               t3El.appendChild(cursor3);
                                               setTimeout(()=>{
-                                                typeBeforeCursor(cursor3,'try again.',110,()=>{
-                                                  cursor3.remove();
-                                                  setTimeout(triggerDissolve,2200);
+                                                typeBeforeCursor(cursor3,'Try again',110,()=>{
+                                                  // ellipsis one dot at a time
+                                                  setTimeout(()=>{ cursor3.insertAdjacentText('beforebegin','.'); },400);
+                                                  setTimeout(()=>{ cursor3.insertAdjacentText('beforebegin','.'); },900);
+                                                  setTimeout(()=>{ cursor3.insertAdjacentText('beforebegin','.'); },1500);
+                                                  setTimeout(()=>{
+                                                    cursor3.remove();
+                                                    setTimeout(triggerDissolve,1800);
+                                                  },2400);
                                                 });
                                               },500);
                                             },600);
@@ -1014,6 +1005,12 @@ function startConductorSequence() {
 // ── DISSOLVE ──
 function triggerDissolve() {
   dissolveTriggered=true;
+  // type terminate() in terminal then close it
+  termType('terminate()','session closed',65,()=>{
+    setTimeout(()=>{
+      document.getElementById('termBar').classList.remove('visible');
+    },600);
+  });
   document.getElementById('progressLabel').textContent='COMPLETE';
   document.getElementById('scanPhase').classList.add('dissolving');
   setTimeout(()=>{
