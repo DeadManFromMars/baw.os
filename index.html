@@ -120,8 +120,10 @@ html, body { height: 100%; width: 100%; background: var(--cream); color: var(--i
 .scan-line.done .scan-line-check { opacity: 1; }
 
 /* highlighted bad line */
-.scan-line.orphaned .scan-line-val { color: var(--red) !important; background: rgba(232,55,42,0.08); padding: 2px 6px; border-left: 2px solid var(--red); }
-.scan-line.resolved .scan-line-val { color: var(--green) !important; background: rgba(0,200,83,0.08); padding: 2px 6px; border-left: 2px solid var(--green); transition: color 0.4s ease, background 0.4s ease, border-color 0.4s ease; }
+.scan-line.orphaned .scan-line-val { color: var(--red) !important; background: rgba(232,55,42,0.1); padding: 3px 8px; border-left: 3px solid var(--red); font-size: 1.1rem !important; }
+.scan-line.orphaned .scan-line-key { color: var(--red) !important; font-size: 0.6rem !important; opacity: 1 !important; }
+.scan-line.resolved .scan-line-val { color: var(--green) !important; background: rgba(0,200,83,0.1); padding: 3px 8px; border-left: 3px solid var(--green); font-size: 1.1rem !important; transition: color 0.4s ease, background 0.4s ease, border-color 0.4s ease; }
+.scan-line.resolved .scan-line-key { color: var(--green) !important; font-size: 0.6rem !important; opacity: 1 !important; }
 
 /* progress */
 .scan-progress { position: absolute; bottom: 20px; left: 12vw; right: 5vw; z-index: 3; opacity: 0; animation: riseIn 0.6s 1.2s ease forwards; }
@@ -609,9 +611,9 @@ function termShowSpeed(val, onDone) {
 function handDragBox(onDone) {
   const hand=document.getElementById('handImg');
   const box=document.getElementById('drawnBox');
-  const boxTargX=W*0.54, boxTargY=H*0.22;
-  const boxEndX=W*0.94,  boxEndY=H*0.78;
-  const tipX=78, tipY=16;
+  const boxTargX=W*0.54, boxTargY=H*0.18;
+  const boxEndX=W*0.94,  boxEndY=H*0.65;
+  const tipX=68, tipY=8;
   box.style.position='fixed';
   box.style.left=boxTargX+'px'; box.style.top=boxTargY+'px';
   box.style.width='0px'; box.style.height='0px';
@@ -648,46 +650,213 @@ function handDragBox(onDone) {
 }
 
 // ── REVERSE ANIMATION ──
-let reverseRAF=null;
+// Rows stream downward from the top, fast at first then decelerating
+// until it grinds to a halt on route_depth: orphaned, large and red
 function doReverse(onDone) {
-  const wrap=document.getElementById('scanLinesWrap');
-  // animate the wrap scrolling downward smoothly
-  // simultaneously slow down until it stops at orphaned line
-  const dur=4000;
-  const startT=performance.now();
-  let currentTranslate=0;
-  const maxTranslate=wrap.offsetHeight * 0.6;
+  const wrap = document.getElementById('scanLinesWrap');
+  const container = document.getElementById('scanLines');
 
-  function frame(now) {
-    const elapsed=Math.min((now-startT)/dur,1);
-    // ease out — fast start, decelerates to stop
-    const eased=1-Math.pow(1-elapsed,2.5);
-    currentTranslate=eased*maxTranslate;
-    wrap.style.transform=`translateY(${currentTranslate}px)`;
-    wrap.style.transition='none';
+  // Clear existing lines — we're rewinding fresh
+  container.innerHTML = '';
 
-    if(elapsed<1) {
-      reverseRAF=requestAnimationFrame(frame);
-      // update speed display in terminal as it slows
-      const speed=(1-eased);
-      if(Math.random()<0.04) {
-        termShowSpeed((speed*1.0).toFixed(2)+'x');
-      }
-    } else {
-      wrap.style.transform=`translateY(${maxTranslate}px)`;
-      document.getElementById('progressLabel').textContent='HALTED';
-      if(onDone) onDone();
+  // Reset wrap so rows flow from top downward
+  wrap.style.justifyContent = 'flex-start';
+  wrap.style.height = '100vh';
+  wrap.style.overflow = 'hidden';
+  wrap.style.padding = '0';
+  container.style.gap = '2px';
+
+  // The data we'll rewind through — real keys from scanDefs in reverse
+  const rewindKeys = [
+    ['ASN', dataReady['asn']||'—'],
+    ['User Agent', dataReady['ua']||'—'],
+    ['Timestamp', dataReady['time']||'—'],
+    ['Charging', dataReady['charging']||'—'],
+    ['Country Pop.', dataReady['country_pop']||'—'],
+    ['Country Area', dataReady['country_area']||'—'],
+    ['Network', dataReady['online']||'—'],
+    ['History', dataReady['history_len']||'—'],
+    ['Viewport', dataReady['viewport']||'—'],
+    ['Referrer', dataReady['ref']||'—'],
+    ['Plugins', dataReady['plugins']||'—'],
+    ['Cookies', dataReady['cookies']||'—'],
+    ['Storage', dataReady['storage']||'—'],
+    ['WebGL', dataReady['webgl']||'—'],
+    ['Orientation', dataReady['orient']||'—'],
+    ['RTT Latency', dataReady['rtt']||'—'],
+    ['Calling Code', dataReady['calling']||'—'],
+    ['Currency', dataReady['currency']||'—'],
+    ['Postal Code', dataReady['postal']||'—'],
+    ['Region', dataReady['region']||'—'],
+    ['ISP', dataReady['isp']||'—'],
+    ['Touch Input', dataReady['touch']||'—'],
+    ['Pixel Ratio', dataReady['dpr']||'—'],
+    ['Color Depth', dataReady['depth']||'—'],
+    ['Memory', dataReady['mem']||'—'],
+    ['CPU Cores', dataReady['cores']||'—'],
+    ['Platform', dataReady['platform']||'—'],
+    ['Language', dataReady['langs']||'—'],
+    ['Battery', dataReady['bat']||'—'],
+    ['Display', dataReady['disp']||'—'],
+    ['Connection', dataReady['conn']||'—'],
+    ['Device', dataReady['dev']||'—'],
+    ['Timezone', dataReady['tz']||'—'],
+    ['Location', dataReady['loc']||'—'],
+    ['IP Address', dataReady['ip']||'—'],
+  ];
+
+  // Speed schedule: start fast, decelerate, pause on last item
+  // interval in ms between each row appearing
+  // starts at 60ms, ends at 800ms
+  const totalRows = rewindKeys.length;
+  let rowIdx = 0;
+  let currentInterval = 55; // ms — starts fast
+  let timeoutId = null;
+
+  // Speed display steps
+  const speedDisplay = [1.0,0.9,0.78,0.65,0.52,0.40,0.30,0.21,0.14,0.09,0.05,0.02,0.01,0.00];
+  let speedDisplayIdx = 0;
+
+  function addRow() {
+    if(rowIdx >= totalRows) {
+      // All done — final orphaned line, large, red, centered
+      showOrphanedLine();
+      return;
     }
+
+    const [key, val] = rewindKeys[rowIdx];
+    const progress = rowIdx / totalRows; // 0 at start, 1 at end
+
+    // Font size grows as we slow down — tiny at start, readable at end
+    const fontSize = 0.32 + progress * 1.1;
+    const keySize  = 0.28 + progress * 0.32;
+    const opacity  = 0.3 + progress * 0.7;
+
+    const line = document.createElement('div');
+    line.style.display = 'flex';
+    line.style.alignItems = 'baseline';
+    line.style.gap = '20px';
+    line.style.padding = '1px 12vw';
+    line.style.opacity = opacity;
+    line.style.flexShrink = '0';
+    line.style.whiteSpace = 'nowrap';
+    line.style.overflow = 'hidden';
+
+    const keyEl = document.createElement('span');
+    keyEl.style.fontFamily = "'Space Grotesk', sans-serif";
+    keyEl.style.fontSize = keySize+'rem';
+    keyEl.style.letterSpacing = '0.16em';
+    keyEl.style.color = 'var(--muted)';
+    keyEl.style.textTransform = 'uppercase';
+    keyEl.style.fontWeight = '500';
+    keyEl.style.minWidth = '120px';
+    keyEl.style.display = 'inline-block';
+    keyEl.style.flexShrink = '0';
+    keyEl.textContent = key;
+
+    const valEl = document.createElement('span');
+    valEl.style.fontFamily = "'Space Mono', monospace";
+    valEl.style.fontSize = fontSize+'rem';
+    valEl.style.color = 'var(--ink)';
+    valEl.style.letterSpacing = '-0.01em';
+    valEl.style.lineHeight = '1.2';
+    valEl.style.overflow = 'hidden';
+    valEl.style.textOverflow = 'ellipsis';
+    valEl.textContent = val;
+
+    line.appendChild(keyEl);
+    line.appendChild(valEl);
+    container.appendChild(line);
+
+    // Keep only last N lines visible — older ones scroll off top
+    const maxVisible = 18;
+    while(container.children.length > maxVisible) {
+      container.removeChild(container.firstChild);
+    }
+
+    rowIdx++;
+
+    // Update speed display
+    const sdIdx = Math.floor(progress * speedDisplay.length);
+    if(sdIdx > speedDisplayIdx) {
+      speedDisplayIdx = sdIdx;
+      termShowSpeed(speedDisplay[Math.min(sdIdx, speedDisplay.length-1)].toFixed(2)+'x');
+    }
+
+    // Update progress bar — rewinds from 100 down to ~45
+    const pct = Math.round(100 - progress * 55);
+    document.getElementById('progressFill').style.width = pct+'%';
+    document.getElementById('progressLabel').textContent = 'REVERSING';
+
+    // Decelerate — interval gets longer as we approach the end
+    // ease from 55ms to 750ms
+    const t = progress;
+    const eased = t * t * t; // cubic ease in — slow acceleration of slowdown
+    currentInterval = 55 + eased * 695;
+
+    timeoutId = setTimeout(addRow, currentInterval);
   }
-  reverseRAF=requestAnimationFrame(frame);
+
+  function showOrphanedLine() {
+    // Clear remaining rows, show the orphaned line large and centered
+    container.innerHTML = '';
+
+    const line = document.createElement('div');
+    line.style.display = 'flex';
+    line.style.alignItems = 'baseline';
+    line.style.gap = '20px';
+    line.style.padding = '20px 12vw';
+    line.style.flexShrink = '0';
+    line.style.whiteSpace = 'nowrap';
+
+    const keyEl = document.createElement('div');
+    keyEl.style.fontFamily = "'Space Grotesk', sans-serif";
+    keyEl.style.fontSize = '0.75rem';
+    keyEl.style.letterSpacing = '0.2em';
+    keyEl.style.color = 'var(--red)';
+    keyEl.style.textTransform = 'uppercase';
+    keyEl.style.fontWeight = '500';
+    keyEl.style.minWidth = '130px';
+    keyEl.style.flexShrink = '0';
+    keyEl.textContent = 'route_depth';
+
+    const valEl = document.createElement('div');
+    valEl.style.fontFamily = "'Space Mono', monospace";
+    valEl.style.fontSize = '1.6rem';
+    valEl.style.color = 'var(--red)';
+    valEl.style.letterSpacing = '-0.01em';
+    valEl.style.background = 'rgba(232,55,42,0.07)';
+    valEl.style.padding = '4px 10px';
+    valEl.style.borderLeft = '3px solid var(--red)';
+    valEl.textContent = 'orphaned';
+
+    line.appendChild(keyEl);
+    line.appendChild(valEl);
+    container.appendChild(line);
+
+    // Store ref so handFixLine can find it
+    orphanedLineEl = line;
+    // also store valEl for the fix animation
+    orphanedLineEl._valEl = valEl;
+    orphanedLineEl._keyEl = keyEl;
+
+    termShowSpeed('0.00x');
+    document.getElementById('progressLabel').textContent = 'HALTED';
+    document.getElementById('progressFill').style.width = '45%';
+
+    if(onDone) setTimeout(onDone, 500);
+  }
+
+  // Kick off
+  addRow();
 }
 
 // ── HAND FIX (FLIPPED) ──
 function handFixLine(targetLine, onDone) {
   const hand=document.getElementById('handImgFlipped');
   const lineRect=targetLine.getBoundingClientRect();
-  const valEl=targetLine.querySelector('.scan-line-val');
-  const tipX=80, tipY=16;
+  const valEl=targetLine._valEl || targetLine.querySelector('.scan-line-val') || targetLine.querySelector('div:last-child');
+  const tipX=92, tipY=8;
   const targetY=lineRect.top+lineRect.height/2-tipY;
   const targetX=lineRect.right-tipX-20;
   hand.style.position='fixed';
@@ -709,7 +878,9 @@ function handFixLine(targetLine, onDone) {
               if(i<newVal.length){ valEl.textContent+=newVal[i]; i++; }
               else {
                 clearInterval(typeIv);
-                targetLine.classList.add('resolved');
+                if(valEl){ valEl.style.color='var(--green)'; valEl.style.borderLeftColor='var(--green)'; valEl.style.background='rgba(0,200,83,0.08)'; }
+                const keyEl=targetLine._keyEl||targetLine.querySelector('div:first-child');
+                if(keyEl) keyEl.style.color='var(--green)';
                 setTimeout(()=>{
                   animXY(hand,targetX,targetY,-180,targetY,700,'inout',()=>{
                     hand.style.opacity='0'; if(onDone) onDone();
@@ -779,11 +950,11 @@ function startConductorSequence() {
                             // speed has wound down to 0 — show final halt
                             termShowSpeed('0.00x');
 
-                            // 7. show orphaned line highlighted
+                            // 7. show orphaned line highlighted — hold for 2s
                             setTimeout(()=>{
                               if(orphanedLineEl){
                                 orphanedLineEl.scrollIntoView({behavior:'smooth',block:'center'});
-                                // type set command in terminal
+                                // hold 2.2s so user sees the red line
                                 setTimeout(()=>{
                                   termType('session.set(route_depth, "resolved")','patching entry point...',45,()=>{
                                     // 8. flipped hand fixes the line
@@ -804,14 +975,17 @@ function startConductorSequence() {
                                             const cursor3=document.createElement('span');
                                             cursor3.className='cursor';
                                             // append cursor after a visual gap
-                                            t3El.insertAdjacentHTML('beforeend','<br><br>');
-                                            t3El.appendChild(cursor3);
+                                            t3El.insertAdjacentHTML('beforeend','<br>');
                                             setTimeout(()=>{
-                                              typeBeforeCursor(cursor3,'try again.',85,()=>{
-                                                cursor3.remove();
-                                                setTimeout(triggerDissolve,2200);
-                                              });
-                                            },500);
+                                              t3El.insertAdjacentHTML('beforeend','<br>');
+                                              t3El.appendChild(cursor3);
+                                              setTimeout(()=>{
+                                                typeBeforeCursor(cursor3,'try again.',110,()=>{
+                                                  cursor3.remove();
+                                                  setTimeout(triggerDissolve,2200);
+                                                });
+                                              },500);
+                                            },600);
                                           },1200);
                                         });
                                       });
@@ -870,6 +1044,10 @@ function attemptLogin() {
   }
 }
 function showMsg(text,type){ const m=document.getElementById('msg'); m.textContent=text; m.className=`msg show ${type}`; }
+
+// ── KICK OFF ──
+setTimeout(revealNextRow, 800);
+setTimeout(()=>{ if(!typewriterTriggered){ typewriterTriggered=true; startConductorSequence(); } }, 30000);
 </script>
 </body>
 </html>
