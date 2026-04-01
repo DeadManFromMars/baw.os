@@ -10,6 +10,27 @@
 	font-family: "Vipnagorgialla Rg", sans-serif;
 }
 
+#globeCanvas {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	z-index: 0;
+	pointer-events: none;
+}
+
+#scanPhase {
+	position: relative;
+	z-index: 2;
+}
+
+.scan-left,
+.scan-right,
+.scan-header {
+	position: relative;
+	z-index: 2;
+}
 
 
 	*, *::before, *::after {
@@ -414,9 +435,13 @@ html, body {
 	position: fixed;
 	inset: 0;
 	z-index: 10;
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	transition: filter 3.5s ease, opacity 3s ease;
+	display: flex;
+	flex-direction: row;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 60px;
+	width: 100%;
+	padding-top: 40px;
 }
 
 	#scanPhase.dissolving {
@@ -526,6 +551,7 @@ html, body {
 	border-right: 1px solid var(--border);
 	overflow: visible;
 	position: relative;
+	white-space: nowrap;
 }
 
 	.scan-left::before {
@@ -560,6 +586,9 @@ html, body {
 	transform: translateY(-50%);
 	z-index: 3;
 	pointer-events: none;
+	flex-shrink: 0;
+	width: 100%;
+	transform: translateZ(0);
 }
 
 .scan-wordmark {
@@ -572,6 +601,8 @@ html, body {
 	opacity: 0;
 	animation: riseIn 1s 0.2s ease forwards;
 	display: inline-block;
+	white-space: nowrap;
+	align-items: center;
 }
 
 	.scan-wordmark .red-dot {

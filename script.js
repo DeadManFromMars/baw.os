@@ -5,8 +5,88 @@ function startMusic() {
     music.play();
 }
 
+(() => {
+    window.addEventListener("DOMContentLoaded", () => {
+        console.log("globe running");
 
+        const canvas = document.getElementById("globeCanvas");
+        if (!canvas) {
+            console.log("canvas not found");
+            return;
+        }
 
+        const ctx = canvas.getContext("2d");
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const config = {
+            rotSpeedY: 0.25,
+            rotSpeedX: 0,
+            rotSpeedZ: 0,
+
+            speed: 0.1,   // 🔥 master rotation speed
+
+            tiltX: 0,
+            tiltY: 0,
+            tiltZ: 10
+
+        };
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+
+            const time = Date.now() * 0.001;
+
+            const radius = 180;
+
+            const rotY = time * config.speed;
+            const rotX = config.tiltX;
+            const rotZ = config.tiltZ;
+
+            const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+            const cosZ = Math.cos(rotZ), sinZ = Math.sin(rotZ);
+
+            for (let lat = 0; lat < Math.PI; lat += 0.2) {
+                for (let lon = 0; lon < Math.PI * 2; lon += 0.2) {
+
+                    // sphere
+                    let x = radius * Math.sin(lat) * Math.cos(lon);
+                    let y = radius * Math.cos(lat);
+                    let z = radius * Math.sin(lat) * Math.sin(lon);
+
+                    // Y rotation (spin)
+                    let x1 = x * Math.cos(rotY) - z * Math.sin(rotY);
+                    let z1 = x * Math.sin(rotY) + z * Math.cos(rotY);
+
+                    // X tilt
+                    let y2 = y * cosX - z1 * sinX;
+                    let z2 = y * sinX + z1 * cosX;
+
+                    // Z rotation (roll)
+                    let x3 = x1 * cosZ - y2 * sinZ;
+                    let y3 = x1 * sinZ + y2 * cosZ;
+
+                    // perspective
+                    const scale = 300 / (300 + z2);
+
+                    const screenX = cx + x3 * scale;
+                    const screenY = cy + y3 * scale;
+
+                    ctx.fillStyle = "rgba(255,0,0,0.8)";
+                    ctx.fillRect(screenX, screenY, 2, 2);
+                }
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        draw();
+    });
+})();
 
 
 
