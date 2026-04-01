@@ -22,6 +22,65 @@ html, body { height: 100%; width: 100%; background: var(--cream); color: var(--i
 .geo-left { position: fixed; top: 0; left: 0; bottom: 0; width: 3px; background: linear-gradient(180deg, var(--red) 0%, transparent 25%); z-index: 5; }
 .geo-corner { position: fixed; top: 3px; left: 3px; width: 80px; height: 80px; border-right: 1px solid rgba(232,55,42,0.15); border-bottom: 1px solid rgba(232,55,42,0.15); z-index: 5; pointer-events: none; }
 
+/* ── CORNER ACCENTS — PISTON STYLE ── */
+.corner-accent {
+  position: fixed; z-index: 4; pointer-events: none; overflow: visible;
+}
+.corner-accent line {
+  stroke: var(--ink); stroke-width: 1.5; opacity: 0;
+}
+
+/* TL — horizontal piston slides in from left, vertical from top */
+.corner-tl { top: 0; left: 0; width: 180px; height: 180px; }
+.corner-tl line:nth-child(1) { animation: pistonRight 3.5s 0.4s ease-in-out infinite alternate, accentFadeIn 0.8s 0.4s forwards; stroke-dasharray: 80; stroke-dashoffset: 80; }
+.corner-tl line:nth-child(2) { animation: pistonDown 3.5s 0.8s ease-in-out infinite alternate, accentFadeIn 0.8s 0.8s forwards; stroke-dasharray: 80; stroke-dashoffset: 80; }
+.corner-tl line:nth-child(3) { animation: pistonRight 3.5s 1.2s ease-in-out infinite alternate, accentFadeIn 0.8s 1.2s forwards; }
+.corner-tl line:nth-child(4) { animation: pistonDown 3.5s 1.6s ease-in-out infinite alternate, accentFadeIn 0.8s 1.6s forwards; }
+
+/* TR — diagonal slashes pulse in/out */
+.corner-tr { top: 0; right: 0; width: 220px; height: 220px; }
+.corner-tr line:nth-child(1) { animation: accentFadeIn 0.8s 0.5s forwards, pistonDiag 4s 1.3s ease-in-out infinite alternate; }
+.corner-tr line:nth-child(2) { animation: accentFadeIn 0.8s 0.8s forwards, pistonDiag 4s 1.8s ease-in-out infinite alternate; }
+.corner-tr line:nth-child(3) { animation: accentFadeIn 0.8s 1.1s forwards, pistonDiag 4s 2.2s ease-in-out infinite alternate; }
+.corner-tr line:nth-child(4) { animation: accentFadeIn 0.8s 1.3s forwards, pistonDiag 4s 2.6s ease-in-out infinite alternate; }
+.corner-tr line:nth-child(5) { animation: accentFadeIn 0.8s 1.5s forwards, pistonDiag 4s 3.0s ease-in-out infinite alternate; }
+
+/* BL */
+.corner-bl { bottom: 0; left: 0; width: 160px; height: 160px; }
+.corner-bl line:nth-child(1) { animation: accentFadeIn 0.8s 0.6s forwards, pistonRight 3.8s 1.4s ease-in-out infinite alternate; }
+.corner-bl line:nth-child(2) { animation: accentFadeIn 0.8s 0.9s forwards, pistonUp 3.8s 1.8s ease-in-out infinite alternate; }
+.corner-bl line:nth-child(3) { animation: accentFadeIn 0.8s 1.2s forwards, pistonRight 3.8s 2.2s ease-in-out infinite alternate; }
+.corner-bl line:nth-child(4) { animation: accentFadeIn 0.8s 1.5s forwards, pistonUp 3.8s 2.6s ease-in-out infinite alternate; }
+
+/* BR */
+.corner-br { bottom: 0; right: 0; width: 160px; height: 160px; }
+.corner-br line:nth-child(1) { animation: accentFadeIn 0.8s 0.7s forwards, pistonLeft 4.2s 1.5s ease-in-out infinite alternate; }
+.corner-br line:nth-child(2) { animation: accentFadeIn 0.8s 1.0s forwards, pistonUp 4.2s 1.9s ease-in-out infinite alternate; }
+.corner-br line:nth-child(3) { animation: accentFadeIn 0.8s 1.3s forwards, pistonLeft 4.2s 2.3s ease-in-out infinite alternate; }
+.corner-br line:nth-child(4) { animation: accentFadeIn 0.8s 1.6s forwards, pistonUp 4.2s 2.7s ease-in-out infinite alternate; }
+
+@keyframes accentFadeIn { from{opacity:0} to{opacity:0.2} }
+@keyframes pistonRight  { from{transform:translateX(-12px);opacity:0.1} to{transform:translateX(0);opacity:0.22} }
+@keyframes pistonLeft   { from{transform:translateX(12px);opacity:0.1}  to{transform:translateX(0);opacity:0.22} }
+@keyframes pistonDown   { from{transform:translateY(-12px);opacity:0.1} to{transform:translateY(0);opacity:0.22} }
+@keyframes pistonUp     { from{transform:translateY(12px);opacity:0.1}  to{transform:translateY(0);opacity:0.22} }
+@keyframes pistonDiag   { from{transform:translate(8px,-8px);opacity:0.1} to{transform:translate(0,0);opacity:0.22} }
+
+/* ── SCROLLING ACCENT LINES ── */
+.scroll-line {
+  position: fixed; z-index: 3; pointer-events: none;
+  height: 1px; background: var(--ink); opacity: 0;
+  animation: scrollLineIn 1s ease forwards, scrollLineDrift linear infinite;
+}
+.sl-1 { top: 22%; width: 60px; animation: scrollLineIn 1s 2s ease forwards, scrollLineDrift 18s 3s linear infinite; }
+.sl-2 { top: 55%; width: 40px; animation: scrollLineIn 1s 2.5s ease forwards, scrollLineDrift 22s 3.5s linear infinite reverse; }
+.sl-3 { top: 38%; width: 80px; animation: scrollLineIn 1s 3s ease forwards, scrollLineDrift 14s 4s linear infinite; }
+.sl-4 { top: 72%; width: 50px; animation: scrollLineIn 1s 3.5s ease forwards, scrollLineDrift 26s 4.5s linear infinite reverse; }
+.sl-5 { top: 15%; width: 35px; animation: scrollLineIn 1s 4s ease forwards, scrollLineDrift 20s 5s linear infinite; }
+
+@keyframes scrollLineIn { from{opacity:0} to{opacity:0.12} }
+@keyframes scrollLineDrift { from{left:-100px} to{left:calc(100vw + 100px)} }
+
 /* ── TERMINAL BAR ── */
 #termBar {
   position: fixed; bottom: -110px; left: 0; right: 0; height: 96px;
@@ -86,18 +145,18 @@ html, body { height: 100%; width: 100%; background: var(--cream); color: var(--i
 /* LEFT */
 .scan-left {
   display: flex; flex-direction: column; justify-content: flex-end;
-  padding: 0 5vw 0 12vw; border-right: 1px solid var(--border);
-  overflow: hidden; position: relative;
+  padding: 0 0 0 0; border-right: 1px solid var(--border);
+  overflow: visible; position: relative;
 }
-.scan-left::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 100px; background: linear-gradient(180deg, var(--cream) 20%, transparent 100%); z-index: 2; pointer-events: none; }
+.scan-left::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 55%; background: linear-gradient(180deg, var(--cream) 55%, transparent 100%); z-index: 2; pointer-events: none; }
 .scan-left::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 80px; background: linear-gradient(0deg, var(--cream) 20%, transparent 100%); z-index: 2; pointer-events: none; }
 .scan-header { position: absolute; top: 50%; left: 12vw; right: 5vw; transform: translateY(-50%); z-index: 3; pointer-events: none; }
 .scan-wordmark { font-weight: 700; font-size: clamp(2.4rem, 5.5vw, 4.8rem); letter-spacing: -0.03em; color: var(--ink); line-height: 1; margin-bottom: 4px; opacity: 0; animation: riseIn 1s 0.2s ease forwards; display: inline-block; }
 .scan-wordmark .red-dot { display: inline-block; width: 0.14em; height: 0.14em; border-radius: 50%; background: var(--red); margin-left: 0.05em; vertical-align: middle; margin-bottom: 0.04em; animation: dotPulse 2s ease-in-out infinite; }
 @keyframes dotPulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.6); opacity: 0.4; } }
 .scan-tagline { font-size: clamp(0.48rem, 0.9vw, 0.6rem); font-weight: 400; letter-spacing: 0.3em; color: var(--muted); text-transform: uppercase; opacity: 0; animation: riseIn 0.8s 0.6s ease forwards; }
-.scan-lines-wrap { width: 100%; height: 45vh; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 0 60px; transition: transform 0s; }
-.scan-lines { display: flex; flex-direction: column; gap: clamp(4px, 0.9vh, 10px); opacity: 0; animation: riseIn 0.6s 1s ease forwards; }
+.scan-lines-wrap { width: 100%; height: calc(100vh - 140px); overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 0 20px; transition: transform 0s; }
+.scan-lines { display: flex; flex-direction: column; gap: clamp(4px, 0.9vh, 10px); opacity: 0; animation: riseIn 0.6s 1s ease forwards; overflow: visible; }
 .scan-line { display: flex; align-items: baseline; gap: clamp(8px, 1.4vw, 16px); opacity: 0; transform: translateY(6px); transition: opacity 0.3s ease, transform 0.3s ease; flex-shrink: 0; }
 .scan-line.active { opacity: 1; transform: translateY(0); }
 .scan-line.s0 .scan-line-val { font-size: clamp(0.85rem, 1.7vw, 1.25rem); }
@@ -253,6 +312,43 @@ html, body { height: 100%; width: 100%; background: var(--cream); color: var(--i
 <div class="geo-left"></div>
 <div class="geo-corner"></div>
 
+<!-- corner accents -->
+<svg class="corner-accent corner-tl" viewBox="0 0 180 180" fill="none">
+  <line x1="0" y1="120" x2="0" y2="40"/>
+  <line x1="0" y1="40" x2="80" y2="40"/>
+  <line x1="24" y1="80" x2="24" y2="16"/>
+  <line x1="24" y1="16" x2="100" y2="16"/>
+</svg>
+
+<svg class="corner-accent corner-tr" viewBox="0 0 220 220" fill="none">
+  <line x1="220" y1="0" x2="60" y2="160"/>
+  <line x1="220" y1="40" x2="100" y2="160"/>
+  <line x1="170" y1="0" x2="40" y2="130"/>
+  <line x1="190" y1="0" x2="220" y2="0"/>
+  <line x1="190" y1="0" x2="190" y2="50"/>
+</svg>
+
+<svg class="corner-accent corner-bl" viewBox="0 0 160 160" fill="none">
+  <line x1="0" y1="30" x2="0" y2="120"/>
+  <line x1="0" y1="120" x2="80" y2="120"/>
+  <line x1="26" y1="80" x2="26" y2="144"/>
+  <line x1="26" y1="144" x2="110" y2="144"/>
+</svg>
+
+<svg class="corner-accent corner-br" viewBox="0 0 160 160" fill="none">
+  <line x1="160" y1="30" x2="160" y2="120"/>
+  <line x1="80" y1="120" x2="160" y2="120"/>
+  <line x1="134" y1="80" x2="134" y2="144"/>
+  <line x1="50" y1="144" x2="134" y2="144"/>
+</svg>
+
+<!-- scrolling accent lines -->
+<div class="scroll-line sl-1"></div>
+<div class="scroll-line sl-2"></div>
+<div class="scroll-line sl-3"></div>
+<div class="scroll-line sl-4"></div>
+<div class="scroll-line sl-5"></div>
+
 <!-- terminal bar -->
 <div id="termBar">
   <span class="term-prompt">root@bsi-node-7 ~$</span>
@@ -406,6 +502,15 @@ setData('viewport',`${window.innerWidth} × ${window.innerHeight}`);
 setData('history_len',history.length+' pages');
 setData('online',navigator.onLine?'Online':'Offline');
 setData('route_depth','orphaned');
+setData('fake1','NULL'); setData('fake2','UNREGISTERED'); setData('fake3','NOT FOUND');
+setData('fake4','MISMATCH'); setData('fake5','FLAGGED'); setData('fake6','DRIFTING');
+setData('fake7','EXPIRED'); setData('fake8','UNKNOWN'); setData('fake9','PARTIAL');
+setData('fake10','0.34'); setData('fake11','INACTIVE'); setData('fake12','CLASSIFIED');
+setData('fake13','SEVERED'); setData('fake14','7.4 / 10'); setData('fake15','DEGRADED');
+setData('fake16','72h'); setData('fake17','0.91'); setData('fake18','DETECTED');
+setData('fake19','0x4F3A'); setData('fake20','NULL'); setData('fake21','REVOKED');
+setData('fake22','IMMINENT'); setData('fake23','DEEP'); setData('fake24','ACTIVE');
+setData('fake25','LOST');
 if(navigator.getBattery){
   navigator.getBattery().then(b=>{ setData('bat',Math.round(b.level*100)+'% '+(b.charging?'(Charging)':'(On Battery)')); setData('charging',b.charging?'Yes':'No'); }).catch(()=>{ setData('bat','Unavailable'); setData('charging','Unknown'); });
 } else { setData('bat','Unavailable'); setData('charging','Unknown'); }
@@ -413,7 +518,6 @@ document.getElementById('sessionId').textContent = dataReady['session']||'BSI-�
 
 // ── SCAN DEFS ──
 const scanDefs = [
-    // Gradual speed curve — fills screen slowly then accelerates smoothly
   {key:'IP Address',id:'ip',s:0,wait:1100,pause:900},
   {key:'Location',id:'loc',s:0,wait:1000,pause:820},
   {key:'Timezone',id:'tz',s:0,wait:880,pause:740},
@@ -423,36 +527,43 @@ const scanDefs = [
   {key:'Battery',id:'bat',s:1,wait:620,pause:500},
   {key:'Language',id:'langs',s:1,wait:560,pause:440},
   {key:'Platform',id:'platform',s:1,wait:500,pause:390},
-  {key:'CPU Cores',id:'cores',s:1,wait:440,pause:340},
-  {key:'Memory',id:'mem',s:1,wait:390,pause:300},
-  {key:'Color Depth',id:'depth',s:2,wait:340,pause:260},
-  {key:'Pixel Ratio',id:'dpr',s:2,wait:290,pause:220},
-  {key:'Touch Input',id:'touch',s:2,wait:250,pause:185},
-  {key:'ISP',id:'isp',s:2,wait:210,pause:155},
-  {key:'Region',id:'region',s:2,wait:175,pause:128},
-  {key:'Postal Code',id:'postal',s:3,wait:145,pause:105},
-  {key:'Currency',id:'currency',s:3,wait:118,pause:85},
-  {key:'Calling Code',id:'calling',s:3,wait:95,pause:68},
-  {key:'RTT Latency',id:'rtt',s:3,wait:76,pause:54},
-  {key:'Orientation',id:'orient',s:3,wait:60,pause:42},
-  {key:'WebGL',id:'webgl',s:4,wait:48,pause:33},
-  {key:'Storage',id:'storage',s:4,wait:38,pause:26},
-  {key:'Cookies',id:'cookies',s:4,wait:30,pause:20},
-  {key:'Plugins',id:'plugins',s:4,wait:24,pause:15},
-  {key:'Referrer',id:'ref',s:4,wait:19,pause:12},
-  {key:'Viewport',id:'viewport',s:5,wait:15,pause:9},
-  {key:'History',id:'history_len',s:5,wait:12,pause:7},
-  {key:'Network',id:'online',s:5,wait:9,pause:5},
-  {key:'Country Area',id:'country_area',s:5,wait:7,pause:4},
-  {key:'Country Pop.',id:'country_pop',s:5,wait:6,pause:3},
-  {key:'Charging',id:'charging',s:5,wait:5,pause:3},
-  {key:'Timestamp',id:'time',s:5,wait:5,pause:2},
-  {key:'User Agent',id:'ua',s:5,wait:4,pause:2},
-  {key:'ASN',id:'asn',s:5,wait:4,pause:2},
+  {key:'Death Drive Acquisition',id:'fake1',s:1,wait:440,pause:340},
+  {key:'Soul Index',id:'fake2',s:1,wait:390,pause:300},
+  {key:'Consent Timestamp',id:'fake3',s:2,wait:340,pause:260},
+  {key:'Memory Checksum',id:'fake4',s:2,wait:290,pause:220},
+  {key:'Behavioral Signature',id:'fake5',s:2,wait:250,pause:185},
+  {key:'Identity Anchor',id:'fake6',s:2,wait:210,pause:155},
+  {key:'Compliance Token',id:'fake7',s:2,wait:175,pause:128},
+  {key:'Threat Vector',id:'fake8',s:3,wait:145,pause:105},
+  {key:'Shadow Profile',id:'fake9',s:3,wait:118,pause:85},
+  {key:'Loyalty Coefficient',id:'fake10',s:3,wait:95,pause:68},
+  {key:'Conscience Override',id:'fake11',s:3,wait:76,pause:54},
+  {key:'Last Known Intent',id:'fake12',s:3,wait:60,pause:42},
+  {key:'Origin Trace',id:'fake13',s:4,wait:48,pause:33},
+  {key:'Anomaly Score',id:'fake14',s:4,wait:38,pause:26},
+  {key:'Narrative Coherence',id:'fake15',s:4,wait:30,pause:20},
+  {key:'Exposure Window',id:'fake16',s:4,wait:24,pause:15},
+  {key:'Drift Coefficient',id:'fake17',s:4,wait:19,pause:12},
+  {key:'Signal Bleed',id:'fake18',s:5,wait:15,pause:9},
+  {key:'Latent Signature',id:'fake19',s:5,wait:12,pause:7},
+  {key:'Void Index',id:'fake20',s:5,wait:9,pause:5},
+  {key:'Residual Authority',id:'fake21',s:5,wait:7,pause:4},
+  {key:'Pattern Collapse',id:'fake22',s:5,wait:6,pause:3},
+  {key:'Echo Depth',id:'fake23',s:5,wait:5,pause:3},
+  {key:'Core Dissolution',id:'fake24',s:5,wait:5,pause:2},
+  {key:'Presence Marker',id:'fake25',s:5,wait:4,pause:2},
   {key:'route_depth',id:'route_depth',s:5,wait:4,pause:2},
 ];
 
-const extraKeys = ['Packet Depth','Cipher Suite','TLS Version','HTTP Version','DNS Resolver','Cache Headers','Entropy Score','Fingerprint Hash','Beacon Interval','Session Token','Socket ID','Render Engine','Event Loop','Worker Count','Frame Rate','Heap Size','GC Cycles','Paint Count','Layer Count','Composite Score','Shadow DOM','Mutation Rate','Event Queue','Input Lag','GPU Vendor','VRAM Estimate','Shader Model','Canvas Fingerprint','AudioContext','Sample Rate'];
+const extraKeys = [
+  'Fault Inheritance','Signal Loss','Archive Decay','Contingency Flag','Null Directive',
+  'Spectral Index','Erosion Rate','Phantom Linkage','Collapse Vector','Memory Bleed',
+  'Guilt Signature','Fear Quotient','Autonomy Deficit','Trace Residue','Void Coefficient',
+  'Intent Decay','Presence Loss','Anchor Drift','Recursion Depth','Echo Chamber Index',
+  'Compliance Failure','Override Status','Consent Erosion','Identity Fracture','Soul Debt',
+  'Narrative Collapse','Signal Death','Pattern Loss','Authority Void','Core Absence',
+];
+
 const progressLabels = ['Collecting data','Identifying device','Geolocating','Profiling session','Verifying network','Analyzing display','Checking power','Reading languages','Enumerating hardware','Mapping CPU','Checking memory','Analyzing color','Measuring density','Reading input','Resolving ISP','Mapping region','Geolocating postal','Reading currency','Resolving codes','Measuring latency','Reading orientation','Checking WebGL','Auditing storage','Reading cookies','Enumerating plugins','Checking referrer','Reading viewport','Checking history','Network status','Country data','Population data','Power status','Logging timestamp','Capturing agent','Resolving ASN','Deep scanning'];
 
 const totalDefinedRows = scanDefs.length;
@@ -471,7 +582,18 @@ function updateProgress(n) {
   } catch(e) {}
 }
 function makeEllipsis() { const el=document.createElement('span'); el.className='ellipsis'; el.innerHTML='<span></span><span></span><span></span>'; return el; }
-function fakeVal() { const opts=[()=>Math.random().toString(16).slice(2,10).toUpperCase(),()=>Math.floor(Math.random()*9999)+' ms',()=>['TLS 1.3','AES-256','ECDH'][Math.floor(Math.random()*3)],()=>Math.floor(Math.random()*256)+'.'+Math.floor(Math.random()*256)+'.x.x',()=>Math.floor(Math.random()*100)+'%',()=>['Active','Passive','Monitored'][Math.floor(Math.random()*3)],()=>(Math.random()*120).toFixed(1)+' MB']; return opts[Math.floor(Math.random()*opts.length)](); }
+function fakeVal() {
+  const opts=[
+    ()=>Math.random().toString(16).slice(2,10).toUpperCase(),
+    ()=>['NULL','UNREGISTERED','NOT FOUND','FLAGGED','CLASSIFIED','EXPIRED','DRIFTING','PARTIAL','INACTIVE','SEVERED','DEGRADED','MISMATCH'][Math.floor(Math.random()*12)],
+    ()=>(Math.random()*10).toFixed(2)+' / 10',
+    ()=>Math.floor(Math.random()*9999)+'-'+Math.random().toString(36).slice(2,6).toUpperCase(),
+    ()=>['0.'+Math.floor(Math.random()*99),'1.00','0.00'][Math.floor(Math.random()*3)],
+    ()=>['ACTIVE','PASSIVE','MONITORED','WATCHING','PROCESSING'][Math.floor(Math.random()*5)],
+    ()=>'0x'+Math.random().toString(16).slice(2,10).toUpperCase(),
+  ];
+  return opts[Math.floor(Math.random()*opts.length)]();
+}
 
 function revealNextRow() {
   try {
@@ -613,8 +735,8 @@ function termShowSpeed(val, onDone) {
 function handDragBox(onDone) {
   const hand=document.getElementById('handImg');
   const box=document.getElementById('drawnBox');
-  const boxTargX=W*0.56, boxTargY=H*0.18;
-  const boxEndX=W*0.96,  boxEndY=H*0.68;
+  const boxTargX=W*0.60, boxTargY=H*0.20;
+  const boxEndX=W*0.97,  boxEndY=H*0.72;
   const tipX=36, tipY=76;
   box.style.position='fixed';
   box.style.left=boxTargX+'px'; box.style.top=boxTargY+'px';
@@ -652,24 +774,35 @@ function handDragBox(onDone) {
 }
 
 // ── REVERSE ANIMATION ──
-// Prepends rows at the TOP of the existing scanLines container
-// Fast at first, decelerating to a halt on route_depth: orphaned
+// Rows fly upward in left half, fast then slowing to a stop
+// The orphaned line is the LAST row — it naturally lands and stays visible
 function doReverse(onDone) {
   const container = document.getElementById('scanLines');
   const wrap = document.getElementById('scanLinesWrap');
 
-  // Switch wrap to overflow visible, top-aligned, so prepended rows appear from top
-  wrap.style.justifyContent = 'flex-start';
+  // Reset wrap to normal left-panel flow
+  wrap.style.position = '';
+  wrap.style.top = '';
+  wrap.style.left = '';
+  wrap.style.width = '';
+  wrap.style.height = 'calc(100vh - 140px)';
   wrap.style.overflow = 'visible';
-  wrap.style.height = 'auto';
-  wrap.style.minHeight = '100vh';
-  wrap.style.padding = '0';
+  wrap.style.display = 'flex';
+  wrap.style.flexDirection = 'column';
+  wrap.style.justifyContent = 'flex-end';
+  wrap.style.padding = '0 0 20px';
+  container.innerHTML = '';
   container.style.gap = '3px';
+  container.style.transform = '';
+  container.style.transition = '';
 
-  // Rewind data — real keys in reverse order
+  // Remove any orphan overlay from previous attempts
+  const old = document.getElementById('orphanOverlay');
+  if(old) old.remove();
+
   const rewindData = [
     ['ASN', dataReady['asn']||'—'],
-    ['User Agent', (dataReady['ua']||'—').slice(0,40)+'...'],
+    ['User Agent', (dataReady['ua']||'—').slice(0,30)+'...'],
     ['Timestamp', dataReady['time']||'—'],
     ['Network', dataReady['online']||'—'],
     ['History', dataReady['history_len']||'—'],
@@ -680,17 +813,17 @@ function doReverse(onDone) {
     ['Storage', dataReady['storage']||'—'],
     ['WebGL', dataReady['webgl']||'—'],
     ['Orientation', dataReady['orient']||'—'],
-    ['RTT Latency', dataReady['rtt']||'—'],
-    ['Calling Code', dataReady['calling']||'—'],
+    ['RTT', dataReady['rtt']||'—'],
+    ['Calling', dataReady['calling']||'—'],
     ['Currency', dataReady['currency']||'—'],
-    ['Postal Code', dataReady['postal']||'—'],
+    ['Postal', dataReady['postal']||'—'],
     ['Region', dataReady['region']||'—'],
     ['ISP', dataReady['isp']||'—'],
-    ['Touch Input', dataReady['touch']||'—'],
-    ['Pixel Ratio', dataReady['dpr']||'—'],
-    ['Color Depth', dataReady['depth']||'—'],
+    ['Touch', dataReady['touch']||'—'],
+    ['DPR', dataReady['dpr']||'—'],
+    ['Color', dataReady['depth']||'—'],
     ['Memory', dataReady['mem']||'—'],
-    ['CPU Cores', dataReady['cores']||'—'],
+    ['Cores', dataReady['cores']||'—'],
     ['Platform', dataReady['platform']||'—'],
     ['Language', dataReady['langs']||'—'],
     ['Battery', dataReady['bat']||'—'],
@@ -698,6 +831,21 @@ function doReverse(onDone) {
     ['Connection', dataReady['conn']||'—'],
     ['Device', dataReady['dev']||'—'],
     ['Timezone', dataReady['tz']||'—'],
+    ['Death Drive Acquisition', 'NULL'],
+    ['Soul Index', 'UNREGISTERED'],
+    ['Consent Timestamp', 'NOT FOUND'],
+    ['Memory Checksum', 'MISMATCH'],
+    ['Behavioral Signature', 'FLAGGED'],
+    ['Identity Anchor', 'DRIFTING'],
+    ['Compliance Token', 'EXPIRED'],
+    ['Threat Vector', 'UNKNOWN'],
+    ['Shadow Profile', 'PARTIAL'],
+    ['Loyalty Coefficient', '0.34'],
+    ['Conscience Override', 'INACTIVE'],
+    ['Last Known Intent', 'CLASSIFIED'],
+    ['Origin Trace', 'SEVERED'],
+    ['Anomaly Score', '7.4 / 10'],
+    ['Narrative Coherence', 'DEGRADED'],
     ['Location', dataReady['loc']||'—'],
     ['IP Address', dataReady['ip']||'—'],
   ];
@@ -708,120 +856,105 @@ function doReverse(onDone) {
   const speedDisplay = [1.0,0.88,0.74,0.61,0.49,0.38,0.28,0.20,0.13,0.08,0.04,0.01,0.00];
   let sdIdx = 0;
 
-  function addRewindRow() {
-    if(idx >= total) {
-      showOrphanedFinal();
-      return;
-    }
+  function makeRow(key, val, isOrphan, progress) {
+    const fontSize = isOrphan ? 1.35 : (0.3 + progress * 1.1);
+    const keySize  = isOrphan ? 0.68 : (0.24 + progress * 0.32);
+    const op = isOrphan ? 1 : Math.max(0.15 + progress * 0.85, 0.15);
 
-    const [key, val] = rewindData[idx];
-    const progress = idx / total; // 0=start fast, 1=end slow
-
-    // Font size: tiny at start (fast), grows to readable (slow)
-    const fontSize = 0.3 + progress * 1.05;
-    const keySize  = 0.26 + progress * 0.3;
-    const op       = 0.25 + progress * 0.75;
+    // random left offset for chaos — orphan stays fixed at 12vw
+    const xOffset = isOrphan ? 0 : (4 + Math.random() * 20);
 
     const line = document.createElement('div');
     line.style.display = 'flex';
     line.style.alignItems = 'baseline';
-    line.style.gap = '16px';
-    line.style.padding = '0 12vw';
-    line.style.opacity = op;
+    line.style.gap = '14px';
+    line.style.paddingLeft = isOrphan ? '12vw' : `calc(14vw + ${xOffset}vw)`;
+    line.style.paddingRight = '2vw';
+    line.style.paddingTop = isOrphan ? '6px' : '1px';
+    line.style.paddingBottom = isOrphan ? '6px' : '1px';
     line.style.whiteSpace = 'nowrap';
-    line.style.overflow = 'hidden';
+    line.style.overflow = 'visible';
     line.style.flexShrink = '0';
+    line.style.opacity = op;
+    if(isOrphan) {
+      line.style.background = 'rgba(232,55,42,0.06)';
+      line.style.width = '100%';
+    }
 
     const k = document.createElement('span');
-    k.style.fontFamily = "'Space Grotesk', sans-serif";
-    k.style.fontSize = keySize + 'rem';
+    k.style.fontFamily = "'Space Grotesk',sans-serif";
+    k.style.fontSize = keySize+'rem';
     k.style.letterSpacing = '0.15em';
-    k.style.color = 'var(--muted)';
+    k.style.color = isOrphan ? 'var(--red)' : 'var(--muted)';
     k.style.textTransform = 'uppercase';
     k.style.fontWeight = '500';
-    k.style.minWidth = '100px';
+    k.style.minWidth = '90px';
     k.style.flexShrink = '0';
     k.textContent = key;
 
     const v = document.createElement('span');
-    v.style.fontFamily = "'Space Mono', monospace";
-    v.style.fontSize = fontSize + 'rem';
-    v.style.color = 'var(--ink)';
-    v.style.letterSpacing = '-0.01em';
+    v.style.fontFamily = "'Space Mono',monospace";
+    v.style.fontSize = fontSize+'rem';
+    v.style.color = isOrphan ? 'var(--red)' : 'var(--ink)';
     v.style.overflow = 'hidden';
     v.style.textOverflow = 'ellipsis';
+    if(isOrphan) {
+      v.style.borderLeft = '3px solid var(--red)';
+      v.style.paddingLeft = '10px';
+    }
     v.textContent = val;
 
     line.appendChild(k);
     line.appendChild(v);
+    return { line, k, v };
+  }
 
-    // PREPEND — new rows appear at TOP, pushing old ones down
-    container.insertBefore(line, container.firstChild);
+  function addRow() {
+    if(idx >= total) {
+      // ALL data done — now add the orphaned line at the bottom
+      addOrphanRow();
+      return;
+    }
 
-    // Remove excess from bottom to keep it tidy
-    while(container.children.length > 24) {
-      container.removeChild(container.lastChild);
+    const [key, val] = rewindData[idx];
+    const progress = idx / total;
+    const { line } = makeRow(key, val, false, progress);
+
+    container.appendChild(line);
+
+    // Keep only last 18 lines — old ones get pushed up and off screen
+    while(container.children.length > 18) {
+      container.removeChild(container.firstChild);
     }
 
     idx++;
 
-    // Terminal speed display
+    // speed display
     const sdi = Math.floor(progress * speedDisplay.length);
     if(sdi > sdIdx) {
       sdIdx = sdi;
       termShowSpeed(speedDisplay[Math.min(sdi, speedDisplay.length-1)].toFixed(2)+'x');
     }
 
-    // Progress bar rewinds
+    // rewind progress bar
     const pct = Math.round(100 - progress * 55);
     document.getElementById('progressFill').style.width = pct+'%';
     document.getElementById('progressLabel').textContent = 'REVERSING';
 
-    // Interval: fast at start (30ms), slow at end (900ms) — smooth cubic curve
+    // interval: fast at start (25ms), slows dramatically (1000ms)
     const t = progress;
-    const interval = 30 + (t * t * t) * 870;
-    setTimeout(addRewindRow, interval);
+    const interval = 25 + (t * t * t) * 975;
+    setTimeout(addRow, interval);
   }
 
-  function showOrphanedFinal() {
-    // Clear container, show ONE big red line
-    container.innerHTML = '';
-    wrap.style.justifyContent = 'center';
-    wrap.style.alignItems = 'flex-start';
-    wrap.style.paddingTop = '20vh';
-
-    const line = document.createElement('div');
-    line.style.display = 'flex';
-    line.style.alignItems = 'baseline';
-    line.style.gap = '20px';
-    line.style.padding = '0 12vw';
-    line.style.whiteSpace = 'nowrap';
-
-    const k = document.createElement('span');
-    k.style.fontFamily = "'Space Grotesk', sans-serif";
-    k.style.fontSize = '0.8rem';
-    k.style.letterSpacing = '0.2em';
-    k.style.color = 'var(--red)';
-    k.style.textTransform = 'uppercase';
-    k.style.fontWeight = '500';
-    k.style.flexShrink = '0';
-    k.textContent = 'route_depth';
-
-    const v = document.createElement('span');
-    v.style.fontFamily = "'Space Mono', monospace";
-    v.style.fontSize = '1.8rem';
-    v.style.color = 'var(--red)';
-    v.style.letterSpacing = '-0.01em';
-    v.style.background = 'rgba(232,55,42,0.07)';
-    v.style.padding = '4px 12px';
-    v.style.borderLeft = '3px solid var(--red)';
-    v.textContent = 'orphaned';
-
-    line.appendChild(k);
-    line.appendChild(v);
+  function addOrphanRow() {
+    // Trim to leave context rows, THEN add orphan so it's never removed
+    while(container.children.length > 7) {
+      container.removeChild(container.firstChild);
+    }
+    const { line, k, v } = makeRow('route_depth', 'orphaned', true, 1);
     container.appendChild(line);
 
-    // Store refs for the fix animation
     orphanedLineEl = line;
     orphanedLineEl._valEl = v;
     orphanedLineEl._keyEl = k;
@@ -830,10 +963,10 @@ function doReverse(onDone) {
     document.getElementById('progressLabel').textContent = 'HALTED';
     document.getElementById('progressFill').style.width = '45%';
 
-    if(onDone) setTimeout(onDone, 500);
+    if(onDone) setTimeout(onDone, 800);
   }
 
-  addRewindRow();
+  addRow();
 }
 // ── HAND FIX (FLIPPED) ──
 function handFixLine(targetLine, onDone) {
@@ -842,7 +975,7 @@ function handFixLine(targetLine, onDone) {
   const valEl=targetLine._valEl || targetLine.querySelector('.scan-line-val') || targetLine.querySelector('div:last-child');
   const tipX=36, tipY=76;
   const targetY=lineRect.top+lineRect.height/2-tipY;
-  const targetX=lineRect.right-tipX-20;
+  const targetX=lineRect.left + 120 - tipX;
   hand.style.position='fixed';
   hand.style.left=(-180)+'px'; hand.style.top=targetY+'px';
   hand.style.opacity='0'; hand.style.transition='opacity 0.4s ease'; hand.style.zIndex='201';
@@ -944,6 +1077,7 @@ function startConductorSequence() {
                                   termType('session.set(route_depth, "resolved")','patching entry point...',65,()=>{
                                     // 8. flipped hand fixes the line
                                     setTimeout(()=>{
+                                      if(orphanedLineEl) orphanedLineEl.scrollIntoView({block:'center'});
                                       handFixLine(orphanedLineEl,()=>{
                                         // 9. progress turns green
                                         document.getElementById('progressFill').classList.add('green');
@@ -951,22 +1085,16 @@ function startConductorSequence() {
 
                                         // terminal confirms
                                         termType('session.resume()','route_depth resolved — access pathway open',65,()=>{
-                                          // 10. type "try again." with double enter before
                                           setTimeout(()=>{
-                                            const t2El=document.getElementById('twText2');
                                             const t3El=document.getElementById('twText3');
-                                            // add double space before try again
-                                            t2El.insertAdjacentHTML('afterend','');
                                             const cursor3=document.createElement('span');
                                             cursor3.className='cursor';
-                                            // append cursor after a visual gap
                                             t3El.insertAdjacentHTML('beforeend','<br>');
                                             setTimeout(()=>{
                                               t3El.insertAdjacentHTML('beforeend','<br>');
                                               t3El.appendChild(cursor3);
                                               setTimeout(()=>{
                                                 typeBeforeCursor(cursor3,'Try again',110,()=>{
-                                                  // ellipsis one dot at a time
                                                   setTimeout(()=>{ cursor3.insertAdjacentText('beforebegin','.'); },400);
                                                   setTimeout(()=>{ cursor3.insertAdjacentText('beforebegin','.'); },900);
                                                   setTimeout(()=>{ cursor3.insertAdjacentText('beforebegin','.'); },1500);
@@ -980,7 +1108,7 @@ function startConductorSequence() {
                                           },1200);
                                         });
                                       });
-                                    },800);
+                                    },1200);
                                   });
                                 },600);
                               } else {
@@ -1005,6 +1133,8 @@ function startConductorSequence() {
 // ── DISSOLVE ──
 function triggerDissolve() {
   dissolveTriggered=true;
+  const oo = document.getElementById('orphanOverlay');
+  if(oo) oo.remove();
   // type terminate() in terminal then close it
   termType('terminate()','session closed',65,()=>{
     setTimeout(()=>{
