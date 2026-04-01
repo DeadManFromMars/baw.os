@@ -1,3 +1,16 @@
+const music = document.getElementById("bgMusic");
+
+function startMusic() {
+    music.volume = 0.3; // 0.0 to 1.0
+    music.play();
+}
+
+
+
+
+
+
+
 const ACCESS_CODE = 'bawsome';
 const REDIRECT_URL = 'stage2.html';
 

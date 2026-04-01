@@ -1,13 +1,13 @@
 @font-face {
 	font-family: "Vipnagorgialla Rg";
-	src: url('fonts/Vipnagorgialla/Vipnagorgialla_Rg.otf') format('opentype');
+	src: url('Fonts/Vipnagorgialla/Vipnagorgialla_Rg.otf') format('opentype');
 }
 @font-face {
 	font-family: "DeadPostman";
-	src: url("fonts/DeadPostmanRespawned/DeadPostmanRespawned.ttf") format("truetype");
+	src: url("Fonts/DeadPostmanRespawned/DeadPostmanRespawned.ttf") format("truetype");
 }
 * {
-	font-family: "DeadPostman", sans-serif;
+	font-family: "Vipnagorgialla Rg", sans-serif;
 }
 
 
@@ -38,7 +38,7 @@ html, body {
 	width: 100%;
 	background: var(--cream);
 	color: var(--ink);
-	font-family: 'Space Grotesk', sans-serif;
+	font-family: 'Vipnagorgialla Rg', sans-serif;
 	overflow: hidden;
 }
 
@@ -857,8 +857,8 @@ html, body {
 }
 
 .tw-text, .tw-text2, .tw-text3 {
-	font-family: 'Space Mono', monospace;
-	font-size: clamp(1.05rem, 1.9vw, 1.6rem);
+	font-family: 'DeadPostman', monospace;
+	font-size: clamp(1.05rem, 4vw, 4rem);
 	color: #1a1a18;
 	font-weight: 400;
 	font-style: italic;
