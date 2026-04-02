@@ -8,7 +8,10 @@ let radioPlaying = false;
 
 fetch('playlist.json')
     .then(r => r.json())
-    .then(data => { playlist = data; })
+    .then(data => {
+        playlist = data;
+        console.log('playlist loaded:', playlist);
+    })
     .catch(() => console.warn('playlist.json not found'));
 
 function formatTime(secs) {
