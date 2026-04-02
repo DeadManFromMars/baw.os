@@ -1,10 +1,10 @@
 @font-face {
 	font-family: "Vipnagorgialla Rg";
-	src: url('Fonts/Vipnagorgialla/Vipnagorgialla_Rg.otf') format('opentype');
+	src: url('fonts/Vipnagorgialla/Vipnagorgialla_Rg.otf') format('opentype');
 }
 @font-face {
 	font-family: "DeadPostman";
-	src: url("Fonts/DeadPostmanRespawned/DeadPostmanRespawned.ttf") format("truetype");
+	src: url("fonts/DeadPostmanRespawned/DeadPostmanRespawned.ttf") format("truetype");
 }
 * {
 	font-family: "Vipnagorgialla Rg", sans-serif;
