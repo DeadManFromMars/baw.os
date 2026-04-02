@@ -64,6 +64,14 @@ if (progressMeta) progressMeta.style.fontSize = CONFIG.progressBarFontSize;
 let conductorReady = false; // true once the globe moment is finished
 
 
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// GLOBE
+// Renders a spinning wireframe dot-globe on #globeCanvas
+// Position and size are driven by CONFIG above
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // GLOBE
 // Renders a spinning wireframe dot-globe on #globeCanvas
@@ -74,18 +82,17 @@ let conductorReady = false; // true once the globe moment is finished
     window.addEventListener('DOMContentLoaded', () => {
 
         const canvas = document.getElementById('globeCanvas');
-        if (!canvas) return;
+        const overlay = document.getElementById('globeOverlay');
+        if (!canvas || !overlay) return;
 
         const ctx = canvas.getContext('2d');
 
-        // Globe rotation & tilt — adjust these to change the globe's orientation
         const globeConfig = {
-            tiltX: 0.98,   // up/down tilt in radians
-            tiltZ: 0.4,   // sideways lean in radians
-            invertSpin: false,  // true = spin the other direction
+            tiltX: 0.98,
+            tiltZ: 0.4,
+            invertSpin: false,
         };
 
-        // Size canvas to full screen, accounting for retina/hi-DPI screens
         function resizeCanvas() {
             const dpr = window.devicePixelRatio || 1;
             canvas.width = window.innerWidth * dpr;
@@ -97,78 +104,217 @@ let conductorReady = false; // true once the globe moment is finished
 
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
-
-        // Re-measure after the wordmark animates in (riseIn takes ~1.2s)
         setTimeout(resizeCanvas, 1400);
 
-        function drawGlobe() {
+        // ── Position animation ──
+        const MOVE_DURATION = 2000;
+        let currentGlobeX = CONFIG.globeX;
+        let currentGlobeY = CONFIG.globeY;
+        let startGlobeX = CONFIG.globeX;
+        let startGlobeY = CONFIG.globeY;
+        let targetGlobeX = CONFIG.globeX;
+        let targetGlobeY = CONFIG.globeY;
+        let globeMoveStart = null;
+
+        window.startGlobeMove = (toX, toY) => {
+            startGlobeX = currentGlobeX;
+            startGlobeY = currentGlobeY;
+            targetGlobeX = toX;
+            targetGlobeY = toY;
+            globeMoveStart = performance.now();
+        };
+
+        // ── Pin system ──
+        // Each pin is a fixed lat/lon on the globe surface
+        // The line grows out from the pin's screen position to a fixed box position
+        // Quadrants ensure pins are evenly spread across the globe
+
+        const PIN_COUNT = 4; // start with 1, increase to 4 later
+
+        // Box anchor positions — where the card sits on screen (% of screen)
+        // Add more entries when you add more pins
+        const boxAnchors = [
+            { x: 0.18, y: 0.78 }, // bottom left
+            { x: 0.18, y: 0.22 }, // top left
+            { x: 0.82, y: 0.22 }, // top right
+            { x: 0.82, y: 0.78 }, // bottom right
+        ];
+
+        // Pick one random lat/lon per quadrant
+        function pickPins(count) {
+            const quadrants = [
+                { latMin: 0.1, latMax: Math.PI / 2, lonMin: 0, lonMax: Math.PI }, // top left
+                { latMin: 0.1, latMax: Math.PI / 2, lonMin: Math.PI, lonMax: Math.PI * 2 }, // top right
+                { latMin: Math.PI / 2, latMax: Math.PI * 0.9, lonMin: 0, lonMax: Math.PI }, // bottom left
+                { latMin: Math.PI / 2, latMax: Math.PI * 0.9, lonMin: Math.PI, lonMax: Math.PI * 2 }, // bottom right
+            ];
+
+            return quadrants.slice(0, count).map((q, i) => ({
+                lat: q.latMin + Math.random() * (q.latMax - q.latMin),
+                lon: q.lonMin + Math.random() * (q.lonMax - q.lonMin),
+                boxX: boxAnchors[i].x * window.innerWidth,
+                boxY: boxAnchors[i].y * window.innerHeight,
+                boxW: 220,
+                boxH: 160,
+                lineEl: null, // SVG line element
+                boxEl: null, // SVG rect element
+                visible: false,
+                progress: 0,    // 0 = line not drawn, 1 = fully drawn
+            }));
+        }
+
+        const pins = pickPins(PIN_COUNT);
+
+        // Create SVG elements for each pin
+        pins.forEach(pin => {
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('stroke', 'rgba(255,0,0,0.7)');
+            line.setAttribute('stroke-width', '1.5');
+            line.setAttribute('opacity', '0');
+            overlay.appendChild(line);
+            pin.lineEl = line;
+
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('stroke', 'rgba(255,0,0,0.7)');
+            rect.setAttribute('stroke-width', '1.5');
+            rect.setAttribute('fill', 'rgba(245,242,236,0.92)');
+            rect.setAttribute('rx', '2');
+            rect.setAttribute('opacity', '0');
+            rect.setAttribute('x', pin.boxX - pin.boxW / 2);
+            rect.setAttribute('y', pin.boxY - pin.boxH / 2);
+            rect.setAttribute('width', pin.boxW);
+            rect.setAttribute('height', pin.boxH);
+            overlay.appendChild(rect);
+            pin.boxEl = rect;
+        });
+
+        // Project a lat/lon point through the current globe rotation to screen coords
+        function projectPin(lat, lon, cx, cy, radius, spinY, cosX, sinX, cosZ, sinZ) {
+            let x = radius * Math.sin(lat) * Math.cos(lon);
+            let y = radius * Math.cos(lat);
+            let z = radius * Math.sin(lat) * Math.sin(lon);
+
+            let x1 = x * Math.cos(spinY) - z * Math.sin(spinY);
+            let z1 = x * Math.sin(spinY) + z * Math.cos(spinY);
+
+            let y2 = y * cosX - z1 * sinX;
+            let z2 = y * sinX + z1 * cosX;
+
+            let x3 = x1 * cosZ - y2 * sinZ;
+            let y3 = x1 * sinZ + y2 * cosZ;
+
+            const perspective = 300 / (300 + z2);
+            return {
+                x: cx + x3 * perspective,
+                y: cy + y3 * perspective,
+                z: z2, // depth — positive = front
+            };
+        }
+
+        // Trigger pin lines to draw out — call this from triggerDissolve
+        window.startPinLines = () => {
+            pins.forEach(pin => { pin.visible = true; });
+        };
+
+        let pinsActive = false;
+
+        function drawGlobe(timestamp) {
             const dpr = window.devicePixelRatio || 1;
-
-
-            // Logical canvas size (not physical pixels)
             const logicalW = canvas.width / dpr;
             const logicalH = canvas.height / dpr;
-
             ctx.clearRect(0, 0, logicalW, logicalH);
 
-            // Center position from CONFIG
-            const cx = window.innerWidth * (CONFIG.globeX / 100);
-            const cy = window.innerHeight * (CONFIG.globeY / 100);
+            // Position animation
+            if (globeMoveStart !== null) {
+                const elapsed = timestamp - globeMoveStart;
+                const t = Math.min(elapsed / MOVE_DURATION, 1);
+                const eased = t < 0.5
+                    ? 2 * t * t
+                    : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                currentGlobeX = startGlobeX + (targetGlobeX - startGlobeX) * eased;
+                currentGlobeY = startGlobeY + (targetGlobeY - startGlobeY) * eased;
+                if (t >= 1) globeMoveStart = null;
+            }
 
-            // Size globe relative to wordmark width
+            const cx = window.innerWidth * (currentGlobeX / 100);
+            const cy = window.innerHeight * (currentGlobeY / 100);
+
             const wordmark = document.querySelector('.scan-wordmark');
             const wordmarkWidth = wordmark ? wordmark.offsetWidth : 300;
             const radius = wordmarkWidth * 0.7 * CONFIG.globeSize;
 
-            // Spin angle advances with time
             const time = Date.now() * 0.001;
             const spinY = (globeConfig.invertSpin ? -1 : 1) * time * CONFIG.globeSpeed;
 
-            // Precompute tilt rotation values
             const cosX = Math.cos(globeConfig.tiltX);
             const sinX = Math.sin(globeConfig.tiltX);
             const cosZ = Math.cos(globeConfig.tiltZ);
             const sinZ = Math.sin(globeConfig.tiltZ);
 
-            // Draw each point on the globe surface
+            // Draw globe dots
             for (let lat = 0; lat < Math.PI; lat += 0.08) {
                 for (let lon = 0; lon < Math.PI * 2; lon += 0.08) {
 
-                    // 1. Convert spherical coords to 3D cartesian
                     let x = radius * Math.sin(lat) * Math.cos(lon);
                     let y = radius * Math.cos(lat);
                     let z = radius * Math.sin(lat) * Math.sin(lon);
 
-                    // 2. Rotate around Y axis (spin)
                     let x1 = x * Math.cos(spinY) - z * Math.sin(spinY);
                     let z1 = x * Math.sin(spinY) + z * Math.cos(spinY);
 
-                    // 3. Rotate around X axis (tilt forward/back)
                     let y2 = y * cosX - z1 * sinX;
                     let z2 = y * sinX + z1 * cosX;
 
-                    // 4. Rotate around Z axis (lean left/right)
                     let x3 = x1 * cosZ - y2 * sinZ;
                     let y3 = x1 * sinZ + y2 * cosZ;
 
-                    // 5. Apply perspective — points further away appear smaller
                     const perspective = 300 / (300 + z2);
                     const screenX = cx + x3 * perspective;
                     const screenY = cy + y3 * perspective;
 
-                    // Dot opacity fades with depth — back hemisphere is dimmer
-                    const depth = (z2 + radius) / (2 * radius); // 0 = back, 1 = front
-                    const alpha = 0.05 + depth * 0.25;
+                    const depth = (z2 + radius) / (2 * radius);
+                    const alpha = 0.3 + depth * 0.7;
 
-                    ctx.fillStyle = `rgba(255, 0, 0, 1)`;
+                    ctx.fillStyle = `rgba(255, 0, 0, ${alpha.toFixed(2)})`;
                     ctx.fillRect(screenX, screenY, 1.5, 1.5);
                 }
             }
 
+            // Update pin lines every frame
+            pins.forEach(pin => {
+                if (!pin.visible) return;
+
+                // Grow progress from 0 to 1 over 1.2 seconds
+                pin.progress = Math.min(pin.progress + 0.007, 1);
+
+                const proj = projectPin(
+                    pin.lat, pin.lon,
+                    cx, cy, radius,
+                    spinY, cosX, sinX, cosZ, sinZ
+                );
+
+                // Interpolate line from pin toward box based on progress
+                const endX = pin.boxX;
+                const endY = pin.boxY;
+                const curEndX = proj.x + (endX - proj.x) * pin.progress;
+                const curEndY = proj.y + (endY - proj.y) * pin.progress;
+
+                pin.lineEl.setAttribute('x1', proj.x + 0.75);  // 0.75 = half of 1.5px dot width
+                pin.lineEl.setAttribute('y1', proj.y + 0.75);
+                pin.lineEl.setAttribute('x2', curEndX);
+                pin.lineEl.setAttribute('y2', curEndY);
+                pin.lineEl.setAttribute('opacity', '1');
+
+                // Show box only when line is fully drawn
+                if (pin.progress >= 1) {
+                    pin.boxEl.setAttribute('opacity', '1');
+                }
+            });
+
             requestAnimationFrame(drawGlobe);
         }
 
-        drawGlobe();
+        requestAnimationFrame(drawGlobe);
     });
 })();
 
@@ -1229,17 +1375,46 @@ function triggerDissolve() {
     dissolveTriggered = true;
     document.getElementById('orphanOverlay')?.remove();
 
+    // Type closing command then slide terminal back down
     termType('terminate()', 'session closed', 65, () => {
-        setTimeout(() => document.getElementById('termBar').classList.remove('visible'), 600);
+        setTimeout(() => {
+            document.getElementById('termBar').classList.remove('visible');
+        }, 600);
     });
 
-    document.getElementById('progressLabel').textContent = 'COMPLETE';
-    document.getElementById('scanPhase').classList.add('dissolving');
+    // Fade out foreground elements
+    [
+        document.querySelector('.scan-left'),
+        document.querySelector('.scan-right'),
+        document.getElementById('drawnBox'),
+    ].forEach(el => {
+        if (!el) return;
+        el.style.transition = 'opacity 2s ease';
+        el.style.opacity = '0';
+    });
 
+    // Step 1 — move wordmark and globe to center together
     setTimeout(() => {
-        document.getElementById('scanPhase').style.display = 'none';
-        document.getElementById('loginPhase').classList.add('visible');
-    }, 3000);
+        const header = document.querySelector('.scan-header');
+        if (header) {
+            header.style.left = '50%';
+            header.style.top = '50%';
+        }
+        window.startGlobeMove(50, 50);
+    }, 500); // wait for fade to start
+
+    // Step 2 — lift wordmark up after globe and wordmark reach center
+    setTimeout(() => {
+        const header = document.querySelector('.scan-header');
+        if (header) {
+            header.style.top = '12%'; // adjust freely — lower % = higher on screen
+        }
+    }, 3100); // 500 fade + 2000 move + 600 buffer
+
+    // Step 3 — draw pin lines after wordmark finishes lifting
+    setTimeout(() => {
+        if (window.startPinLines) window.startPinLines();
+    }, 5500); // 3100 + 2000 lift + 400 buffer
 }
 
 
@@ -1252,6 +1427,18 @@ document.addEventListener('keydown', e => { if (e.key === 'Enter') attemptLogin(
 function attemptLogin() {
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value.trim();
+
+
+    // DEV SHORTCUT — remove before launch!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    if (password.toLowerCase() === 'wawamangosmoothie') {
+        document.getElementById('loginPhase').style.display = 'none';
+        const scanPhase = document.getElementById('scanPhase');
+        scanPhase.style.display = 'flex';
+        scanPhase.style.opacity = '1';
+        conductorReady = true;
+        triggerDissolve();
+        return;
+    }
 
     if (!username) {
         showMsg('Employee ID is required.', 'error');
@@ -1314,17 +1501,3 @@ function showMsg(text, type) {
 }
 
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// KICK OFF
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-// Start scan 800ms after page load
-//setTimeout(revealNextRow, 800);
-
-// Safety net — force conductor after 30s if it never triggered naturally
-setTimeout(() => {
-    if (!typewriterTriggered) {
-        typewriterTriggered = true;
-        startConductorSequence();
-    }
-}, 30000);

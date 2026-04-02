@@ -650,6 +650,7 @@ html, body {
 	pointer-events: none;
 	text-align: center;
 	white-space: nowrap;
+	transition: left 2s ease, top 2s ease;
 }
 
 .scan-wordmark {
