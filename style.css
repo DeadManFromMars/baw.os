@@ -10,24 +10,35 @@
 	font-family: "Vipnagorgialla Rg", sans-serif;
 }
 
+/* Fix scan-header — pin it to viewport center, out of column flow */
+.scan-header {
+	position: fixed; /* was absolute */
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	z-index: 3;
+	pointer-events: none;
+	text-align: center;
+	white-space: nowrap;
+}
+
 #globeCanvas {
 	position: fixed;
 	top: 0;
 	left: 0;
 	width: 100vw;
 	height: 100vh;
-	z-index: 0;
 	pointer-events: none;
+	z-index: 9; /* just below scanPhase which is z-index: 10 */
 }
 
 #scanPhase {
-	position: relative;
-	z-index: 2;
+  position: relative;
+  z-index: 2;
 }
 
 .scan-left,
-.scan-right,
-.scan-header {
+.scan-right {
 	position: relative;
 	z-index: 2;
 }
@@ -552,6 +563,8 @@ html, body {
 	overflow: visible;
 	position: relative;
 	white-space: nowrap;
+	width: 40vw; /* add this — was unsized */
+	flex-shrink: 0;
 }
 
 	.scan-left::before {
@@ -579,16 +592,14 @@ html, body {
 	}
 
 .scan-header {
-	position: absolute;
-	top: 50%;
-	left: 12vw;
-	right: 5vw;
-	transform: translateY(-50%);
+	position: fixed;
+	left: 32%; /* match CONFIG.globeX */
+	top: 50%; /* match CONFIG.globeY */
+	transform: translate(-50%, -50%);
 	z-index: 3;
 	pointer-events: none;
-	flex-shrink: 0;
-	width: 100%;
-	transform: translateZ(0);
+	text-align: center;
+	white-space: nowrap;
 }
 
 .scan-wordmark {
@@ -641,13 +652,13 @@ html, body {
 
 .scan-lines-wrap {
 	width: 100%;
-	height: calc(100vh - 140px);
+	height: calc(100vh - 200px); /* was 140px — more room, stops before progress bar */
 	overflow: hidden;
 	display: flex;
 	flex-direction: column;
 	justify-content: flex-end;
 	padding: 0 0 20px;
-	transition: transform 0s;
+	padding-left: 8vw; /* add this — controls forward scan line indent */
 }
 
 .scan-lines {
@@ -814,18 +825,19 @@ html, body {
 /* progress */
 .scan-progress {
 	position: absolute;
-	bottom: 20px;
-	left: 12vw;
-	right: 5vw;
+	bottom: 32px;
+	left: 8vw; /* matches CONFIG.progressBarLeftOffset */
+	right: 5vw; /* matches CONFIG.progressBarRightOffset */
 	z-index: 3;
 	opacity: 0;
 	animation: riseIn 0.6s 1.2s ease forwards;
+	transition: opacity 0.8s ease; /* for fade out */
 }
 
 .progress-track {
-	height: 1px;
+	height: 2px; /* was 1px — double the thickness */
 	background: var(--muted2);
-	margin-bottom: 7px;
+	margin-bottom: 10px;
 	overflow: hidden;
 }
 
@@ -837,12 +849,12 @@ html, body {
 }
 
 .progress-meta {
-	display: flex;
-	justify-content: space-between;
-	font-size: 0.42rem;
+	font-size: 0.55rem; /* was 0.42rem — bigger labels */
 	letter-spacing: 0.18em;
 	color: var(--muted);
 	text-transform: uppercase;
+	display: flex;
+	justify-content: space-between;
 }
 
 	.progress-meta span {
