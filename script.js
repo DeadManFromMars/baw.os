@@ -6,8 +6,6 @@ let playlist = [];
 let currentTrack = 0;
 let radioPlaying = false;
 
-const music = document.getElementById('bgMusic');
-
 fetch('playlist.json')
     .then(r => r.json())
     .then(data => { playlist = data; })
