@@ -1,14 +1,152 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MUSIC
+// RADIO SYSTEM
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+let playlist = [];
+let currentTrack = 0;
+let radioPlaying = false;
 
 const music = document.getElementById('bgMusic');
 
-function startMusic() {
-    if (!music) return;
-    music.volume = 0.3;
-    music.play();
+fetch('playlist.json')
+    .then(r => r.json())
+    .then(data => { playlist = data; })
+    .catch(() => console.warn('playlist.json not found'));
+
+function formatTime(secs) {
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
 }
+
+function updateRadioUI() {
+    const track = playlist[currentTrack];
+
+    // Update title and artist
+    document.getElementById('radioTitle').textContent = track.title;
+    document.getElementById('radioArtist').textContent = track.artist;
+
+    // Check if marquee is needed
+    const marquee = document.getElementById('radioTitle');
+    const wrap = marquee.parentElement;
+    if (marquee.scrollWidth <= wrap.clientWidth) {
+        marquee.classList.add('fits');
+    } else {
+        marquee.classList.remove('fits');
+    }
+
+    // Update play/pause button
+    document.getElementById('radioPlayBtn').innerHTML = radioPlaying ? '&#9646;&#9646;' : '&#9654;';
+}
+
+function updateRadioProgress() {
+    if (!music || !music.duration) return;
+    const pct = (music.currentTime / music.duration) * 100;
+    document.getElementById('radioFill').style.width = pct + '%';
+    document.getElementById('radioCurrent').textContent = formatTime(music.currentTime);
+    document.getElementById('radioDuration').textContent = formatTime(music.duration);
+}
+
+function startMusic() {
+    if (!music || radioPlaying) return;
+    loadTrack(currentTrack);
+    music.play();
+    radioPlaying = true;
+    updateRadioUI();
+
+    // Show radio widget
+    document.getElementById('radioWidget').classList.add('visible');
+}
+
+function loadTrack(idx) {
+    currentTrack = idx;
+    music.src = playlist[currentTrack].src;
+    music.volume = document.getElementById('radioVolume').value / 100;
+    music.load();
+    updateRadioUI();
+}
+
+function nextTrack() {
+    currentTrack = (currentTrack + 1) % playlist.length;
+    loadTrack(currentTrack);
+    music.play();
+    radioPlaying = true;
+    updateRadioUI();
+}
+
+function prevTrack() {
+    currentTrack = (currentTrack - 1 + playlist.length) % playlist.length;
+    loadTrack(currentTrack);
+    music.play();
+    radioPlaying = true;
+    updateRadioUI();
+}
+
+function pauseMusic() {
+    if (!music) return;
+    if (music.paused) {
+        music.play();
+        radioPlaying = true;
+    } else {
+        music.pause();
+        radioPlaying = false;
+    }
+    updateRadioUI();
+}
+
+function setVolume(val) {
+    if (!music) return;
+    music.volume = Math.max(0, Math.min(1, val));
+}
+
+// Update progress bar every second
+setInterval(updateRadioProgress, 500);
+
+// Auto advance when track ends
+music.addEventListener('ended', nextTrack);
+
+// Click on progress bar to seek
+document.querySelector('.radio-progress-bar').addEventListener('click', e => {
+    if (!music || !music.duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    music.currentTime = pct * music.duration;
+});
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// RADIO DRAG
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+(function initRadioDrag() {
+    const widget = document.getElementById('radioWidget');
+    const handle = document.getElementById('radioDragHandle');
+
+    let dragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    handle.addEventListener('mousedown', e => {
+        dragging = true;
+        const rect = widget.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        widget.style.transition = 'opacity 1.5s ease'; // keep fade, remove position transition
+        widget.style.bottom = 'auto';
+        widget.style.right = 'auto';
+        widget.style.left = rect.left + 'px';
+        widget.style.top = rect.top + 'px';
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        widget.style.left = (e.clientX - offsetX) + 'px';
+        widget.style.top = (e.clientY - offsetY) + 'px';
+    });
+
+    document.addEventListener('mouseup', () => { dragging = false; });
+})();
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -80,6 +218,8 @@ let conductorReady = false; // true once the globe moment is finished
 
 (() => {
     window.addEventListener('DOMContentLoaded', () => {
+
+        let musicStarted = false;
 
         const canvas = document.getElementById('globeCanvas');
         const overlay = document.getElementById('globeOverlay');
@@ -299,7 +439,7 @@ let conductorReady = false; // true once the globe moment is finished
                 const curEndX = proj.x + (endX - proj.x) * pin.progress;
                 const curEndY = proj.y + (endY - proj.y) * pin.progress;
 
-                pin.lineEl.setAttribute('x1', proj.x + 0.75);  // 0.75 = half of 1.5px dot width
+                pin.lineEl.setAttribute('x1', proj.x + 0.75);
                 pin.lineEl.setAttribute('y1', proj.y + 0.75);
                 pin.lineEl.setAttribute('x2', curEndX);
                 pin.lineEl.setAttribute('y2', curEndY);
@@ -310,6 +450,12 @@ let conductorReady = false; // true once the globe moment is finished
                     pin.boxEl.setAttribute('opacity', '1');
                 }
             });
+
+            // Start music once all pins have finished drawing
+            if (!musicStarted && pins.length > 0 && pins.every(p => p.progress >= 1)) {
+                musicStarted = true;
+                startMusic();
+            }
 
             requestAnimationFrame(drawGlobe);
         }

@@ -10,8 +10,37 @@
 <body>
 
     <audio id="bgMusic" src="Audio/Music/bg.mp3" loop></audio>
-    <button onclick="startMusic()">Start</button>
 
+    <div id="radioWidget">
+        <div id="radioDragHandle">
+            <div class="radio-drag-dots"></div>
+        </div>
+        <div class="radio-inner">
+            <div class="radio-marquee-wrap">
+                <div class="radio-marquee" id="radioTitle">Track Name</div>
+            </div>
+            <div class="radio-artist" id="radioArtist">Artist</div>
+            <div class="radio-progress-wrap">
+                <div class="radio-progress-bar">
+                    <div class="radio-progress-fill" id="radioFill"></div>
+                </div>
+                <div class="radio-times">
+                    <span id="radioCurrent">0:00</span>
+                    <span id="radioDuration">0:00</span>
+                </div>
+            </div>
+            <div class="radio-controls">
+                <button class="radio-btn" onclick="prevTrack()">&#9664;&#9664;</button>
+                <button class="radio-btn radio-play" id="radioPlayBtn" onclick="pauseMusic()">&#9654;</button>
+                <button class="radio-btn" onclick="nextTrack()">&#9654;&#9654;</button>
+            </div>
+            <div class="radio-volume-wrap">
+                <span class="radio-vol-label">VOL</span>
+                <input type="range" class="radio-volume" id="radioVolume" min="0" max="100" value="30" oninput="setVolume(this.value/100)">
+            </div>
+            <div class="radio-playlist-hint">Playlist manager — coming soon</div>
+        </div>
+    </div>
     <canvas id="dotCanvas"></canvas>
     <div class="haze"></div>
     <div class="vhs-overlay" id="vhsOverlay"></div>

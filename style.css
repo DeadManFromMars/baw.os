@@ -1411,3 +1411,240 @@ html, body {
 		transform: translateY(0);
 	}
 }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   RADIO WIDGET
+   Draggable glass panel — fades in after pin lines finish
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+#radioWidget {
+	position: fixed;
+	bottom: 32px;
+	right: 32px;
+	width: 280px;
+	z-index: 200;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 1.5s ease;
+	border-radius: 16px;
+	background: rgba(253, 252, 250, 0.55);
+	backdrop-filter: blur(24px) saturate(1.4);
+	-webkit-backdrop-filter: blur(24px) saturate(1.4);
+	border: 1px solid rgba(255, 255, 255, 0.7);
+	box-shadow: 0 8px 32px rgba(26, 26, 24, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8), inset 0 -1px 0 rgba(26, 26, 24, 0.06);
+	user-select: none;
+}
+
+	#radioWidget.visible {
+		opacity: 1;
+		pointer-events: all;
+	}
+
+/* Drag handle at top */
+#radioDragHandle {
+	height: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: grab;
+	border-bottom: 1px solid rgba(26, 26, 24, 0.06);
+	border-radius: 16px 16px 0 0;
+}
+
+	#radioDragHandle:active {
+		cursor: grabbing;
+	}
+
+.radio-drag-dots {
+	width: 32px;
+	height: 4px;
+	border-radius: 2px;
+	background: rgba(26, 26, 24, 0.15);
+}
+
+.radio-inner {
+	padding: 14px 18px 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+/* Scrolling title */
+.radio-marquee-wrap {
+	overflow: hidden;
+	width: 100%;
+	position: relative;
+}
+
+.radio-marquee {
+	font-family: 'Vipnagorgialla Rg', sans-serif;
+	font-size: 0.95rem;
+	font-weight: 700;
+	color: var(--ink);
+	white-space: nowrap;
+	display: inline-block;
+	animation: marqueeScroll 10s linear infinite;
+	letter-spacing: -0.02em;
+}
+
+@keyframes marqueeScroll {
+	0% {
+		transform: translateX(100%);
+	}
+
+	100% {
+		transform: translateX(-100%);
+	}
+}
+
+/* Pause marquee when text fits */
+.radio-marquee.fits {
+	animation: none;
+}
+
+.radio-artist {
+	font-size: 0.5rem;
+	letter-spacing: 0.2em;
+	color: var(--muted);
+	text-transform: uppercase;
+	margin-top: -6px;
+}
+
+/* Progress bar */
+.radio-progress-wrap {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.radio-progress-bar {
+	height: 3px;
+	background: rgba(26, 26, 24, 0.1);
+	border-radius: 2px;
+	overflow: hidden;
+	cursor: pointer;
+}
+
+.radio-progress-fill {
+	height: 100%;
+	width: 0%;
+	background: var(--red);
+	border-radius: 2px;
+	transition: width 0.5s linear;
+}
+
+.radio-times {
+	display: flex;
+	justify-content: space-between;
+	font-family: 'Space Mono', monospace;
+	font-size: 0.42rem;
+	color: var(--muted);
+	letter-spacing: 0.05em;
+}
+
+/* Controls */
+.radio-controls {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+}
+
+.radio-btn {
+	background: rgba(26, 26, 24, 0.06);
+	border: 1px solid rgba(26, 26, 24, 0.1);
+	border-radius: 50%;
+	width: 32px;
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	font-size: 0.6rem;
+	color: var(--ink);
+	transition: background 0.15s, transform 0.1s;
+	padding: 0;
+}
+
+	.radio-btn:hover {
+		background: rgba(26, 26, 24, 0.12);
+	}
+
+	.radio-btn:active {
+		transform: scale(0.92);
+	}
+
+.radio-play {
+	width: 42px;
+	height: 42px;
+	font-size: 0.8rem;
+	background: var(--ink);
+	color: var(--cream);
+	border-color: transparent;
+}
+
+	.radio-play:hover {
+		background: var(--ink2);
+	}
+
+/* Volume */
+.radio-volume-wrap {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.radio-vol-label {
+	font-size: 0.4rem;
+	letter-spacing: 0.2em;
+	color: var(--muted);
+	text-transform: uppercase;
+	flex-shrink: 0;
+}
+
+.radio-volume {
+	flex: 1;
+	height: 3px;
+	-webkit-appearance: none;
+	appearance: none;
+	background: rgba(26, 26, 24, 0.1);
+	border-radius: 2px;
+	outline: none;
+	cursor: pointer;
+}
+
+	.radio-volume::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		width: 12px;
+		height: 12px;
+		border-radius: 50%;
+		background: var(--ink);
+		cursor: pointer;
+		border: none;
+	}
+
+	.radio-volume::-moz-range-thumb {
+		width: 12px;
+		height: 12px;
+		border-radius: 50%;
+		background: var(--ink);
+		cursor: pointer;
+		border: none;
+	}
+
+/* Playlist hint */
+.radio-playlist-hint {
+	font-size: 0.38rem;
+	letter-spacing: 0.15em;
+	color: var(--muted2);
+	text-transform: uppercase;
+	text-align: center;
+	border-top: 1px solid rgba(26, 26, 24, 0.06);
+	padding-top: 8px;
+	cursor: pointer;
+	transition: color 0.2s;
+}
+
+	.radio-playlist-hint:hover {
+		color: var(--muted);
+	}
