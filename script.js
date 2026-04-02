@@ -61,6 +61,9 @@ const progressMeta = document.querySelector('.progress-meta');
 if (progressMeta) progressMeta.style.fontSize = CONFIG.progressBarFontSize;
 
 
+let conductorReady = false; // true once the globe moment is finished
+
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // GLOBE
 // Renders a spinning wireframe dot-globe on #globeCanvas
@@ -630,7 +633,7 @@ function revealNextRow() {
                 completedRows++;
                 updateProgress(completedRows);
 
-                if (!typewriterTriggered && completedRows >= Math.floor(totalDefinedRows * 0.5)) {
+                if (!typewriterTriggered && conductorReady && completedRows >= Math.floor(totalDefinedRows * 0.5)) {
                     typewriterTriggered = true;
                     setTimeout(startConductorSequence, 2300);
                 }
@@ -1259,16 +1262,48 @@ function attemptLogin() {
         showMsg('Verified — establishing secure session...', 'success');
         document.getElementById('loginProgress').classList.add('show');
         setTimeout(() => document.getElementById('loginBar').style.width = '100%', 50);
+
         setTimeout(() => {
-            const overlay = document.getElementById('overlay');
-            overlay.classList.add('show');
-            setTimeout(() => document.getElementById('ovFill').style.width = '100%', 100);
-            setTimeout(() => window.location.href = REDIRECT_URL, 2500);
-        }, 1600);
-    } else {
-        showMsg('Invalid credentials. This attempt has been logged.', 'error');
-        document.getElementById('password').value = '';
-        document.getElementById('password').focus();
+            // Fade out login card
+            document.getElementById('loginPhase').style.transition = 'opacity 1.5s ease';
+            document.getElementById('loginPhase').style.opacity = '0';
+
+            setTimeout(() => {
+                // Hide login entirely
+                document.getElementById('loginPhase').style.display = 'none';
+
+                // Show scan phase but with everything invisible except globe + wordmark
+                const scanPhase = document.getElementById('scanPhase');
+                scanPhase.style.display = 'flex';
+                scanPhase.style.opacity = '0';
+                scanPhase.style.transition = 'opacity 2s ease';
+
+                // Hide scan lines and progress bar during globe moment
+                document.querySelector('.scan-lines-wrap').style.opacity = '0';
+                document.querySelector('.scan-progress').style.opacity = '0';
+                document.querySelector('.scan-right').style.opacity = '0';
+
+                // Fade in the globe + wordmark only
+                setTimeout(() => {
+                    scanPhase.style.opacity = '1';
+                }, 100);
+
+                // After globe moment — fade in scan lines and start rows
+                setTimeout(() => {
+                    document.querySelector('.scan-lines-wrap').style.transition = 'opacity 1.5s ease';
+                    document.querySelector('.scan-progress').style.transition = 'opacity 1.5s ease';
+                    document.querySelector('.scan-lines-wrap').style.opacity = '1';
+                    document.querySelector('.scan-progress').style.opacity = '1';
+                    document.querySelector('.scan-right').style.opacity = '1';
+
+                    conductorReady = true;
+
+                    // Start scan rows
+                    setTimeout(revealNextRow, 800);
+                }, 3000); // how long globe is shown alone — adjust freely
+
+            }, 1500); // wait for login fade out
+        }, 1600);  // wait for progress bar
     }
 }
 
@@ -1284,7 +1319,7 @@ function showMsg(text, type) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // Start scan 800ms after page load
-setTimeout(revealNextRow, 800);
+//setTimeout(revealNextRow, 800);
 
 // Safety net — force conductor after 30s if it never triggered naturally
 setTimeout(() => {
