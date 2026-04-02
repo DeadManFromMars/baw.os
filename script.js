@@ -27,17 +27,38 @@ const CONFIG = {
     // ── Scan Lines ──
     scanLinesHeight: 'calc(100vh - 200px)', // tall enough to avoid clipping
     scanLinesLeftPadding: '8vw',                 // indent from left edge — increase to push right
+    scanLinesMaxVisible: 40,                    // max rows on screen at once — increase to show more rows
+    scanLinesFontScale: 3,                     // overall text size multiplier — 1 = default, 1.5 = bigger
 
     // ── Progress Bar ──
-    progressBarLeft: '8vw',  // distance from left edge
-    progressBarRight: '5vw',  // distance from right edge
+    progressBarLeft: '20vw',  // distance from left edge
+    progressBarRight: '20vw',  // distance from right edge
     progressHideDelay: 2000,   // ms after 100% before bar fades out
+    progressBarBottom: 10,   // px from bottom of screen — increase to move up, decrease to move down
+    progressBarHeight: 4,      // px — thickness of the bar itself
+    progressBarFontSize: '0.88rem', // size of the label text below
 
     // ── Drawn Box (right-side typewriter panel) ──
     drawnBoxLeft: 62,  // % from left edge of screen
     drawnBoxTop: 18,  // % from top of screen
 
+
 };
+
+// Apply CONFIG values to DOM — runs immediately since script is at bottom of body
+const wrap = document.querySelector('.scan-lines-wrap');
+if (wrap) {
+    wrap.style.paddingLeft = CONFIG.scanLinesLeftPadding;
+}
+
+const progress = document.querySelector('.scan-progress');
+if (progress) progress.style.bottom = CONFIG.progressBarBottom + 'px';
+
+const progressTrack = document.querySelector('.progress-track');
+if (progressTrack) progressTrack.style.height = CONFIG.progressBarHeight + 'px';
+
+const progressMeta = document.querySelector('.progress-meta');
+if (progressMeta) progressMeta.style.fontSize = CONFIG.progressBarFontSize;
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -56,8 +77,8 @@ const CONFIG = {
 
         // Globe rotation & tilt — adjust these to change the globe's orientation
         const globeConfig = {
-            tiltX: 0.8,   // up/down tilt in radians
-            tiltZ: 0.1,   // sideways lean in radians
+            tiltX: 0.98,   // up/down tilt in radians
+            tiltZ: 0.4,   // sideways lean in radians
             invertSpin: false,  // true = spin the other direction
         };
 
@@ -79,6 +100,7 @@ const CONFIG = {
 
         function drawGlobe() {
             const dpr = window.devicePixelRatio || 1;
+
 
             // Logical canvas size (not physical pixels)
             const logicalW = canvas.width / dpr;
@@ -106,8 +128,8 @@ const CONFIG = {
             const sinZ = Math.sin(globeConfig.tiltZ);
 
             // Draw each point on the globe surface
-            for (let lat = 0; lat < Math.PI; lat += 0.2) {
-                for (let lon = 0; lon < Math.PI * 2; lon += 0.2) {
+            for (let lat = 0; lat < Math.PI; lat += 0.08) {
+                for (let lon = 0; lon < Math.PI * 2; lon += 0.08) {
 
                     // 1. Convert spherical coords to 3D cartesian
                     let x = radius * Math.sin(lat) * Math.cos(lon);
@@ -381,35 +403,35 @@ const scanDefs = [
     { key: 'Device', id: 'dev', s: 0, wait: 820, pause: 680 },
     { key: 'Connection', id: 'conn', s: 0, wait: 740, pause: 620 },
     { key: 'Display', id: 'disp', s: 0, wait: 680, pause: 560 },
-    { key: 'Battery', id: 'bat', s: 1, wait: 620, pause: 500 },
-    { key: 'Language', id: 'langs', s: 1, wait: 560, pause: 440 },
-    { key: 'Platform', id: 'platform', s: 1, wait: 500, pause: 390 },
-    { key: 'Death Drive Acquisition', id: 'fake1', s: 1, wait: 440, pause: 340 },
-    { key: 'Soul Index', id: 'fake2', s: 1, wait: 390, pause: 300 },
-    { key: 'Consent Timestamp', id: 'fake3', s: 2, wait: 340, pause: 260 },
-    { key: 'Memory Checksum', id: 'fake4', s: 2, wait: 290, pause: 220 },
-    { key: 'Behavioral Signature', id: 'fake5', s: 2, wait: 250, pause: 185 },
-    { key: 'Identity Anchor', id: 'fake6', s: 2, wait: 210, pause: 155 },
-    { key: 'Compliance Token', id: 'fake7', s: 2, wait: 175, pause: 128 },
-    { key: 'Threat Vector', id: 'fake8', s: 3, wait: 145, pause: 105 },
-    { key: 'Shadow Profile', id: 'fake9', s: 3, wait: 118, pause: 85 },
-    { key: 'Loyalty Coefficient', id: 'fake10', s: 3, wait: 95, pause: 68 },
-    { key: 'Conscience Override', id: 'fake11', s: 3, wait: 76, pause: 54 },
-    { key: 'Last Known Intent', id: 'fake12', s: 3, wait: 60, pause: 42 },
-    { key: 'Origin Trace', id: 'fake13', s: 4, wait: 48, pause: 33 },
-    { key: 'Anomaly Score', id: 'fake14', s: 4, wait: 38, pause: 26 },
-    { key: 'Narrative Coherence', id: 'fake15', s: 4, wait: 30, pause: 20 },
-    { key: 'Exposure Window', id: 'fake16', s: 4, wait: 24, pause: 15 },
-    { key: 'Drift Coefficient', id: 'fake17', s: 4, wait: 19, pause: 12 },
-    { key: 'Signal Bleed', id: 'fake18', s: 5, wait: 15, pause: 9 },
-    { key: 'Latent Signature', id: 'fake19', s: 5, wait: 12, pause: 7 },
-    { key: 'Void Index', id: 'fake20', s: 5, wait: 9, pause: 5 },
-    { key: 'Residual Authority', id: 'fake21', s: 5, wait: 7, pause: 4 },
-    { key: 'Pattern Collapse', id: 'fake22', s: 5, wait: 6, pause: 3 },
-    { key: 'Echo Depth', id: 'fake23', s: 5, wait: 5, pause: 3 },
-    { key: 'Core Dissolution', id: 'fake24', s: 5, wait: 5, pause: 2 },
-    { key: 'Presence Marker', id: 'fake25', s: 5, wait: 4, pause: 2 },
-    { key: 'route_depth', id: 'route_depth', s: 5, wait: 4, pause: 2 },
+    { key: 'Battery', id: 'bat', s: 0, wait: 620, pause: 500 },
+    { key: 'Language', id: 'langs', s: 0, wait: 560, pause: 440 },
+    { key: 'Platform', id: 'platform', s: 0, wait: 500, pause: 390 },
+    { key: 'Death Drive Acquisition', id: 'fake1', s: 0, wait: 440, pause: 340 },
+    { key: 'Soul Index', id: 'fake2', s: 0, wait: 390, pause: 300 },
+    { key: 'Consent Timestamp', id: 'fake3', s: 0, wait: 340, pause: 260 },
+    { key: 'Memory Checksum', id: 'fake4', s: 0, wait: 290, pause: 220 },
+    { key: 'Behavioral Signature', id: 'fake5', s: 0, wait: 250, pause: 185 },
+    { key: 'Identity Anchor', id: 'fake6', s: 0, wait: 210, pause: 155 },
+    { key: 'Compliance Token', id: 'fake7', s: 0, wait: 175, pause: 128 },
+    { key: 'Threat Vector', id: 'fake8', s: 0, wait: 145, pause: 105 },
+    { key: 'Shadow Profile', id: 'fake9', s: 0, wait: 118, pause: 85 },
+    { key: 'Loyalty Coefficient', id: 'fake10', s: 0, wait: 95, pause: 68 },
+    { key: 'Conscience Override', id: 'fake11', s: 'xl', wait: 76, pause: 54 },
+    { key: 'Last Known Intent', id: 'fake12', s: 'xl', wait: 60, pause: 42 },
+    { key: 'Origin Trace', id: 'fake13', s: 'xl', wait: 48, pause: 33 },
+    { key: 'Anomaly Score', id: 'fake14', s: 'xl', wait: 38, pause: 26 },
+    { key: 'Narrative Coherence', id: 'fake15', s: 'xl', wait: 30, pause: 20 },
+    { key: 'Exposure Window', id: 'fake16', s: 'xl', wait: 24, pause: 15 },
+    { key: 'Drift Coefficient', id: 'fake17', s: 'xl', wait: 19, pause: 12 },
+    { key: 'Signal Bleed', id: 'fake18', s: 'xl', wait: 15, pause: 9 },
+    { key: 'Latent Signature', id: 'fake19', s: 'xl', wait: 12, pause: 7 },
+    { key: 'Void Index', id: 'fake20', s: 'xl', wait: 9, pause: 5 },
+    { key: 'Residual Authority', id: 'fake21', s: 'xl', wait: 7, pause: 4 },
+    { key: 'Pattern Collapse', id: 'fake22', s: 'xl', wait: 6, pause: 3 },
+    { key: 'Echo Depth', id: 'fake23', s: 'xl', wait: 5, pause: 3 },
+    { key: 'Core Dissolution', id: 'fake24', s: 'xl', wait: 5, pause: 2 },
+    { key: 'Presence Marker', id: 'fake25', s: 'xl', wait: 4, pause: 2 },
+    { key: 'route_depth', id: 'route_depth', s: 'xl', wait: 4, pause: 2 },
 ];
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -537,7 +559,7 @@ function revealNextRow() {
         if (dissolveTriggered || scanPaused) return;
 
         // Stop generating filler rows once the conductor has started
-        if (typewriterTriggered && rowIndex >= scanDefs.length) return;
+        if (scanPaused || dissolveTriggered) return;
 
         // Decide if this is a real data row or a filler row
         let def, isExtra = false;
@@ -570,9 +592,8 @@ function revealNextRow() {
 
         line.append(keyEl, valEl, checkEl);
         scanContainer.appendChild(line);
-
-        // Remove oldest row if we exceed the visible limit
-        while (scanContainer.children.length > MAX_VISIBLE) {
+        // Remove oldest row when we have too many — creates continuous scroll illusion
+        while (scanContainer.children.length > CONFIG.scanLinesMaxVisible) { 
             scanContainer.removeChild(scanContainer.firstChild);
         }
 
@@ -1185,7 +1206,7 @@ function startConductorSequence() {
                                                 });
                                             }, 2500);
                                         });
-                                    }, 800);
+                                    }, 4000);
                                 });
                             }, 400);
                         }, 500);

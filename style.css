@@ -1,48 +1,25 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   FONTS
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 @font-face {
 	font-family: "Vipnagorgialla Rg";
 	src: url('fonts/Vipnagorgialla/Vipnagorgialla_Rg.otf') format('opentype');
 }
+
 @font-face {
 	font-family: "DeadPostman";
 	src: url("fonts/DeadPostmanRespawned/DeadPostmanRespawned.ttf") format("truetype");
 }
+
 * {
 	font-family: "Vipnagorgialla Rg", sans-serif;
 }
 
-/* Fix scan-header — pin it to viewport center, out of column flow */
-.scan-header {
-	position: fixed; /* was absolute */
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%);
-	z-index: 3;
-	pointer-events: none;
-	text-align: center;
-	white-space: nowrap;
-}
 
-#globeCanvas {
-	position: fixed;
-	top: 0;
-	left: 0;
-	width: 100vw;
-	height: 100vh;
-	pointer-events: none;
-	z-index: 9; /* just below scanPhase which is z-index: 10 */
-}
-
-#scanPhase {
-  position: relative;
-  z-index: 2;
-}
-
-.scan-left,
-.scan-right {
-	position: relative;
-	z-index: 2;
-}
-
+	/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   RESET & ROOT VARIABLES
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 	*, *::before, *::after {
 		box-sizing: border-box;
@@ -54,14 +31,14 @@
 	--cream: #f5f2ec;
 	--white: #fdfcfa;
 	--red: #e8372a;
-	--red2: rgba(232,55,42,0.1);
+	--red2: rgba(232, 55, 42, 0.1);
 	--ink: #1a1a18;
 	--ink2: #3a3a35;
 	--muted: #8a8a80;
 	--muted2: #c8c8c0;
 	--sage: #7a9a8a;
-	--border: rgba(26,26,24,0.08);
-	--border2: rgba(26,26,24,0.14);
+	--border: rgba(26, 26, 24, 0.08);
+	--border2: rgba(26, 26, 24, 0.14);
 	--green: #00c853;
 }
 
@@ -74,6 +51,21 @@ html, body {
 	overflow: hidden;
 }
 
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   BACKGROUND LAYERS
+   Stacking order (z-index):
+   0  = dot canvas
+   1  = haze overlay
+   2  = scan phase content
+   3  = scroll lines / scan header
+   4  = corner accents
+   5  = geo lines (red top bar + left bar)
+   9  = globe canvas
+   10 = scan phase container
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Subtle animated light leak in the corners */
 .haze {
 	position: fixed;
 	inset: 0;
@@ -91,10 +83,11 @@ html, body {
 
 	to {
 		opacity: 1;
-		transform: scale(1.05) translate(-6px,-3px);
+		transform: scale(1.05) translate(-6px, -3px);
 	}
 }
 
+/* Background dot texture */
 #dotCanvas {
 	position: fixed;
 	inset: 0;
@@ -103,6 +96,24 @@ html, body {
 	opacity: 0.13;
 }
 
+/* Globe sits behind the scan phase */
+#globeCanvas {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	pointer-events: none;
+	z-index: 9;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   GEO ACCENTS
+   Red lines and corner brackets that frame the page
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Solid red bar across the very top */
 .geo-top {
 	position: fixed;
 	top: 0;
@@ -113,6 +124,7 @@ html, body {
 	z-index: 5;
 }
 
+/* Red bar fading down the left edge */
 .geo-left {
 	position: fixed;
 	top: 0;
@@ -123,19 +135,20 @@ html, body {
 	z-index: 5;
 }
 
+/* Small bracket in the top-left corner */
 .geo-corner {
 	position: fixed;
 	top: 3px;
 	left: 3px;
 	width: 80px;
 	height: 80px;
-	border-right: 1px solid rgba(232,55,42,0.15);
-	border-bottom: 1px solid rgba(232,55,42,0.15);
+	border-right: 1px solid rgba(232, 55, 42, 0.15);
+	border-bottom: 1px solid rgba(232, 55, 42, 0.15);
 	z-index: 5;
 	pointer-events: none;
 }
 
-/* ── CORNER ACCENTS — PISTON STYLE ── */
+/* SVG corner accent lines — animate like pistons */
 .corner-accent {
 	position: fixed;
 	z-index: 4;
@@ -149,7 +162,7 @@ html, body {
 		opacity: 0;
 	}
 
-/* TL — horizontal piston slides in from left, vertical from top */
+/* Top-left — horizontal then vertical pistons */
 .corner-tl {
 	top: 0;
 	left: 0;
@@ -177,7 +190,7 @@ html, body {
 		animation: pistonDown 3.5s 1.6s ease-in-out infinite alternate, accentFadeIn 0.8s 1.6s forwards;
 	}
 
-/* TR — diagonal slashes pulse in/out */
+/* Top-right — diagonal slashes */
 .corner-tr {
 	top: 0;
 	right: 0;
@@ -205,7 +218,7 @@ html, body {
 		animation: accentFadeIn 0.8s 1.5s forwards, pistonDiag 4s 3.0s ease-in-out infinite alternate;
 	}
 
-/* BL */
+/* Bottom-left */
 .corner-bl {
 	bottom: 0;
 	left: 0;
@@ -229,7 +242,7 @@ html, body {
 		animation: accentFadeIn 0.8s 1.5s forwards, pistonUp 3.8s 2.6s ease-in-out infinite alternate;
 	}
 
-/* BR */
+/* Bottom-right */
 .corner-br {
 	bottom: 0;
 	right: 0;
@@ -255,75 +268,80 @@ html, body {
 
 @keyframes accentFadeIn {
 	from {
-		opacity: 0
+		opacity: 0;
 	}
 
 	to {
-		opacity: 0.2
+		opacity: 0.2;
 	}
 }
 
 @keyframes pistonRight {
 	from {
 		transform: translateX(-12px);
-		opacity: 0.1
+		opacity: 0.10;
 	}
 
 	to {
 		transform: translateX(0);
-		opacity: 0.22
+		opacity: 0.22;
 	}
 }
 
 @keyframes pistonLeft {
 	from {
 		transform: translateX(12px);
-		opacity: 0.1
+		opacity: 0.10;
 	}
 
 	to {
 		transform: translateX(0);
-		opacity: 0.22
+		opacity: 0.22;
 	}
 }
 
 @keyframes pistonDown {
 	from {
 		transform: translateY(-12px);
-		opacity: 0.1
+		opacity: 0.10;
 	}
 
 	to {
 		transform: translateY(0);
-		opacity: 0.22
+		opacity: 0.22;
 	}
 }
 
 @keyframes pistonUp {
 	from {
 		transform: translateY(12px);
-		opacity: 0.1
+		opacity: 0.10;
 	}
 
 	to {
 		transform: translateY(0);
-		opacity: 0.22
+		opacity: 0.22;
 	}
 }
 
 @keyframes pistonDiag {
 	from {
-		transform: translate(8px,-8px);
-		opacity: 0.1
+		transform: translate(8px, -8px);
+		opacity: 0.10;
 	}
 
 	to {
-		transform: translate(0,0);
-		opacity: 0.22
+		transform: translate(0, 0);
+		opacity: 0.22;
 	}
 }
 
-/* ── SCROLLING ACCENT LINES ── */
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SCROLLING ACCENT LINES
+   Thin horizontal lines that drift across the screen
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 .scroll-line {
 	position: fixed;
 	z-index: 3;
@@ -331,13 +349,13 @@ html, body {
 	height: 2px;
 	background: var(--ink);
 	opacity: 0;
-	animation: scrollLineIn 1s ease forwards, scrollLineDrift linear infinite;
 }
 
+/* Each line has a different vertical position, width, speed, and delay */
 .sl-1 {
 	top: 22%;
 	width: 60px;
-	animation: scrollLineIn 1s 2s ease forwards, scrollLineDrift 18s 3s linear infinite;
+	animation: scrollLineIn 1s 2.0s ease forwards, scrollLineDrift 18s 3.0s linear infinite;
 }
 
 .sl-2 {
@@ -349,7 +367,7 @@ html, body {
 .sl-3 {
 	top: 38%;
 	width: 80px;
-	animation: scrollLineIn 1s 3s ease forwards, scrollLineDrift 14s 4s linear infinite;
+	animation: scrollLineIn 1s 3.0s ease forwards, scrollLineDrift 14s 4.0s linear infinite;
 }
 
 .sl-4 {
@@ -361,33 +379,39 @@ html, body {
 .sl-5 {
 	top: 15%;
 	width: 35px;
-	animation: scrollLineIn 1s 4s ease forwards, scrollLineDrift 20s 5s linear infinite;
+	animation: scrollLineIn 1s 4.0s ease forwards, scrollLineDrift 20s 5.0s linear infinite;
 }
 
 @keyframes scrollLineIn {
 	from {
-		opacity: 0
+		opacity: 0;
 	}
 
 	to {
-		opacity: 0.12
+		opacity: 0.12;
 	}
 }
 
 @keyframes scrollLineDrift {
 	from {
-		left: -100px
+		left: -100px;
 	}
 
 	to {
-		left: calc(100vw + 100px)
+		left: calc(100vw + 100px);
 	}
 }
 
-/* ── TERMINAL BAR ── */
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TERMINAL BAR
+   Dark bar that slides up from the bottom
+   Shows connection status and typed commands
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 #termBar {
 	position: fixed;
-	bottom: -110px;
+	bottom: -110px; /* hidden off screen — slides up when .visible is added */
 	left: 0;
 	right: 0;
 	height: 96px;
@@ -396,9 +420,8 @@ html, body {
 	display: flex;
 	align-items: center;
 	padding: 0 28px;
-	gap: 0;
 	border-top: 1px solid #1a3a1a;
-	transition: bottom 0.7s cubic-bezier(0.16,1,0.3,1);
+	transition: bottom 0.7s cubic-bezier(0.16, 1, 0.3, 1);
 	font-family: 'Space Mono', monospace;
 }
 
@@ -432,16 +455,22 @@ html, body {
 }
 
 @keyframes termBlink {
-	0%,100% {
-		opacity: 1
+	0%, 100% {
+		opacity: 1;
 	}
 
 	50% {
-		opacity: 0
+		opacity: 0;
 	}
 }
 
-/* ── SCAN PHASE ── */
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SCAN PHASE
+   Full screen layout — left column for scan lines,
+   right column for the typewriter box
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 #scanPhase {
 	position: fixed;
 	inset: 0;
@@ -455,18 +484,21 @@ html, body {
 	padding-top: 40px;
 }
 
+	/* Dissolve animation — blurs and fades out before login appears */
 	#scanPhase.dissolving {
 		filter: blur(32px) brightness(2) saturate(0.1);
 		opacity: 0;
+		transition: filter 2s ease, opacity 2s ease;
 	}
 
+	/* VHS scanline overlay — appears during the freeze/reverse sequence */
 	#scanPhase.vhs::after {
 		content: '';
 		position: absolute;
 		inset: 0;
 		z-index: 100;
 		pointer-events: none;
-		background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px);
+		background: repeating-linear-gradient( 0deg, transparent, transparent 3px, rgba(0, 0, 0, 0.06) 3px, rgba(0, 0, 0, 0.06) 4px );
 		animation: vhsScan 0.12s linear infinite;
 	}
 
@@ -480,6 +512,7 @@ html, body {
 	}
 }
 
+/* VHS shake — whole page jitters during freeze */
 #scanPhase.vhs {
 	animation: vhsShake 0.18s ease-in-out infinite;
 }
@@ -521,15 +554,18 @@ html, body {
 	}
 }
 
-#scanPhase.vhs .geo-top, #scanPhase.vhs .geo-left {
+/* Dim the geo lines during VHS */
+#scanPhase.vhs .geo-top,
+#scanPhase.vhs .geo-left {
 	opacity: 0.3;
 }
 
+/* Stop the shake when reversing */
 #scanPhase.reversing-phase {
 	animation: none;
 }
 
-/* VHS edge glow */
+/* Full screen darkening + edge glow during VHS freeze */
 .vhs-overlay {
 	position: fixed;
 	inset: 0;
@@ -537,36 +573,42 @@ html, body {
 	pointer-events: none;
 	opacity: 0;
 	transition: opacity 0.4s ease;
-	background: rgba(0,0,0,0.55);
-	box-shadow: inset 0 0 120px rgba(255,0,60,0.2), inset 0 0 40px rgba(0,200,255,0.1);
+	background: rgba(0, 0, 0, 0.55);
+	box-shadow: inset 0 0 120px rgba(255, 0, 60, 0.2), inset 0 0 40px rgba(0, 200, 255, 0.1);
 }
 
 	.vhs-overlay.active {
 		opacity: 1;
 	}
 
+		/* Scanline texture on top of the dark overlay */
 		.vhs-overlay.active::after {
 			content: '';
 			position: absolute;
 			inset: 0;
-			background: repeating-linear-gradient( 0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px );
+			background: repeating-linear-gradient( 0deg, transparent, transparent 2px, rgba(255, 255, 255, 0.03) 2px, rgba(255, 255, 255, 0.03) 4px );
 			pointer-events: none;
 		}
 
-/* LEFT */
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SCAN LEFT COLUMN
+   Contains the scrolling data rows and progress bar
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 .scan-left {
 	display: flex;
 	flex-direction: column;
 	justify-content: flex-end;
-	padding: 0 0 0 0;
 	border-right: 1px solid var(--border);
 	overflow: visible;
 	position: relative;
 	white-space: nowrap;
-	width: 40vw; /* add this — was unsized */
+	width: 40vw; /* reserves left column — adjust to push content left/right */
 	flex-shrink: 0;
 }
 
+	/* Fade top of scan lines into the background */
 	.scan-left::before {
 		content: '';
 		position: absolute;
@@ -579,6 +621,7 @@ html, body {
 		pointer-events: none;
 	}
 
+	/* Fade bottom of scan lines into progress bar */
 	.scan-left::after {
 		content: '';
 		position: absolute;
@@ -591,10 +634,17 @@ html, body {
 		pointer-events: none;
 	}
 
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   WORDMARK + TAGLINE
+   Pinned to viewport center, independent of column layout
+   Position controlled by CONFIG.globeX / CONFIG.globeY in JS
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 .scan-header {
 	position: fixed;
-	left: 32%; /* match CONFIG.globeX */
-	top: 50%; /* match CONFIG.globeY */
+	left: 32%; /* keep in sync with CONFIG.globeX */
+	top: 50%; /* keep in sync with CONFIG.globeY */
 	transform: translate(-50%, -50%);
 	z-index: 3;
 	pointer-events: none;
@@ -613,9 +663,9 @@ html, body {
 	animation: riseIn 1s 0.2s ease forwards;
 	display: inline-block;
 	white-space: nowrap;
-	align-items: center;
 }
 
+	/* Pulsing red dot after the wordmark */
 	.scan-wordmark .red-dot {
 		display: inline-block;
 		width: 0.14em;
@@ -629,7 +679,7 @@ html, body {
 	}
 
 @keyframes dotPulse {
-	0%,100% {
+	0%, 100% {
 		transform: scale(1);
 		opacity: 1;
 	}
@@ -650,26 +700,40 @@ html, body {
 	animation: riseIn 0.8s 0.6s ease forwards;
 }
 
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SCAN LINES
+   Scrolling data rows in the left column
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 .scan-lines-wrap {
 	width: 100%;
-	height: calc(100vh - 200px); /* was 140px — more room, stops before progress bar */
+	height: calc(100vh - 200px); /* stops before the progress bar */
 	overflow: hidden;
 	display: flex;
 	flex-direction: column;
-	justify-content: flex-end;
+	justify-content: flex-end; /* new rows appear at bottom, old ones scroll up */
 	padding: 0 0 20px;
-	padding-left: 8vw; /* add this — controls forward scan line indent */
+	padding-left: 8vw; /* indent — keep in sync with CONFIG.scanLinesLeftPadding */
 }
 
 .scan-lines {
 	display: flex;
 	flex-direction: column;
 	gap: clamp(4px, 0.9vh, 10px);
-	opacity: 0;
-	animation: riseIn 0.6s 1s ease forwards;
-	overflow: visible;
 }
 
+@keyframes scrollUp {
+	from {
+		transform: translateY(0);
+	}
+
+	to {
+		transform: translateY(-50%);
+	}
+}
+
+/* Each individual data row */
 .scan-line {
 	display: flex;
 	align-items: baseline;
@@ -685,34 +749,22 @@ html, body {
 		transform: translateY(0);
 	}
 
+	/* Size classes — s0 is biggest, s5 is smallest/most faded
+   Adjust these to change how text scales as rows pile up */
 	.scan-line.s0 .scan-line-val {
-		font-size: clamp(0.85rem, 1.7vw, 1.25rem);
+		font-size: clamp(1.2rem, 2vw, 1.8rem);
 	}
 
-	.scan-line.s1 .scan-line-val {
-		font-size: clamp(0.72rem, 1.4vw, 1rem);
+	/* Extra large — use for dramatic rows just before the orphan */
+	.scan-line.s-xl .scan-line-val {
+		font-size: clamp(2.5rem, 10vw, 10rem);
 	}
 
-	.scan-line.s2 .scan-line-val {
-		font-size: clamp(0.6rem, 1.1vw, 0.82rem);
-		opacity: 0.75;
+	.scan-line.s-xl .scan-line-key {
+		font-size: clamp(0.7rem, 1.2vw, 1rem);
 	}
 
-	.scan-line.s3 .scan-line-val {
-		font-size: clamp(0.5rem, 0.85vw, 0.65rem);
-		opacity: 0.55;
-	}
-
-	.scan-line.s4 .scan-line-val {
-		font-size: clamp(0.4rem, 0.65vw, 0.5rem);
-		opacity: 0.38;
-	}
-
-	.scan-line.s5 .scan-line-val {
-		font-size: clamp(0.32rem, 0.5vw, 0.4rem);
-		opacity: 0.22;
-	}
-
+/* Label column — the key name on the left */
 .scan-line-key {
 	font-size: clamp(0.35rem, 0.65vw, 0.52rem);
 	letter-spacing: 0.16em;
@@ -723,10 +775,14 @@ html, body {
 	min-width: clamp(55px, 9vw, 110px);
 }
 
-.scan-line.s3 .scan-line-key, .scan-line.s4 .scan-line-key, .scan-line.s5 .scan-line-key {
+/* Fade key labels on the smaller rows */
+.scan-line.s3 .scan-line-key,
+.scan-line.s4 .scan-line-key,
+.scan-line.s5 .scan-line-key {
 	opacity: 0.4;
 }
 
+/* Value column — the data on the right */
 .scan-line-val {
 	font-family: 'Space Mono', monospace;
 	color: var(--ink);
@@ -740,6 +796,22 @@ html, body {
 		color: var(--muted2);
 	}
 
+/* Checkmark that appears when a row resolves */
+.scan-line-check {
+	font-size: clamp(0.5rem, 0.9vw, 0.75rem);
+	color: var(--red);
+	font-weight: 700;
+	opacity: 0;
+	transition: opacity 0.15s;
+	flex-shrink: 0;
+	margin-left: 3px;
+}
+
+.scan-line.done .scan-line-check {
+	opacity: 1;
+}
+
+/* Animated waiting dots while value loads */
 .ellipsis {
 	display: inline-flex;
 	gap: 3px;
@@ -755,7 +827,7 @@ html, body {
 	}
 
 		.ellipsis span:nth-child(1) {
-			animation: ellipsisHop 0.9s 0s ease-in-out infinite;
+			animation: ellipsisHop 0.9s 0.00s ease-in-out infinite;
 		}
 
 		.ellipsis span:nth-child(2) {
@@ -763,11 +835,11 @@ html, body {
 		}
 
 		.ellipsis span:nth-child(3) {
-			animation: ellipsisHop 0.9s 0.3s ease-in-out infinite;
+			animation: ellipsisHop 0.9s 0.30s ease-in-out infinite;
 		}
 
 @keyframes ellipsisHop {
-	0%,60%,100% {
+	0%, 60%, 100% {
 		transform: translateY(0);
 		background: var(--muted2);
 	}
@@ -778,24 +850,10 @@ html, body {
 	}
 }
 
-.scan-line-check {
-	font-size: clamp(0.5rem, 0.9vw, 0.75rem);
-	color: var(--red);
-	font-weight: 700;
-	opacity: 0;
-	transition: opacity 0.15s;
-	flex-shrink: 0;
-	margin-left: 3px;
-}
-
-.scan-line.done .scan-line-check {
-	opacity: 1;
-}
-
-/* highlighted bad line */
+/* Orphaned row — flagged red, shown during the reverse sequence */
 .scan-line.orphaned .scan-line-val {
 	color: var(--red) !important;
-	background: rgba(232,55,42,0.1);
+	background: rgba(232, 55, 42, 0.1);
 	padding: 3px 8px;
 	border-left: 3px solid var(--red);
 	font-size: 1.1rem !important;
@@ -807,9 +865,10 @@ html, body {
 	opacity: 1 !important;
 }
 
+/* Resolved row — turns green after the hand fixes it */
 .scan-line.resolved .scan-line-val {
 	color: var(--green) !important;
-	background: rgba(0,200,83,0.1);
+	background: rgba(0, 200, 83, 0.1);
 	padding: 3px 8px;
 	border-left: 3px solid var(--green);
 	font-size: 1.1rem !important;
@@ -822,20 +881,25 @@ html, body {
 	opacity: 1 !important;
 }
 
-/* progress */
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PROGRESS BAR
+   Sits at the bottom of the left column
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 .scan-progress {
-	position: absolute;
-	bottom: 32px;
-	left: 8vw; /* matches CONFIG.progressBarLeftOffset */
-	right: 5vw; /* matches CONFIG.progressBarRightOffset */
+	position: fixed; /* was absolute */
+	bottom: 32px; /* now relative to the viewport — CONFIG.progressBarBottom controls this */
+	left: 8vw;
+	right: 60vw; /* stop it at the left column edge */
 	z-index: 3;
 	opacity: 0;
 	animation: riseIn 0.6s 1.2s ease forwards;
-	transition: opacity 0.8s ease; /* for fade out */
+	transition: opacity 0.8s ease;
 }
 
 .progress-track {
-	height: 2px; /* was 1px — double the thickness */
+	height: 2px;
 	background: var(--muted2);
 	margin-bottom: 10px;
 	overflow: hidden;
@@ -848,8 +912,14 @@ html, body {
 	transition: width 0.25s ease;
 }
 
+	/* Turns green when the orphan line is resolved */
+	.progress-fill.green {
+		background: var(--green);
+		transition: background 0.6s ease;
+	}
+
 .progress-meta {
-	font-size: 0.55rem; /* was 0.42rem — bigger labels */
+	font-size: 0.55rem;
 	letter-spacing: 0.18em;
 	color: var(--muted);
 	text-transform: uppercase;
@@ -861,12 +931,12 @@ html, body {
 		color: var(--red);
 	}
 
-.progress-fill.green {
-	background: var(--green);
-	transition: background 0.6s ease;
-}
 
-/* RIGHT */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SCAN RIGHT COLUMN
+   Contains the hand-drawn typewriter box
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 .scan-right {
 	display: flex;
 	flex-direction: column;
@@ -876,11 +946,11 @@ html, body {
 	position: relative;
 }
 
-/* floating text box drawn by hand */
+/* The box drawn by the hand animation — starts collapsed, grows via JS */
 #drawnBox {
 	position: fixed;
 	border: 2.5px solid var(--ink);
-	background: rgba(253,252,250,0.95);
+	background: rgba(253, 252, 250, 0.95);
 	opacity: 0;
 	pointer-events: none;
 	overflow: hidden;
@@ -899,6 +969,7 @@ html, body {
 	gap: 4px;
 }
 
+/* Typewriter text lines — uses the DeadPostman font for handwritten feel */
 .tw-text, .tw-text2, .tw-text3 {
 	font-family: 'DeadPostman', monospace;
 	font-size: clamp(1.05rem, 4vw, 4rem);
@@ -911,6 +982,7 @@ html, body {
 	display: block;
 }
 
+/* Blinking text cursor inserted by JS */
 .cursor {
 	display: inline-block;
 	width: 2px;
@@ -922,16 +994,21 @@ html, body {
 }
 
 @keyframes cursorBlink {
-	0%,100% {
-		opacity: 1
+	0%, 100% {
+		opacity: 1;
 	}
 
 	50% {
-		opacity: 0
+		opacity: 0;
 	}
 }
 
-/* second mouse cursor */
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   HAND & CURSOR OVERLAYS
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Ghost cursor SVG that mimics an anonymous visitor */
 #anonCursor {
 	position: fixed;
 	width: 20px;
@@ -946,7 +1023,7 @@ html, body {
 		opacity: 0.85;
 	}
 
-/* hand image */
+/* Hand image that draws the typewriter box */
 #handImg {
 	position: fixed;
 	width: 160px;
@@ -958,6 +1035,7 @@ html, body {
 	transition: opacity 0.5s ease;
 }
 
+/* Flipped hand that fixes the orphaned line */
 #handImgFlipped {
 	position: fixed;
 	width: 160px;
@@ -970,7 +1048,12 @@ html, body {
 	transition: opacity 0.5s ease;
 }
 
-/* ── PHASE 2: LOGIN ── */
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   LOGIN PHASE
+   Fades in after the scan phase dissolves
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 #loginPhase {
 	position: fixed;
 	inset: 0;
@@ -988,21 +1071,22 @@ html, body {
 		pointer-events: all;
 	}
 
+/* Frosted glass card */
 .login-card {
 	position: relative;
 	width: min(400px, 90vw);
-	background: rgba(253,252,250,0.88);
+	background: rgba(253, 252, 250, 0.88);
 	backdrop-filter: blur(30px) saturate(1.1);
 	-webkit-backdrop-filter: blur(30px) saturate(1.1);
 	border: 1px solid var(--border2);
 	border-radius: 2px;
 	padding: 44px 40px 40px;
-	box-shadow: 0 2px 4px rgba(26,26,24,0.04), 0 24px 64px rgba(26,26,24,0.09);
+	box-shadow: 0 2px 4px rgba(26, 26, 24, 0.04), 0 24px 64px rgba(26, 26, 24, 0.09);
 	animation: cardFloat 9s ease-in-out infinite;
 }
 
 @keyframes cardFloat {
-	0%,100% {
+	0%, 100% {
 		transform: translateY(0) rotate(0deg);
 	}
 
@@ -1015,6 +1099,7 @@ html, body {
 	}
 }
 
+/* Red accent bar at top of card */
 .login-card::before {
 	content: '';
 	position: absolute;
@@ -1038,6 +1123,7 @@ html, body {
 	gap: 10px;
 }
 
+	/* Short red line before the eyebrow text */
 	.card-eyebrow::before {
 		content: '';
 		width: 18px;
@@ -1075,6 +1161,7 @@ html, body {
 	position: relative;
 }
 
+	/* Short red accent on the left of the divider */
 	.card-divider::after {
 		content: '';
 		position: absolute;
@@ -1085,6 +1172,7 @@ html, body {
 		background: var(--red);
 	}
 
+/* Form fields */
 .field {
 	margin-bottom: 14px;
 }
@@ -1106,7 +1194,7 @@ html, body {
 
 .field input {
 	width: 100%;
-	background: rgba(255,255,255,0.7);
+	background: rgba(255, 255, 255, 0.7);
 	border: 1px solid var(--border2);
 	border-radius: 2px;
 	color: var(--ink);
@@ -1130,6 +1218,7 @@ html, body {
 		font-weight: 300;
 	}
 
+/* Submit button */
 .btn {
 	width: 100%;
 	margin-top: 8px;
@@ -1149,6 +1238,7 @@ html, body {
 	transition: background 0.2s, transform 0.1s;
 }
 
+	/* Red left accent that widens on hover */
 	.btn::after {
 		content: '';
 		position: absolute;
@@ -1172,6 +1262,7 @@ html, body {
 		transform: scale(0.99);
 	}
 
+/* Status message below the button */
 .msg {
 	margin-top: 10px;
 	font-size: 0.6rem;
@@ -1194,6 +1285,7 @@ html, body {
 		color: var(--sage);
 	}
 
+/* Login progress bar — appears while verifying */
 .progress-wrap {
 	margin-top: 8px;
 	height: 1px;
@@ -1233,6 +1325,7 @@ html, body {
 		gap: 6px;
 	}
 
+		/* Pulsing dot in the footer */
 		.card-footer .monitor::before {
 			content: '';
 			width: 5px;
@@ -1243,7 +1336,12 @@ html, body {
 			animation: dotPulse 1.5s infinite;
 		}
 
-/* overlay */
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ACCESS GRANTED OVERLAY
+   Full screen takeover before redirect to stage2
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 #overlay {
 	position: fixed;
 	inset: 0;
@@ -1295,6 +1393,11 @@ html, body {
 	background: var(--red);
 	transition: width 2.2s ease;
 }
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SHARED ANIMATIONS
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 @keyframes riseIn {
 	from {
