@@ -2,6 +2,8 @@
 // RADIO SYSTEM
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+const music = document.getElementById('bgMusic');
+
 let playlist = [];
 let currentTrack = 0;
 let radioPlaying = false;
