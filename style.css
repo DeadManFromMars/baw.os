@@ -1065,6 +1065,7 @@ html, body {
 	opacity: 0;
 	pointer-events: none;
 	transition: opacity 1.5s ease;
+	background: transparent !important;
 }
 
 	#loginPhase.visible {
@@ -2399,3 +2400,166 @@ html, body {
 }
 
 .arg-minimal-ghost:hover { opacity: 0.6; }
+
+/* ═══════════════════════════════════════════════════════
+   INITIAL HIDDEN STATE
+   Accents, geo lines, haze and scroll lines are hidden
+   during the honeycomb sequence. revealPageAccents() in
+   script.js fades them back in after the canvas clears.
+   On returning visits (no hex sequence) they show normally
+   since the body gets .accents-ready immediately.
+   ═══════════════════════════════════════════════════════ */
+
+body:not(.accents-ready) .corner-accent line,
+body:not(.accents-ready) .scroll-line,
+body:not(.accents-ready) .geo-top,
+body:not(.accents-ready) .geo-left,
+body:not(.accents-ready) .geo-corner,
+body:not(.accents-ready) .haze {
+    opacity: 0 !important;
+    transition: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════
+   LOGIN PHASE — floating over hex city
+   ═══════════════════════════════════════════════════════ */
+
+#loginPhase {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.2s ease;
+    /* No background — city canvas shows through */
+}
+
+#loginPhase.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* Top-left HUD label */
+.lp-hud-tl {
+    position: absolute;
+    top: 28px;
+    left: 36px;
+    font-family: 'Vipnagorgialla Rg', 'Space Mono', monospace;
+    font-size: 0.52rem;
+    letter-spacing: 0.28em;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0.45;
+}
+
+.lp-hud-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--red);
+    display: inline-block;
+    animation: dotPulse 1.5s ease-in-out infinite;
+}
+
+/* Bottom-right session ID */
+.lp-hud-br {
+    position: absolute;
+    bottom: 28px;
+    right: 36px;
+    font-family: 'Vipnagorgialla Rg', 'Space Mono', monospace;
+    font-size: 0.48rem;
+    letter-spacing: 0.22em;
+    color: var(--ink);
+    opacity: 0.3;
+}
+
+/* Center input cluster */
+.lp-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    position: relative;
+    z-index: 2;
+}
+
+.lp-label {
+    font-family: 'Vipnagorgialla Rg', 'Space Mono', monospace;
+    font-size: 0.52rem;
+    letter-spacing: 0.35em;
+    color: var(--ink);
+    opacity: 0.4;
+}
+
+.lp-input-wrap {
+    position: relative;
+}
+
+/* The input itself — just a bare underline, no box */
+.lp-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--ink);
+    padding: 10px 4px;
+    width: 260px;
+    font-family: 'Vipnagorgialla Rg', 'Space Mono', monospace;
+    font-size: 1.1rem;
+    letter-spacing: 0.3em;
+    color: var(--ink);
+    outline: none;
+    text-align: center;
+    transition: border-color 0.2s;
+    caret-color: var(--red);
+}
+
+.lp-input:focus {
+    border-bottom-color: var(--red);
+}
+
+.lp-input::placeholder {
+    color: var(--ink);
+    opacity: 0.2;
+    letter-spacing: 0.1em;
+}
+
+.lp-hint {
+    font-family: 'Vipnagorgialla Rg', 'Space Mono', monospace;
+    font-size: 0.42rem;
+    letter-spacing: 0.3em;
+    color: var(--ink);
+    opacity: 0.2;
+}
+
+/* Status message */
+#loginPhase #msg {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.1em;
+    min-height: 18px;
+    text-align: center;
+}
+
+#loginPhase #msg.error   { color: var(--red); opacity: 0.9; }
+#loginPhase #msg.success { color: var(--sage); }
+
+/* Progress bar */
+#loginPhase .progress-wrap {
+    width: 260px;
+    height: 1px;
+    background: rgba(26,26,24,0.1);
+    display: none;
+}
+
+#loginPhase .progress-wrap.show { display: block; }
+
+#loginPhase .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--red);
+    transition: width 1.5s ease;
+}

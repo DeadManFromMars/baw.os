@@ -1,4 +1,502 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HEX CITY v2
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Pillars rise from flat hex floor after the honeycomb
+// sequence. Camera starts high and descends into the city
+// then flies through on a gentle curved path forever.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const CITY = (() => {
+
+    // ── Tuning ──
+    const HEX_R         = 1.0;
+    const HEX_GAP       = 0.02;
+    const GRID_COLS     = 48;
+    const GRID_ROWS     = 40;    // long enough for infinite loop
+    const PILLAR_CHANCE = 0.30;
+    const PILLAR_H_MIN  = 0.3;
+    const PILLAR_H_MAX  = 4.2;
+    const RISE_DUR      = 2200;  // ms for pillars to fully rise
+    const RISE_DELAY    = 1800;  // ms after start before rising begins
+    const CAM_DESCEND_H   = 3.5;   // start much lower so pillars are visible immediately
+    const CAM_CRUISE_H    = 1.6;   // cruising height between pillars
+    const CAM_DESCEND_DUR = 2500;  // ms to descend
+    const CAM_SPEED     = 2.2;   // forward speed (world units/sec)
+    const CAM_DRIFT_AMP = 0.4;   // side-to-side amplitude
+    const CAM_DRIFT_SPD = 0.14;  // side-to-side frequency
+    const FOV_DEG       = 75;
+
+    const CREAM      = 'rgb(245,242,236)';  // pillar tops — match page cream
+    const CREAM_SIDE = 'rgb(188,183,172)';  // pillar light side
+    const CREAM_DARK = 'rgb(160,155,145)';  // pillar dark side
+    const FLOOR      = 'rgb(220,216,208)';  // ground plane — slightly darker than cream
+    const BG         = 'rgb(245,242,236)';  // horizon fill
+
+    let cv, ctx;
+    let pillars = [], flats = [];
+    let raf      = null;
+    let startT   = null;
+
+    // Camera state
+    let camX = 0, camY = CAM_DESCEND_H, camZ = 0;
+
+    // Seeded random for stable world
+    let seed = 137;
+    function rand() {
+        seed = (seed * 1664525 + 1013904223) & 0xffffffff;
+        return Math.abs(seed) / 0x7fffffff;
+    }
+
+    // Hex center in world space, centered around origin
+    function hexCenter(col, row) {
+        const cw = HEX_R * 1.5 + HEX_GAP;
+        const rh = HEX_R * Math.sqrt(3) + HEX_GAP;
+        const x  = col * cw - (GRID_COLS * cw) / 2;
+        const z  = row * rh + (col % 2 !== 0 ? rh / 2 : 0);
+        return { x, z };
+    }
+
+    function hexPts(cx, cz, r) {
+        const pts = [];
+        for (let i = 0; i < 6; i++) {
+            const a = (Math.PI / 3) * i;
+            pts.push([cx + r * Math.cos(a), cz + r * Math.sin(a)]);
+        }
+        return pts;
+    }
+
+    function buildWorld() {
+        seed = 137;
+        pillars = []; flats = [];
+        for (let c = 0; c < GRID_COLS; c++) {
+            for (let r = 0; r < GRID_ROWS; r++) {
+                const { x, z } = hexCenter(c, r);
+                const pts = hexPts(x, z, HEX_R * 0.94);
+                if (rand() < PILLAR_CHANCE) {
+                    const h = PILLAR_H_MIN + rand() * (PILLAR_H_MAX - PILLAR_H_MIN);
+                    // Stagger rise start slightly by distance from center
+                    const riseOffset = Math.sqrt(x*x + (z - 8)*(z - 8)) * 40;
+                    pillars.push({ x, z, pts, targetH: h, currentH: 0, riseOffset });
+                } else {
+                    flats.push({ x, z, pts });
+                }
+            }
+        }
+    }
+
+    // ── Perspective projection ──
+    function project(wx, wy, wz, W, H) {
+        const fov  = (FOV_DEG * Math.PI) / 180;
+        const flen = (W / 2) / Math.tan(fov / 2);
+        const rx = wx - camX;
+        const ry = wy - camY;
+        const rz = wz - camZ;
+        if (rz <= 0.01) return null;
+        return {
+            sx:    (rx / rz) * flen + W / 2,
+            sy:    (-ry / rz) * flen + H / 2,
+            depth: rz
+        };
+    }
+
+    function fillPoly(pts2d, color) {
+        if (!pts2d || pts2d.some(p => !p)) return false;
+        ctx.beginPath();
+        ctx.moveTo(pts2d[0].sx, pts2d[0].sy);
+        for (let i = 1; i < pts2d.length; i++) ctx.lineTo(pts2d[i].sx, pts2d[i].sy);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
+        return true;
+    }
+
+    function drawPillar(p, W, H) {
+        if (p.currentH < 0.01) return p.targetH;
+        const top = p.pts.map(([px,pz]) => project(px, p.currentH, pz, W, H));
+        const bot = p.pts.map(([px,pz]) => project(px, 0,           pz, W, H));
+        const anyTop = top.some(t => t !== null);
+        const anyBot = bot.some(b => b !== null);
+        if (!anyTop && !anyBot) return p.targetH;
+
+        // Side faces — only front-facing ones
+        for (let i = 0; i < 6; i++) {
+            const j = (i + 1) % 6;
+            if (!top[i]||!top[j]||!bot[i]||!bot[j]) continue;
+            const [px0,pz0] = p.pts[i], [px1,pz1] = p.pts[j];
+            const ex = px1-px0, ez = pz1-pz0;
+            const dot = ex*(p.z-camZ) - ez*(p.x-camX);
+            if (dot >= 0) continue;
+            // Shade by face angle — left/right get different tones
+            const angle = Math.atan2(ez, ex);
+            const shade = Math.cos(angle - Math.PI/4);
+            const color = shade > 0 ? CREAM_SIDE : CREAM_DARK;
+            fillPoly([top[i],top[j],bot[j],bot[i]], color);
+        }
+        fillPoly(top, CREAM);
+        return top.find(t=>t)?.depth ?? p.targetH;
+    }
+
+    function drawFlat(f, W, H) {
+        const pts = f.pts.map(([px,pz]) => project(px, 0, pz, W, H));
+        fillPoly(pts, FLOOR);
+    }
+
+    function render(now) {
+        if (!startT) startT = now;
+        const ms      = now - startT;
+        const elapsed = ms / 1000;
+
+        const W = cv.width, H = cv.height;
+
+        ctx.fillStyle = BG;
+        ctx.fillRect(0, 0, W, H);
+
+        // ── Animate pillar heights ──
+        const riseElapsed = ms - RISE_DELAY;
+        if (riseElapsed > 0) {
+            for (const p of pillars) {
+                const t = Math.max(0, Math.min(1,
+                    (riseElapsed - p.riseOffset) / RISE_DUR
+                ));
+                // Ease out with slight overshoot — lands with a bounce
+                const ease = t < 1
+                    ? 1 - Math.pow(1 - t, 3) + Math.sin(t * Math.PI) * 0.06
+                    : 1;
+                p.currentH = p.targetH * ease;
+            }
+        }
+
+        // ── Camera path ──
+        const descendT = Math.min(1, ms / CAM_DESCEND_DUR);
+        const descendEase = 1 - Math.pow(1 - descendT, 3);
+        camY = CAM_DESCEND_H + (CAM_CRUISE_H - CAM_DESCEND_H) * descendEase;
+
+        // Forward motion — loop the grid
+        const gridDepth = GRID_ROWS * (HEX_R * Math.sqrt(3) + HEX_GAP);
+        const rawZ = elapsed * CAM_SPEED;
+        camZ = (rawZ % gridDepth);
+
+        // Base gentle drift
+        const baseDrift = Math.sin(elapsed * CAM_DRIFT_SPD) * CAM_DRIFT_AMP
+            + Math.sin(elapsed * CAM_DRIFT_SPD * 0.37) * CAM_DRIFT_AMP * 0.4;
+
+        // Pillar repulsion — push camera away from nearby pillars smoothly
+        let repulseX = 0;
+        const REPULSE_RADIUS = 3.5;
+        const REPULSE_STRENGTH = 2.2;
+
+        for (const p of pillars) {
+            const dz = p.z - camZ;
+            if (dz < -1 || dz > REPULSE_RADIUS * 2) continue;
+            const dx = p.x - camX;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist < REPULSE_RADIUS && dist > 0.01) {
+                const force = (1 - dist / REPULSE_RADIUS) * REPULSE_STRENGTH;
+                repulseX -= (dx / dist) * force;
+            }
+        }
+
+        // Clamp repulsion so it never overcorrects
+        repulseX = Math.max(-2.0, Math.min(2.0, repulseX));
+
+        // Smoothly steer toward target — no snapping, just a gentle pull
+        const targetX = baseDrift + repulseX;
+        camX += (targetX - camX) * 0.04;
+
+        // ── Collect visible objects and sort back-to-front ──
+        const objs = [];
+        const drawDistFloor = 28;
+        const drawDistPillar = 35;
+
+        for (const f of flats) {
+            const dz = f.z - camZ;
+            if (dz > -4 && dz < drawDistFloor) {   // -4 catches near floor behind cam
+                const dx = f.x - camX;
+                objs.push({ type: 'flat', obj: f, depth: dz * dz + dx * dx });
+            }
+        }
+        for (const p of pillars) {
+            const dz = p.z - camZ;
+            if (dz > -2 && dz < drawDistPillar) {
+                const dx = p.x - camX;
+                objs.push({ type: 'pillar', obj: p, depth: dz * dz + dx * dx });
+            }
+        }
+
+        objs.sort((a, b) => b.depth - a.depth);
+
+        for (const item of objs) {
+            if (item.type === 'flat')   drawFlat(item.obj, W, H);
+            else                         drawPillar(item.obj, W, H);
+        }
+
+        raf = requestAnimationFrame(render);
+    }
+
+    return {
+        start() {
+            cv  = document.getElementById('cityCanvas');
+            if (!cv) { console.error('cityCanvas not found'); return; }
+            ctx = cv.getContext('2d');
+            cv.width  = window.innerWidth;
+            cv.height = window.innerHeight;
+            cv.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:18;display:block;';
+            console.log('CITY started', cv.width, cv.height);
+            window.addEventListener('resize', () => {
+                cv.width  = window.innerWidth;
+                cv.height = window.innerHeight;
+            });
+            buildWorld();
+            raf = requestAnimationFrame(render);
+        },
+        stop() {
+            if (raf) cancelAnimationFrame(raf);
+        }
+    };
+})();
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HONEYCOMB SEQUENCE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Tuning guide:
+// START_DELAY    — ms of black before wave starts
+// SWEEP_MS       — ms for draw wave to cross screen
+// FADE_OFFSET_MS — ms after draw wave START before fade wave begins
+//                  (set < SWEEP_MS so fade chases draw while still drawing)
+// FADE_SWEEP_MS  — ms for fade wave to cross screen
+// POP_SCALE_BASE — peak scale of landing hex (more = bouncier)
+// POP_MS         — ms for spring to settle
+// RIPPLE_RINGS   — how many neighbor rings each landing ripples
+// RIPPLE_DELAY   — ms between each ripple ring
+// RIPPLE_DECAY   — amplitude multiplier per ring (0..1)
+// CELL_FADE_MS   — ms for each cell's outline to fade once reached
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const HEX = (() => {
+
+    const HEX_R          = 36;
+    const START_DELAY    = 1600;   // ms black hold
+    const SWEEP_MS       = 3200;   // draw wave duration
+    const FADE_OFFSET_MS = 1200;   // fade starts this many ms after draw wave (chases it)
+    const FADE_SWEEP_MS  = 3000;   // fade wave duration
+    const POP_SCALE_BASE = 1.08;   // big bouncy landing
+    const POP_MS         = 600;    // spring settle time
+    const RIPPLE_RINGS   = 5;      // rings of neighbors to ripple
+    const RIPPLE_DELAY   = 60;     // ms between rings
+    const RIPPLE_DECAY   = 0.52;   // amplitude per ring
+    const CELL_FADE_MS   = 520;    // ms to fade each cell's outline
+
+    const CREAM = 'rgb(245,242,236)';
+    const BLACK = '#000';
+
+    let cv, ctx, cells = [], cellMap = new Map();
+    let raf        = null;
+    let waveStartT = null;  // set after START_DELAY — draw wave clock
+    let fadeStartT = null;  // set FADE_OFFSET_MS after waveStartT — fade wave clock
+    let allDrawn   = false;
+    let onComplete = null;
+    let maxDiag    = 1;
+
+    function hexPath(cx, cy, r) {
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const a = (Math.PI / 3) * i;
+            ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
+        }
+        ctx.closePath();
+    }
+
+    function neighborCoords(c, r) {
+        const odd = c % 2 !== 0;
+        return [
+            [c+1, r+(odd?0:-1)], [c+1, r+(odd?1:0)],
+            [c,   r-1],          [c,   r+1],
+            [c-1, r+(odd?0:-1)], [c-1, r+(odd?1:0)],
+        ];
+    }
+
+    function buildGrid(W, H) {
+        cells   = [];
+        cellMap = new Map();
+        const cw = HEX_R * 1.5;
+        const rh = HEX_R * Math.sqrt(3);
+        const cols = Math.ceil(W / cw) + 4;
+        const rows = Math.ceil(H / rh) + 4;
+
+        for (let c = -2; c < cols; c++) {
+            for (let r = -2; r < rows; r++) {
+                const cx   = c * cw;
+                const cy   = r * rh + (c % 2 !== 0 ? rh / 2 : 0);
+                const diag = (cx / W) + (cy / H);
+                const cell = { cx, cy, c, r, diag,
+                    drawn: false, popT: null, fadeT: null, ripples: [] };
+                cells.push(cell);
+                cellMap.set(`${c},${r}`, cell);
+            }
+        }
+        cells.sort((a, b) => a.diag - b.diag);
+        maxDiag = cells[cells.length - 1].diag;
+    }
+
+    // BFS outward from landCell, schedule ripple on ring `depth`
+    function triggerRipple(landCell, depth, amplitude) {
+        if (depth > RIPPLE_RINGS || amplitude < 0.015) return;
+
+        const visited  = new Set([`${landCell.c},${landCell.r}`]);
+        let   frontier = [landCell];
+
+        for (let d = 0; d < depth; d++) {
+            const next = [];
+            for (const cell of frontier) {
+                for (const [nc, nr] of neighborCoords(cell.c, cell.r)) {
+                    const key = `${nc},${nr}`;
+                    if (!visited.has(key)) {
+                        visited.add(key);
+                        const nb = cellMap.get(key);
+                        if (nb) next.push(nb);
+                    }
+                }
+            }
+            frontier = next;
+        }
+
+        setTimeout(() => {
+            const t = performance.now();
+            for (const cell of frontier) {
+                if (cell.drawn) cell.ripples.push({ startT: t, amplitude });
+            }
+            triggerRipple(landCell, depth + 1, amplitude * RIPPLE_DECAY);
+        }, depth * RIPPLE_DELAY);
+    }
+
+    function render(now) {
+        const W = cv.width;
+        const H = cv.height;
+
+        ctx.fillStyle = BLACK;
+        ctx.fillRect(0, 0, W, H);
+
+        if (waveStartT === null) { raf = requestAnimationFrame(render); return; }
+
+        const drawFront = ((now - waveStartT) / SWEEP_MS) * maxDiag;
+        const fadeFront = fadeStartT !== null
+            ? ((now - fadeStartT) / FADE_SWEEP_MS) * maxDiag
+            : -Infinity;
+
+        let allPopped = true;
+        let allFaded  = true;
+
+        for (const cell of cells) {
+
+            // ── Land ──
+            if (!cell.drawn && cell.diag <= drawFront) {
+                cell.drawn = true;
+                cell.popT  = now;
+                triggerRipple(cell, 1, POP_SCALE_BASE - 1);
+            }
+            if (!cell.drawn) { allPopped = false; allFaded = false; continue; }
+
+            // ── Fade wave ──
+            if (cell.fadeT === null && cell.diag <= fadeFront) {
+                cell.fadeT = now;
+            }
+
+            // ── Scale from landing + ripples ──
+            let scaleAdd = 0;
+            const popAge = now - cell.popT;
+            if (popAge < POP_MS) {
+                const t = popAge / POP_MS;
+                // Spring: rises fast, bounces back with slight overshoot
+                scaleAdd += (POP_SCALE_BASE - 1)
+                    * Math.sin(Math.PI * t)
+                    * Math.exp(-2.2 * t);
+            }
+
+            cell.ripples = cell.ripples.filter(rip => {
+                const age = now - rip.startT;
+                if (age >= POP_MS) return false;
+                const t = age / POP_MS;
+                scaleAdd += rip.amplitude * Math.sin(Math.PI * t) * Math.exp(-2.2 * t);
+                return true;
+            });
+
+            const scale = 1 + Math.max(0, scaleAdd);
+
+            // ── Stroke alpha — fades independently per cell ──
+            let sa = 1;
+            if (cell.fadeT !== null) {
+                sa = Math.max(0, 1 - (now - cell.fadeT) / CELL_FADE_MS);
+            }
+            // A drawn cell with no fadeT yet still has full stroke — counts as not faded
+            if (cell.fadeT === null || sa > 0) allFaded = false;
+
+            // ── Draw ──
+            const lift = Math.max(0, scaleAdd) / (POP_SCALE_BASE - 1);
+
+            ctx.save();
+            ctx.translate(cell.cx, cell.cy);
+            ctx.scale(scale, scale);
+            ctx.translate(-cell.cx, -cell.cy);
+
+            if (lift > 0.02) {
+                ctx.shadowColor    = `rgba(0,0,0,${(lift * 0.55).toFixed(3)})`;
+                ctx.shadowBlur     = lift * 22;
+                ctx.shadowOffsetY  = lift * 9;
+            }
+
+            hexPath(cell.cx, cell.cy, HEX_R);
+            ctx.fillStyle = CREAM;
+            ctx.fill();
+
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur  = 0; ctx.shadowOffsetY = 0;
+
+            if (sa > 0) {
+                ctx.strokeStyle = `rgba(26,24,20,${sa.toFixed(3)})`;
+                ctx.lineWidth   = 0.8;
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        if (allPopped && !allDrawn) allDrawn = true;
+
+        if (fadeStartT !== null && allFaded) {
+            cancelAnimationFrame(raf);
+            cv.style.transition = 'opacity 0.6s ease';
+            cv.style.opacity    = '0';
+            document.body.classList.add('accents-ready');
+            setTimeout(() => { cv.style.display = 'none'; if (onComplete) onComplete(); }, 700);
+            return;
+        }
+
+        raf = requestAnimationFrame(render);
+    }
+
+    return {
+        play(callback) {
+            onComplete = callback;
+            cv  = document.getElementById('hexCanvas');
+            ctx = cv.getContext('2d');
+            cv.width  = window.innerWidth;
+            cv.height = window.innerHeight;
+            cv.style.display    = 'block';
+            cv.style.opacity    = '1';
+            cv.style.transition = 'none';
+            buildGrid(cv.width, cv.height);
+            raf = requestAnimationFrame(render);
+
+            // Start draw wave after black hold, then fade wave FADE_OFFSET_MS later
+            setTimeout(() => {
+                waveStartT = performance.now();
+                setTimeout(() => { fadeStartT = performance.now(); }, FADE_OFFSET_MS);
+            }, START_DELAY);
+        }
+    };
+})();
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MUSIC & RADIO SYSTEM
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1243,31 +1741,25 @@ function attemptLogin() {
         return;
     }
 
-    // Mark that this player has passed the gate — future visits skip the intro
     localStorage.setItem('baw_gate_passed', 'true');
 
-    showMsg('Verified — establishing secure session...', 'success');
-    document.getElementById('loginProgress').classList.add('show');
-    setTimeout(() => document.getElementById('loginBar').style.width = '100%', 50);
+    const loginPhase = document.getElementById('loginPhase');
+    loginPhase.style.transition = 'opacity 0.6s ease';
+    loginPhase.style.opacity = '0';
 
     setTimeout(() => {
-        const loginPhase = document.getElementById('loginPhase');
-        loginPhase.style.transition = 'opacity 1.5s ease';
-        loginPhase.style.opacity = '0';
-
-        setTimeout(() => {
+        CITY.stop();
+        document.getElementById('cityCanvas').style.display = 'none';
+        playSecuredFlash(() => {
             loginPhase.style.display = 'none';
             const scanPhase = document.getElementById('scanPhase');
             scanPhase.style.display = 'flex';
             scanPhase.style.opacity = '0';
             scanPhase.style.transition = 'opacity 2s ease';
-
             document.querySelector('.scan-lines-wrap').style.opacity = '0';
             document.querySelector('.scan-progress').style.opacity = '0';
             document.querySelector('.scan-right').style.opacity = '0';
-
             setTimeout(() => { scanPhase.style.opacity = '1'; }, 100);
-
             setTimeout(() => {
                 document.querySelector('.scan-lines-wrap').style.transition = 'opacity 1.5s ease';
                 document.querySelector('.scan-progress').style.transition = 'opacity 1.5s ease';
@@ -1278,9 +1770,8 @@ function attemptLogin() {
                 conductorReady = true;
                 setTimeout(revealNextRow, 800);
             }, 3000);
-
-        }, 1500);
-    }, 1600);
+        });
+    }, 700);
 }
 
 function showMsg(text, type) {
@@ -1289,186 +1780,6 @@ function showMsg(text, type) {
     el.className = type;
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// HONEYCOMB SEQUENCE
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Draws cream hexagons on a black canvas sweeping diagonally
-// from top-left to bottom-right. Each hex pops toward the
-// camera (scale > 1) then settles. Once all hexes are drawn,
-// the outlines fade away leaving solid cream, then the
-// "SECURED" flash plays, then the login card appears.
-//
-// On returning visits (baw_gate_passed in localStorage),
-// this entire sequence is skipped.
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-const HEX = (() => {
-
-    // ── Config ──
-    const CREAM       = '#f5f2ec';
-    const BLACK       = '#000000';
-    const HEX_STROKE  = '#1a1a18';
-    const HEX_SIZE    = 38;          // circumradius in px
-    const WAVE_SPEED  = 1.8;         // diagonal cells per frame
-    const POP_SCALE   = 1.18;        // how much each hex pops out
-    const POP_DUR     = 280;         // ms for pop + settle animation
-    const FADE_DELAY  = 600;         // ms after last hex before outlines fade
-    const FADE_DUR    = 900;         // ms for outline fade
-
-    let canvas, ctx, cells = [], animFrame;
-    let waveProgress = 0;            // diagonal distance reached so far
-    let maxDiag = 0;                 // total diagonal length of grid
-    let allDrawn = false;
-    let outlineAlpha = 1;
-    let fadingOutlines = false;
-    let onComplete = null;           // callback when sequence finishes
-
-    // ── Hex geometry helpers ──
-    // Flat-top hexagons. Returns the 6 corner points of a hex
-    // centered at (cx, cy) with circumradius r.
-    function hexCorners(cx, cy, r) {
-        const pts = [];
-        for (let i = 0; i < 6; i++) {
-            const angle = (Math.PI / 180) * (60 * i);
-            pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
-        }
-        return pts;
-    }
-
-    // Draw a single filled hex with an outline
-    function drawHex(cx, cy, r, fillAlpha, strokeAlpha, scale) {
-        const pts = hexCorners(cx, cy, r * scale);
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.scale(scale, scale);
-        ctx.translate(-cx, -cy);
-
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < 6; i++) ctx.lineTo(pts[i].x, pts[i].y);
-        ctx.closePath();
-
-        ctx.fillStyle = `rgba(245,242,236,${fillAlpha})`;
-        ctx.fill();
-
-        ctx.strokeStyle = `rgba(26,26,24,${strokeAlpha})`;
-        ctx.lineWidth = 0.8;
-        ctx.stroke();
-
-        ctx.restore();
-    }
-
-    // Build the grid of hex cell centers covering the canvas
-    function buildGrid(w, h) {
-        cells = [];
-        const colW  = HEX_SIZE * 1.5;
-        const rowH  = HEX_SIZE * Math.sqrt(3);
-        const cols  = Math.ceil(w / colW) + 2;
-        const rows  = Math.ceil(h / rowH) + 2;
-
-        for (let col = -1; col < cols; col++) {
-            for (let row = -1; row < rows; row++) {
-                const cx = col * colW;
-                const cy = row * rowH + (col % 2 === 0 ? 0 : rowH / 2);
-                // Diagonal distance from top-left — determines reveal order
-                const diag = (cx / w + cy / h);
-                cells.push({ cx, cy, diag, drawn: false, popStart: null, scale: 1 });
-            }
-        }
-
-        // Sort by diagonal so we can sweep efficiently
-        cells.sort((a, b) => a.diag - b.diag);
-        maxDiag = cells[cells.length - 1].diag;
-    }
-
-    // ── Main render loop ──
-    function render(ts) {
-        const w = canvas.width;
-        const h = canvas.height;
-
-        // Fill black background
-        ctx.fillStyle = BLACK;
-        ctx.fillRect(0, 0, w, h);
-
-        if (!allDrawn) {
-            // Advance the wave front
-            waveProgress += WAVE_SPEED / 60 * (1000 / 16.67);
-
-            let allDone = true;
-            for (const cell of cells) {
-                const threshold = cell.diag * 60;  // scaled to frame units
-                if (threshold <= waveProgress && !cell.drawn) {
-                    cell.drawn    = true;
-                    cell.popStart = ts;
-                }
-                if (!cell.drawn) { allDone = false; continue; }
-
-                // Compute pop scale: starts at POP_SCALE, eases back to 1
-                let scale = 1;
-                if (cell.popStart !== null) {
-                    const elapsed = ts - cell.popStart;
-                    if (elapsed < POP_DUR) {
-                        const t = elapsed / POP_DUR;
-                        // Ease out: overshoot then settle
-                        const eased = 1 - Math.pow(1 - t, 3);
-                        scale = POP_SCALE - (POP_SCALE - 1) * eased;
-                    }
-                }
-                drawHex(cell.cx, cell.cy, HEX_SIZE, 1, outlineAlpha, scale);
-            }
-
-            if (allDone && !allDrawn) {
-                allDrawn = true;
-                // Start fading outlines after a short pause
-                setTimeout(() => { fadingOutlines = true; }, FADE_DELAY);
-            }
-
-        } else if (fadingOutlines) {
-            // Fade the outlines while keeping cream fill
-            outlineAlpha = Math.max(0, outlineAlpha - (1 / (FADE_DUR / 16.67)));
-            for (const cell of cells) {
-                drawHex(cell.cx, cell.cy, HEX_SIZE, 1, outlineAlpha, 1);
-            }
-
-            if (outlineAlpha <= 0) {
-                // Sequence complete — hide canvas and call back
-                fadingOutlines = false;
-                cancelAnimationFrame(animFrame);
-                canvas.style.opacity = '0';
-                setTimeout(() => {
-                    canvas.style.display = 'none';
-                    if (onComplete) onComplete();
-                }, 300);
-                return;
-            }
-        } else {
-            // Holding — all drawn, waiting for fade to start
-            for (const cell of cells) {
-                drawHex(cell.cx, cell.cy, HEX_SIZE, 1, outlineAlpha, 1);
-            }
-        }
-
-        animFrame = requestAnimationFrame(render);
-    }
-
-    // ── Public API ──
-    return {
-        play(callback) {
-            onComplete = callback;
-            canvas = document.getElementById('hexCanvas');
-            ctx    = canvas.getContext('2d');
-
-            canvas.width  = window.innerWidth;
-            canvas.height = window.innerHeight;
-            canvas.style.display  = 'block';
-            canvas.style.opacity  = '1';
-            canvas.style.transition = 'opacity 0.3s ease';
-
-            buildGrid(canvas.width, canvas.height);
-            animFrame = requestAnimationFrame(render);
-        }
-    };
-})();
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1577,18 +1888,18 @@ function playSecuredFlash(onComplete) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function playInitiationSequence(onComplete) {
-    // Hide everything behind the canvas
     document.getElementById('loginPhase').style.opacity = '0';
 
     HEX.play(() => {
-        // Honeycombs done — play the flash
-        playSecuredFlash(() => {
-            // Flash done — reveal the login card
-            const login = document.getElementById('loginPhase');
-            login.style.transition = 'opacity 0.8s ease';
-            login.style.opacity    = '1';
-            if (onComplete) onComplete();
-        });
+        CITY.start();
+        const login = document.getElementById('loginPhase');
+        login.style.transition = 'opacity 1.4s ease';
+        setTimeout(() => {
+            login.style.opacity = '1';
+            const pw = document.getElementById('password');
+            if (pw) pw.focus();
+        }, 800);
+        if (onComplete) onComplete();
     });
 }
 
@@ -1625,6 +1936,10 @@ function checkSessionState() {
         playInitiationSequence();
         return;
     }
+
+    // Gate passed — accents show immediately, no hex sequence
+    document.body.classList.add('accents-ready');
+    CITY.start();
 
     // Gate passed — skip straight to post-sequence state
     // Hide the login card, position globe, show appropriate prompt

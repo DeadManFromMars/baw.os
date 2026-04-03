@@ -131,30 +131,42 @@
         <svg id="securedRipples" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;"></svg>
     </div>
 
+    <!-- ── HEX CITY CANVAS ──
+         3D perspective fly-through running behind the login. -->
+    <canvas id="cityCanvas" style="position:fixed;inset:0;width:100%;height:100%;z-index:18;display:none;"></canvas>
+
     <!-- ── LOGIN PHASE ──
-         Minimal floating card. Passphrase only.
-         Appears after the honeycomb sequence on first visit,
-         or immediately on returning visits (no sequence replay). -->
-    <div id="loginPhase" class="visible">
-        <div class="login-card" id="loginCard">
-            <div class="card-eyebrow">BSI — Restricted Access</div>
-            <div class="card-heading">Sign<br><em>In.</em></div>
-            <div class="card-sub">Authorized personnel only. All sessions are recorded and monitored.</div>
-            <div class="card-divider"></div>
-            <div class="field">
-                <label class="field-label">Passphrase</label>
-                <input type="password" id="password" placeholder="enter passphrase" autocomplete="off" />
+         No card. Just the input floating over the city.
+         Enter key submits. -->
+    <div id="loginPhase">
+
+        <div class="lp-hud-tl">
+            <span class="lp-hud-dot"></span>BSI-NODE-7
+        </div>
+
+        <div class="lp-hud-br">
+            <span id="sessionId">BSI-——</span>
+        </div>
+
+        <div class="lp-center">
+            <div class="lp-label">PASSPHRASE</div>
+            <div class="lp-input-wrap">
+                <input
+                    type="password"
+                    id="password"
+                    class="lp-input"
+                    placeholder="—"
+                    autocomplete="off"
+                    spellcheck="false"
+                />
             </div>
-            <button class="btn" onclick="attemptLogin()">Sign In</button>
+            <div class="lp-hint">ENTER TO AUTHENTICATE</div>
             <div class="msg" id="msg"></div>
             <div class="progress-wrap" id="loginProgress">
                 <div class="progress-bar" id="loginBar"></div>
             </div>
-            <div class="card-footer">
-                <div class="monitor">Session Active</div>
-                <span id="sessionId">BSI-——</span>
-            </div>
         </div>
+
     </div>
 
     <div id="overlay">
