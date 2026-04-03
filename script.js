@@ -9,50 +9,56 @@
 const CITY = (() => {
 
     // ── Tuning ──
-    const HEX_R         = 1.0;
-    const HEX_GAP       = 0.02;
-    const GRID_COLS     = 48;
-    const GRID_ROWS     = 40;    // long enough for infinite loop
+    const HEX_R = 1.0;
+    const HEX_GAP = 0.02;
+    const GRID_COLS = 56;
+    const GRID_ROWS = 100;
     const PILLAR_CHANCE = 0.30;
-    const PILLAR_H_MIN  = 0.3;
-    const PILLAR_H_MAX  = 4.2;
-    const RISE_DUR      = 2200;  // ms for pillars to fully rise
-    const RISE_DELAY    = 1800;  // ms after start before rising begins
-    const CAM_DESCEND_H   = 3.5;   // start much lower so pillars are visible immediately
-    const CAM_CRUISE_H    = 1.6;   // cruising height between pillars
-    const CAM_DESCEND_DUR = 2500;  // ms to descend
-    const CAM_SPEED     = 2.2;   // forward speed (world units/sec)
-    const CAM_DRIFT_AMP = 0.4;   // side-to-side amplitude
-    const CAM_DRIFT_SPD = 0.14;  // side-to-side frequency
-    const FOV_DEG       = 75;
+    const PILLAR_H_MIN = 0.4;
+    const PILLAR_H_MAX = 4.5;
+    const RISE_DUR = 2200;
+    const RISE_DELAY = 1800;
+    const CAM_DESCEND_H = 3.0;
+    const CAM_CRUISE_H = 1.4;
+    const CAM_DESCEND_DUR = 2800;
+    const CAM_SPEED = 1.8;   // forward units/sec
+    const FOV_DEG = 72;
 
-    const CREAM      = 'rgb(245,242,236)';  // pillar tops — match page cream
-    const CREAM_SIDE = 'rgb(188,183,172)';  // pillar light side
-    const CREAM_DARK = 'rgb(160,155,145)';  // pillar dark side
-    const FLOOR      = 'rgb(220,216,208)';  // ground plane — slightly darker than cream
-    const BG         = 'rgb(245,242,236)';  // horizon fill
+    // Drift is now handled by a smooth path, not raw sin
+    const DRIFT_PERIOD = 22;    // seconds for one full left-right sweep
+    const DRIFT_AMP = 2.8;   // how far left/right the path wanders (world units)
+
+    // Pillar avoidance
+    const AVOID_RADIUS = 2.8;   // start avoiding at this distance
+    const AVOID_STRENGTH = 0.6;   // gentle — just enough to steer clear
+    const AVOID_LOOKAHEAD = 4.0;   // also check pillars slightly ahead
+
+    const CREAM = 'rgb(245,242,236)';
+    const CREAM_SIDE = 'rgb(195,190,180)';
+    const CREAM_DARK = 'rgb(155,150,140)';
+    const FLOOR = 'rgb(220,216,208)';
+    const BG = 'rgb(245,242,236)';  // horizon fill
 
     let cv, ctx;
     let pillars = [], flats = [];
-    let raf      = null;
-    let startT   = null;
+    let raf = null;
+    let startT = null;
 
-    // Camera state
+    // Camera state — persists across frames for smooth lerping
     let camX = 0, camY = CAM_DESCEND_H, camZ = 0;
+    let camVX = 0; // lateral velocity, lerped each frame
 
-    // Seeded random for stable world
     let seed = 137;
     function rand() {
         seed = (seed * 1664525 + 1013904223) & 0xffffffff;
         return Math.abs(seed) / 0x7fffffff;
     }
 
-    // Hex center in world space, centered around origin
     function hexCenter(col, row) {
         const cw = HEX_R * 1.5 + HEX_GAP;
         const rh = HEX_R * Math.sqrt(3) + HEX_GAP;
-        const x  = col * cw - (GRID_COLS * cw) / 2;
-        const z  = row * rh + (col % 2 !== 0 ? rh / 2 : 0);
+        const x = col * cw - (GRID_COLS * cw) / 2;
+        const z = row * rh + (col % 2 !== 0 ? rh / 2 : 0);
         return { x, z };
     }
 
@@ -74,8 +80,7 @@ const CITY = (() => {
                 const pts = hexPts(x, z, HEX_R * 0.94);
                 if (rand() < PILLAR_CHANCE) {
                     const h = PILLAR_H_MIN + rand() * (PILLAR_H_MAX - PILLAR_H_MIN);
-                    // Stagger rise start slightly by distance from center
-                    const riseOffset = Math.sqrt(x*x + (z - 8)*(z - 8)) * 40;
+                    const riseOffset = Math.sqrt(x * x + (z - 8) * (z - 8)) * 40;
                     pillars.push({ x, z, pts, targetH: h, currentH: 0, riseOffset });
                 } else {
                     flats.push({ x, z, pts });
@@ -84,66 +89,98 @@ const CITY = (() => {
         }
     }
 
-    // ── Perspective projection ──
     function project(wx, wy, wz, W, H) {
-        const fov  = (FOV_DEG * Math.PI) / 180;
+        const fov = (FOV_DEG * Math.PI) / 180;
         const flen = (W / 2) / Math.tan(fov / 2);
         const rx = wx - camX;
         const ry = wy - camY;
         const rz = wz - camZ;
-        if (rz <= 0.01) return null;
+        if (rz <= 0.05) return null;
         return {
-            sx:    (rx / rz) * flen + W / 2,
-            sy:    (-ry / rz) * flen + H / 2,
+            sx: (rx / rz) * flen + W / 2,
+            sy: (-ry / rz) * flen + H / 2,
             depth: rz
         };
     }
 
-    function fillPoly(pts2d, color) {
-        if (!pts2d || pts2d.some(p => !p)) return false;
-        ctx.beginPath();
-        ctx.moveTo(pts2d[0].sx, pts2d[0].sy);
-        for (let i = 1; i < pts2d.length; i++) ctx.lineTo(pts2d[i].sx, pts2d[i].sy);
-        ctx.closePath();
-        ctx.fillStyle = color;
-        ctx.fill();
-        return true;
+    // Subdivided top face — prevents projection warping
+    const SUBDIV = 4;
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < 6; i++) {
+        const j = (i + 1) % 6;
+        const [ax, az] = p.pts[i];
+        const [bx, bz] = p.pts[j];
+        for (let s = 0; s <= SUBDIV; s++) {
+            const t = s / SUBDIV;
+            const wx = ax + (bx - ax) * t;
+            const wz = az + (bz - az) * t;
+            const pt = project(wx, p.currentH, wz, W, H);
+            if (!pt) continue;
+            if (!started) { ctx.moveTo(pt.sx, pt.sy); started = true; }
+            else ctx.lineTo(pt.sx, pt.sy);
+        }
     }
-
+    ctx.closePath();
+    ctx.fillStyle = CREAM;
+    ctx.fill();
     function drawPillar(p, W, H) {
-        if (p.currentH < 0.01) return p.targetH;
-        const top = p.pts.map(([px,pz]) => project(px, p.currentH, pz, W, H));
-        const bot = p.pts.map(([px,pz]) => project(px, 0,           pz, W, H));
-        const anyTop = top.some(t => t !== null);
-        const anyBot = bot.some(b => b !== null);
-        if (!anyTop && !anyBot) return p.targetH;
+        if (p.currentH < 0.01) return;
+        const top = p.pts.map(([px, pz]) => project(px, p.currentH, pz, W, H));
+        const bot = p.pts.map(([px, pz]) => project(px, 0, pz, W, H));
+        const anyVisible = top.some(t => t !== null) || bot.some(b => b !== null);
+        if (!anyVisible) return;
 
-        // Side faces — only front-facing ones
+        // Side faces — cull back faces using face midpoint
         for (let i = 0; i < 6; i++) {
             const j = (i + 1) % 6;
-            if (!top[i]||!top[j]||!bot[i]||!bot[j]) continue;
-            const [px0,pz0] = p.pts[i], [px1,pz1] = p.pts[j];
-            const ex = px1-px0, ez = pz1-pz0;
-            const dot = ex*(p.z-camZ) - ez*(p.x-camX);
-            if (dot >= 0) continue;
-            // Shade by face angle — left/right get different tones
+            if (!top[i] || !top[j] || !bot[i] || !bot[j]) continue;
+            const [px0, pz0] = p.pts[i], [px1, pz1] = p.pts[j];
+            const ex = px1 - px0, ez = pz1 - pz0;
+            const midX = (px0 + px1) / 2;
+            const midZ = (pz0 + pz1) / 2;
+            const dot = ex * (midZ - camZ) - ez * (midX - camX);
+            if (dot > 0) continue;  // cull back faces
             const angle = Math.atan2(ez, ex);
-            const shade = Math.cos(angle - Math.PI/4);
+            const shade = Math.cos(angle - Math.PI / 4);
             const color = shade > 0 ? CREAM_SIDE : CREAM_DARK;
-            fillPoly([top[i],top[j],bot[j],bot[i]], color);
+            fillPoly([top[i], top[j], bot[j], bot[i]], color);
         }
-        fillPoly(top, CREAM);
-        return top.find(t=>t)?.depth ?? p.targetH;
+
+        // Subdivided top face — prevents projection warping at close range
+        const SUBDIV = 4;
+        ctx.beginPath();
+        let started = false;
+        for (let i = 0; i < 6; i++) {
+            const j = (i + 1) % 6;
+            const [ax, az] = p.pts[i];
+            const [bx, bz] = p.pts[j];
+            for (let s = 0; s <= SUBDIV; s++) {
+                const t = s / SUBDIV;
+                const wx = ax + (bx - ax) * t;
+                const wz = az + (bz - az) * t;
+                const pt = project(wx, p.currentH, wz, W, H);
+                if (!pt) continue;
+                if (!started) { ctx.moveTo(pt.sx, pt.sy); started = true; }
+                else ctx.lineTo(pt.sx, pt.sy);
+            }
+        }
+        ctx.closePath();
+        ctx.fillStyle = CREAM;
+        ctx.fill();
     }
 
     function drawFlat(f, W, H) {
-        const pts = f.pts.map(([px,pz]) => project(px, 0, pz, W, H));
-        fillPoly(pts, FLOOR);
+        const pts = f.pts.map(([px, pz]) => project(px, 0, pz, W, H));
+        // Only skip if ALL points are null
+        if (pts.every(p => p === null)) return;
+        // Fill with nulls replaced by neighbours for edge tiles
+        fillPoly(pts.map(p => p || { sx: W / 2, sy: H }), FLOOR);
     }
 
     function render(now) {
         if (!startT) startT = now;
-        const ms      = now - startT;
+        const ms = now - startT;
         const elapsed = ms / 1000;
 
         const W = cv.width, H = cv.height;
@@ -151,14 +188,13 @@ const CITY = (() => {
         ctx.fillStyle = BG;
         ctx.fillRect(0, 0, W, H);
 
-        // ── Animate pillar heights ──
+        // ── Pillar rise ──
         const riseElapsed = ms - RISE_DELAY;
         if (riseElapsed > 0) {
             for (const p of pillars) {
                 const t = Math.max(0, Math.min(1,
                     (riseElapsed - p.riseOffset) / RISE_DUR
                 ));
-                // Ease out with slight overshoot — lands with a bounce
                 const ease = t < 1
                     ? 1 - Math.pow(1 - t, 3) + Math.sin(t * Math.PI) * 0.06
                     : 1;
@@ -166,84 +202,91 @@ const CITY = (() => {
             }
         }
 
-        // ── Camera path ──
+        // ── Camera descent ──
         const descendT = Math.min(1, ms / CAM_DESCEND_DUR);
         const descendEase = 1 - Math.pow(1 - descendT, 3);
         camY = CAM_DESCEND_H + (CAM_CRUISE_H - CAM_DESCEND_H) * descendEase;
 
-        // Forward motion — loop the grid
-        const gridDepth = GRID_ROWS * (HEX_R * Math.sqrt(3) + HEX_GAP);
-        const rawZ = elapsed * CAM_SPEED;
-        camZ = (rawZ % gridDepth);
+        // ── Forward motion with seamless loop ──
+        const rowH = HEX_R * Math.sqrt(3) + HEX_GAP;
+        const gridDepth = GRID_ROWS * rowH;
+        camZ = (elapsed * CAM_SPEED) % gridDepth;
 
-        // Base gentle drift
-        const baseDrift = Math.sin(elapsed * CAM_DRIFT_SPD) * CAM_DRIFT_AMP
-            + Math.sin(elapsed * CAM_DRIFT_SPD * 0.37) * CAM_DRIFT_AMP * 0.4;
+        // ── Lateral path — smooth sinusoidal base ──
+        // Two layered sines at different periods = non-repeating feel
+        const pathX = Math.sin((elapsed / DRIFT_PERIOD) * Math.PI * 2) * DRIFT_AMP
+            + Math.sin((elapsed / (DRIFT_PERIOD * 0.61)) * Math.PI * 2) * DRIFT_AMP * 0.35;
 
-        // Pillar repulsion — push camera away from nearby pillars smoothly
-        let repulseX = 0;
-        const REPULSE_RADIUS = 3.5;
-        const REPULSE_STRENGTH = 2.2;
-
+        // ── Pillar avoidance ──
+        // Accumulate a gentle lateral push away from nearby pillars
+        let avoidX = 0;
         for (const p of pillars) {
             const dz = p.z - camZ;
-            if (dz < -1 || dz > REPULSE_RADIUS * 2) continue;
+            // Only care about pillars ahead (and a tiny bit behind)
+            if (dz < -1.5 || dz > AVOID_LOOKAHEAD) continue;
             const dx = p.x - camX;
             const dist = Math.sqrt(dx * dx + dz * dz);
-            if (dist < REPULSE_RADIUS && dist > 0.01) {
-                const force = (1 - dist / REPULSE_RADIUS) * REPULSE_STRENGTH;
-                repulseX -= (dx / dist) * force;
+            if (dist < AVOID_RADIUS && dist > 0.01) {
+                // Force is proportional to how close we are, weighted by height
+                const proximity = 1 - dist / AVOID_RADIUS;
+                const heightWeight = Math.min(p.currentH / 2.0, 1.0);
+                avoidX -= (dx / dist) * proximity * AVOID_STRENGTH * heightWeight;
             }
         }
+        // Clamp avoidance — it adds to the path, not overrides it
+        avoidX = Math.max(-1.5, Math.min(1.5, avoidX));
 
-        // Clamp repulsion so it never overcorrects
-        repulseX = Math.max(-2.0, Math.min(2.0, repulseX));
+        // Target X = path + avoidance
+        const targetX = pathX + avoidX;
 
-        // Smoothly steer toward target — no snapping, just a gentle pull
-        const targetX = baseDrift + repulseX;
-        camX += (targetX - camX) * 0.04;
+        // Smooth camera toward target — the lerp factor controls how snappy it feels
+        // 0.02 = very silky, 0.06 = responsive but still smooth
+        camVX += (targetX - camX) * 0.025;
+        camVX *= 0.88; // dampen velocity so it doesn't oscillate
+        camX += camVX;
 
-        // ── Collect visible objects and sort back-to-front ──
-        const objs = [];
-        const drawDistFloor = 28;
-        const drawDistPillar = 35;
+        // ── Collect and sort visible objects ──
+        const flatObjs = [];
+        const pillarObjs = [];
+        const DRAW_FLOOR = 30;
+        const DRAW_PILLAR = 38;
 
         for (const f of flats) {
             const dz = f.z - camZ;
-            if (dz > -4 && dz < drawDistFloor) {   // -4 catches near floor behind cam
+            const dzWrapped = dz < -4 ? dz + gridDepth : dz;
+            if (dzWrapped > -4 && dzWrapped < DRAW_FLOOR) {
                 const dx = f.x - camX;
-                objs.push({ type: 'flat', obj: f, depth: dz * dz + dx * dx });
+                flatObjs.push({ obj: f, depth: dzWrapped * dzWrapped + dx * dx });
             }
         }
         for (const p of pillars) {
             const dz = p.z - camZ;
-            if (dz > -2 && dz < drawDistPillar) {
+            const dzWrapped = dz < -2 ? dz + gridDepth : dz;
+            if (dzWrapped > -2 && dzWrapped < DRAW_PILLAR) {
                 const dx = p.x - camX;
-                objs.push({ type: 'pillar', obj: p, depth: dz * dz + dx * dx });
+                pillarObjs.push({ obj: p, depth: dzWrapped * dzWrapped + dx * dx });
             }
         }
 
-        objs.sort((a, b) => b.depth - a.depth);
+        flatObjs.sort((a, b) => b.depth - a.depth);
+        pillarObjs.sort((a, b) => b.depth - a.depth);
 
-        for (const item of objs) {
-            if (item.type === 'flat')   drawFlat(item.obj, W, H);
-            else                         drawPillar(item.obj, W, H);
-        }
+        for (const item of flatObjs) drawFlat(item.obj, W, H);
+        for (const item of pillarObjs) drawPillar(item.obj, W, H);
 
         raf = requestAnimationFrame(render);
     }
 
     return {
         start() {
-            cv  = document.getElementById('cityCanvas');
+            cv = document.getElementById('cityCanvas');
             if (!cv) { console.error('cityCanvas not found'); return; }
             ctx = cv.getContext('2d');
-            cv.width  = window.innerWidth;
+            cv.width = window.innerWidth;
             cv.height = window.innerHeight;
             cv.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:18;display:block;';
-            console.log('CITY started', cv.width, cv.height);
             window.addEventListener('resize', () => {
-                cv.width  = window.innerWidth;
+                cv.width = window.innerWidth;
                 cv.height = window.innerHeight;
             });
             buildWorld();
