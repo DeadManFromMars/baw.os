@@ -1207,9 +1207,10 @@ function triggerDissolve() {
         if (header) header.style.top = '12%';
     }, 3100);
 
-    // Step 3 — draw pin lines
+    // Step 3 — show ARG registration prompt instead of immediately drawing pin lines.
+    // Pin lines draw after the player registers or uploads their card.
     setTimeout(() => {
-        if (window.startPinLines) window.startPinLines();
+        showArgRegistration();
     }, 5500);
 }
 
@@ -1221,11 +1222,11 @@ function triggerDissolve() {
 document.addEventListener('keydown', e => { if (e.key === 'Enter') attemptLogin(); });
 
 function attemptLogin() {
-    const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value.trim();
 
     // DEV SHORTCUT — remove before launch
     if (password.toLowerCase() === 'wawamangosmoothie') {
+        localStorage.setItem('baw_gate_passed', 'true');
         document.getElementById('loginPhase').style.display = 'none';
         const scanPhase = document.getElementById('scanPhase');
         scanPhase.style.display = 'flex';
@@ -1235,14 +1236,15 @@ function attemptLogin() {
         return;
     }
 
-    if (!username) { showMsg('Employee ID is required.', 'error'); return; }
-
     if (password.toLowerCase() !== ACCESS_CODE) {
         showMsg('Invalid credentials. This attempt has been logged.', 'error');
         document.getElementById('password').value = '';
         document.getElementById('password').focus();
         return;
     }
+
+    // Mark that this player has passed the gate — future visits skip the intro
+    localStorage.setItem('baw_gate_passed', 'true');
 
     showMsg('Verified — establishing secure session...', 'success');
     document.getElementById('loginProgress').classList.add('show');
@@ -1285,4 +1287,525 @@ function showMsg(text, type) {
     const el = document.getElementById('msg');
     el.textContent = text;
     el.className = type;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HONEYCOMB SEQUENCE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Draws cream hexagons on a black canvas sweeping diagonally
+// from top-left to bottom-right. Each hex pops toward the
+// camera (scale > 1) then settles. Once all hexes are drawn,
+// the outlines fade away leaving solid cream, then the
+// "SECURED" flash plays, then the login card appears.
+//
+// On returning visits (baw_gate_passed in localStorage),
+// this entire sequence is skipped.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const HEX = (() => {
+
+    // ── Config ──
+    const CREAM       = '#f5f2ec';
+    const BLACK       = '#000000';
+    const HEX_STROKE  = '#1a1a18';
+    const HEX_SIZE    = 38;          // circumradius in px
+    const WAVE_SPEED  = 1.8;         // diagonal cells per frame
+    const POP_SCALE   = 1.18;        // how much each hex pops out
+    const POP_DUR     = 280;         // ms for pop + settle animation
+    const FADE_DELAY  = 600;         // ms after last hex before outlines fade
+    const FADE_DUR    = 900;         // ms for outline fade
+
+    let canvas, ctx, cells = [], animFrame;
+    let waveProgress = 0;            // diagonal distance reached so far
+    let maxDiag = 0;                 // total diagonal length of grid
+    let allDrawn = false;
+    let outlineAlpha = 1;
+    let fadingOutlines = false;
+    let onComplete = null;           // callback when sequence finishes
+
+    // ── Hex geometry helpers ──
+    // Flat-top hexagons. Returns the 6 corner points of a hex
+    // centered at (cx, cy) with circumradius r.
+    function hexCorners(cx, cy, r) {
+        const pts = [];
+        for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 180) * (60 * i);
+            pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+        }
+        return pts;
+    }
+
+    // Draw a single filled hex with an outline
+    function drawHex(cx, cy, r, fillAlpha, strokeAlpha, scale) {
+        const pts = hexCorners(cx, cy, r * scale);
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(scale, scale);
+        ctx.translate(-cx, -cy);
+
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < 6; i++) ctx.lineTo(pts[i].x, pts[i].y);
+        ctx.closePath();
+
+        ctx.fillStyle = `rgba(245,242,236,${fillAlpha})`;
+        ctx.fill();
+
+        ctx.strokeStyle = `rgba(26,26,24,${strokeAlpha})`;
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    // Build the grid of hex cell centers covering the canvas
+    function buildGrid(w, h) {
+        cells = [];
+        const colW  = HEX_SIZE * 1.5;
+        const rowH  = HEX_SIZE * Math.sqrt(3);
+        const cols  = Math.ceil(w / colW) + 2;
+        const rows  = Math.ceil(h / rowH) + 2;
+
+        for (let col = -1; col < cols; col++) {
+            for (let row = -1; row < rows; row++) {
+                const cx = col * colW;
+                const cy = row * rowH + (col % 2 === 0 ? 0 : rowH / 2);
+                // Diagonal distance from top-left — determines reveal order
+                const diag = (cx / w + cy / h);
+                cells.push({ cx, cy, diag, drawn: false, popStart: null, scale: 1 });
+            }
+        }
+
+        // Sort by diagonal so we can sweep efficiently
+        cells.sort((a, b) => a.diag - b.diag);
+        maxDiag = cells[cells.length - 1].diag;
+    }
+
+    // ── Main render loop ──
+    function render(ts) {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        // Fill black background
+        ctx.fillStyle = BLACK;
+        ctx.fillRect(0, 0, w, h);
+
+        if (!allDrawn) {
+            // Advance the wave front
+            waveProgress += WAVE_SPEED / 60 * (1000 / 16.67);
+
+            let allDone = true;
+            for (const cell of cells) {
+                const threshold = cell.diag * 60;  // scaled to frame units
+                if (threshold <= waveProgress && !cell.drawn) {
+                    cell.drawn    = true;
+                    cell.popStart = ts;
+                }
+                if (!cell.drawn) { allDone = false; continue; }
+
+                // Compute pop scale: starts at POP_SCALE, eases back to 1
+                let scale = 1;
+                if (cell.popStart !== null) {
+                    const elapsed = ts - cell.popStart;
+                    if (elapsed < POP_DUR) {
+                        const t = elapsed / POP_DUR;
+                        // Ease out: overshoot then settle
+                        const eased = 1 - Math.pow(1 - t, 3);
+                        scale = POP_SCALE - (POP_SCALE - 1) * eased;
+                    }
+                }
+                drawHex(cell.cx, cell.cy, HEX_SIZE, 1, outlineAlpha, scale);
+            }
+
+            if (allDone && !allDrawn) {
+                allDrawn = true;
+                // Start fading outlines after a short pause
+                setTimeout(() => { fadingOutlines = true; }, FADE_DELAY);
+            }
+
+        } else if (fadingOutlines) {
+            // Fade the outlines while keeping cream fill
+            outlineAlpha = Math.max(0, outlineAlpha - (1 / (FADE_DUR / 16.67)));
+            for (const cell of cells) {
+                drawHex(cell.cx, cell.cy, HEX_SIZE, 1, outlineAlpha, 1);
+            }
+
+            if (outlineAlpha <= 0) {
+                // Sequence complete — hide canvas and call back
+                fadingOutlines = false;
+                cancelAnimationFrame(animFrame);
+                canvas.style.opacity = '0';
+                setTimeout(() => {
+                    canvas.style.display = 'none';
+                    if (onComplete) onComplete();
+                }, 300);
+                return;
+            }
+        } else {
+            // Holding — all drawn, waiting for fade to start
+            for (const cell of cells) {
+                drawHex(cell.cx, cell.cy, HEX_SIZE, 1, outlineAlpha, 1);
+            }
+        }
+
+        animFrame = requestAnimationFrame(render);
+    }
+
+    // ── Public API ──
+    return {
+        play(callback) {
+            onComplete = callback;
+            canvas = document.getElementById('hexCanvas');
+            ctx    = canvas.getContext('2d');
+
+            canvas.width  = window.innerWidth;
+            canvas.height = window.innerHeight;
+            canvas.style.display  = 'block';
+            canvas.style.opacity  = '1';
+            canvas.style.transition = 'opacity 0.3s ease';
+
+            buildGrid(canvas.width, canvas.height);
+            animFrame = requestAnimationFrame(render);
+        }
+    };
+})();
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECURED FLASH
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// The word "SECURED" flickers in like a light turning on,
+// sends out expanding rectangular ripples, holds briefly,
+// then flickers out.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function playSecuredFlash(onComplete) {
+    const flash   = document.getElementById('securedFlash');
+    const word    = document.getElementById('securedWord');
+    const ripples = document.getElementById('securedRipples');
+
+    // Make the flash container visible (it sits on the cream background)
+    // We flip it to dark mode just for this moment
+    flash.style.background = 'transparent';
+    word.style.color       = 'var(--ink)';
+    word.style.borderColor = 'var(--ink)';
+
+    // ── Ripple helper ──
+    // Spawns a rectangle that expands from the word's position and fades out
+    function spawnRipple(delay, scale = 1) {
+        setTimeout(() => {
+            const rect   = word.getBoundingClientRect();
+            const cx     = rect.left + rect.width  / 2;
+            const cy     = rect.top  + rect.height / 2;
+            const startW = rect.width;
+            const startH = rect.height;
+
+            const el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            el.setAttribute('x',      cx - startW / 2);
+            el.setAttribute('y',      cy - startH / 2);
+            el.setAttribute('width',  startW);
+            el.setAttribute('height', startH);
+            el.setAttribute('fill',   'none');
+            el.setAttribute('stroke', 'var(--ink)');
+            el.setAttribute('stroke-width', '0.8');
+            el.setAttribute('opacity', '0.6');
+            ripples.appendChild(el);
+
+            const dur     = 1200;
+            const maxW    = Math.max(window.innerWidth, window.innerHeight) * 2.4 * scale;
+            const maxH    = maxW * (startH / startW);
+            const start   = performance.now();
+
+            function animRipple(ts) {
+                const t      = Math.min((ts - start) / dur, 1);
+                const eased  = 1 - Math.pow(1 - t, 2);
+                const curW   = startW + (maxW - startW) * eased;
+                const curH   = startH + (maxH - startH) * eased;
+                const alpha  = 0.6 * (1 - t);
+
+                el.setAttribute('x',       cx - curW / 2);
+                el.setAttribute('y',       cy - curH / 2);
+                el.setAttribute('width',   curW);
+                el.setAttribute('height',  curH);
+                el.setAttribute('opacity', alpha);
+
+                if (t < 1) requestAnimationFrame(animRipple);
+                else el.remove();
+            }
+            requestAnimationFrame(animRipple);
+        }, delay);
+    }
+
+    // ── Flicker in ──
+    const flickerIn = [0, 60, 120, 80, 160, 0, 200];
+    let t = 0;
+    flickerIn.forEach((dur, i) => {
+        setTimeout(() => { flash.style.opacity = i % 2 === 0 ? '1' : '0'; }, t);
+        t += dur;
+    });
+
+    // ── Ripples spawn on impact ──
+    spawnRipple(t,       1.0);
+    spawnRipple(t + 80,  0.7);
+    spawnRipple(t + 180, 0.5);
+    spawnRipple(t + 320, 0.35);
+
+    // ── Hold ──
+    const holdEnd = t + 900;
+
+    // ── Flicker out ──
+    const flickerOut = [0, 50, 100, 60, 140, 0, 180];
+    let t2 = holdEnd;
+    flickerOut.forEach((dur, i) => {
+        setTimeout(() => { flash.style.opacity = i % 2 === 0 ? '0' : '1'; }, t2);
+        t2 += dur;
+    });
+
+    // ── Callback after flash is gone ──
+    setTimeout(() => {
+        flash.style.opacity = '0';
+        if (onComplete) onComplete();
+    }, t2 + 100);
+}
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// INITIATION SEQUENCE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Called on first visit only. Plays honeycomb → flash →
+// then shows the login card.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+function playInitiationSequence(onComplete) {
+    // Hide everything behind the canvas
+    document.getElementById('loginPhase').style.opacity = '0';
+
+    HEX.play(() => {
+        // Honeycombs done — play the flash
+        playSecuredFlash(() => {
+            // Flash done — reveal the login card
+            const login = document.getElementById('loginPhase');
+            login.style.transition = 'opacity 0.8s ease';
+            login.style.opacity    = '1';
+            if (onComplete) onComplete();
+        });
+    });
+}
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ARG BACKEND — SESSION & REGISTRATION
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+const BACKEND_URL = 'http://localhost:5000';
+
+async function argApiFetch(path, method = 'GET', body = null) {
+    const opts = {
+        method,
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+    };
+    if (body) opts.body = JSON.stringify(body);
+    try {
+        const res  = await fetch(BACKEND_URL + path, opts);
+        const data = await res.json();
+        return { ok: res.ok, status: res.status, data };
+    } catch (err) {
+        return { ok: false, status: 0, data: { error: '—' } };
+    }
+}
+
+// ── Session check on load ──
+function checkSessionState() {
+    const gatePassed = localStorage.getItem('baw_gate_passed');
+    const registered = localStorage.getItem('baw_registered');
+
+    if (!gatePassed) {
+        // First time — play the full honeycomb sequence then show login
+        playInitiationSequence();
+        return;
+    }
+
+    // Gate passed — skip straight to post-sequence state
+    // Hide the login card, position globe, show appropriate prompt
+    const login = document.getElementById('loginPhase');
+    login.style.opacity = '0';
+    login.style.pointerEvents = 'none';
+
+    if (window.startGlobeMove) window.startGlobeMove(50, 50);
+    const header = document.querySelector('.scan-header');
+    if (header) { header.style.left = '50%'; header.style.top = '12%'; }
+
+    if (registered) {
+        setTimeout(showArgCardPrompt, 400);
+    } else {
+        setTimeout(showArgRegistration, 400);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    checkSessionState();
+});
+
+// ── Show registration prompt ──
+function showArgRegistration() {
+    const cardPrompt = document.getElementById('argCardPrompt');
+    if (cardPrompt) cardPrompt.classList.remove('visible');
+
+    const prompt = document.getElementById('argRegPrompt');
+    if (!prompt) return;
+    prompt.classList.add('visible');
+
+    setTimeout(() => {
+        const input = document.getElementById('argUsername');
+        if (!input || input.dataset.listenerAdded) return;
+        input.dataset.listenerAdded = 'true';
+        input.focus();
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); argRegister(); }
+        });
+    }, 600);
+}
+
+// ── Show card prompt ──
+function showArgCardPrompt() {
+    const regPrompt = document.getElementById('argRegPrompt');
+    if (regPrompt) regPrompt.classList.remove('visible');
+
+    const prompt = document.getElementById('argCardPrompt');
+    if (!prompt) return;
+    prompt.classList.add('visible');
+}
+
+// Switch from card prompt to registration
+function argSwitchToRegister() {
+    localStorage.removeItem('baw_registered');
+    localStorage.removeItem('baw_username');
+    const cardPrompt = document.getElementById('argCardPrompt');
+    if (cardPrompt) {
+        cardPrompt.classList.remove('visible');
+        cardPrompt.classList.add('fading');
+        setTimeout(() => cardPrompt.classList.remove('fading'), 1000);
+    }
+    setTimeout(showArgRegistration, 300);
+}
+
+// Skip to registration without sequence
+function skipToRegistration() {
+    const login = document.getElementById('loginPhase');
+    if (login) { login.style.transition = 'none'; login.style.opacity = '0'; login.style.pointerEvents = 'none'; }
+    if (window.startGlobeMove) window.startGlobeMove(50, 50);
+    const header = document.querySelector('.scan-header');
+    if (header) { header.style.left = '50%'; header.style.top = '12%'; }
+    setTimeout(showArgRegistration, 400);
+}
+
+function skipToCardPrompt() {
+    const login = document.getElementById('loginPhase');
+    if (login) { login.style.transition = 'none'; login.style.opacity = '0'; login.style.pointerEvents = 'none'; }
+    if (window.startGlobeMove) window.startGlobeMove(50, 50);
+    const header = document.querySelector('.scan-header');
+    if (header) { header.style.left = '50%'; header.style.top = '12%'; }
+    setTimeout(showArgCardPrompt, 400);
+}
+
+// ── Register ──
+async function argRegister() {
+    const input    = document.getElementById('argUsername');
+    const btn      = document.getElementById('argRegBtn');
+    const btnText  = document.getElementById('argRegBtnText');
+    const sub      = document.getElementById('argRegSub');
+    const username = input ? input.value.trim() : '';
+
+    if (!username) { argSetMsg('—', 'error', 'argRegMsg'); return; }
+
+    btn.disabled = true;
+    if (btnText) btnText.textContent = '...';
+    if (sub) sub.style.opacity = '0';
+
+    const { ok, data } = await argApiFetch('/auth/register', 'POST', { username });
+
+    if (!ok) {
+        argSetMsg(data.error || '—', 'error', 'argRegMsg');
+        btn.disabled = false;
+        if (btnText) btnText.textContent = '→';
+        if (sub) sub.style.opacity = '0.4';
+        return;
+    }
+
+    localStorage.setItem('baw_registered', 'true');
+    localStorage.setItem('baw_username', username);
+
+    argSetMsg('—', 'success', 'argRegMsg');
+
+    setTimeout(async () => {
+        await argDownloadCard();
+        setTimeout(() => argFadeOutAndProceed('argRegPrompt'), 1200);
+    }, 400);
+}
+
+// ── Upload card ──
+async function argUploadCard(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    argSetMsg('—', 'info', 'argCardMsg');
+
+    const formData = new FormData();
+    formData.append('card', file);
+
+    try {
+        const res  = await fetch(BACKEND_URL + '/card/upload', {
+            method: 'POST', credentials: 'include', body: formData,
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            localStorage.setItem('baw_username', data.username);
+            argSetMsg('', 'success', 'argCardMsg');
+            setTimeout(() => argFadeOutAndProceed('argCardPrompt'), 1000);
+        } else {
+            argSetMsg('—', 'error', 'argCardMsg');
+        }
+    } catch (e) {
+        argSetMsg('—', 'error', 'argCardMsg');
+    }
+    input.value = '';
+}
+
+// ── Download card ──
+async function argDownloadCard() {
+    try {
+        const res = await fetch(`${BACKEND_URL}/card/download?t=${Date.now()}`, {
+            method: 'GET', credentials: 'include',
+        });
+        if (!res.ok) return;
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href = url; a.download = 'bawsome_card';
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch (e) { console.error(e); }
+}
+
+// ── Fade out prompt and draw pin lines ──
+function argFadeOutAndProceed(promptId) {
+    const prompt = document.getElementById(promptId);
+    if (prompt) {
+        prompt.classList.remove('visible');
+        prompt.classList.add('fading');
+    }
+    setTimeout(() => {
+        if (window.startPinLines) window.startPinLines();
+        if (prompt) prompt.style.display = 'none';
+    }, 1200);
+}
+
+// ── Message helper ──
+function argSetMsg(text, type, elId) {
+    const el = document.getElementById(elId || 'argRegMsg');
+    if (!el) return;
+    el.textContent = text;
+    el.className   = 'arg-minimal-msg ' + type;
 }
