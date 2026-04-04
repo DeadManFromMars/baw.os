@@ -1,29 +1,7 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    city.js  —  HEX CITY  (Three.js r128)
-
-   NAVIGATION — target point, not avoidance math
-   ──────────────────────────────────────────────
-   Every RETARGET_INTERVAL seconds, the camera looks SCAN_Z units
-   ahead and samples SCAN_CANDIDATES evenly across the grid width.
-   Each candidate X is scored by its distance to the nearest pillar
-   at that Z slice. The most open candidate becomes targetX.
-
-   The camera then steers its heading toward targetX using a simple
-   angular rate limit. No springs, no prediction math, no oscillation.
-
-   heading = atan2(targetX - camX, STEER_HORIZON)
-   then heading is rate-limited to MAX_TURN_RATE rad/sec.
-
-   CAMERA (do not revert)
-     rotation.order = 'YXZ' + manual rotation.x — no lookAt()
-     camX -= sin(heading) * speed * dt
-     camZ -= cos(heading) * speed * dt  (-Z is forward)
-     Y  easeInOut   zero vel at both ends
-     pitch easeIn4  stays pointing down, tips level at end
-     fwd 45% delay  J-curve drop before forward flight
-
-   INFINITE GRID — row recycling
-     row.worldZ - camZ > RECYCLE_BEHIND → move row to front
+   Terrain: 100% original.
+   Navigation: positional repulsion (best iteration).
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const CITY = (() => {
@@ -41,7 +19,6 @@ const CITY = (() => {
     const RECYCLE_BEHIND = 8;
     const WAVE_ZONE_Z    = 14;
 
-    // Camera
     const CAM_Y0      = 16;
     const CRUISE_Y    = 3.5;
     const PITCH_DOWN  = -Math.PI / 2;
@@ -49,31 +26,27 @@ const CITY = (() => {
     const SWOOP_DUR   = 7.0;
     const SPEED       = 2.6;
 
-    // Wave
     const WAVE_DELAY = 0.5;
     const WAVE_SPD   = 14.0;
     const POP_H      = 0.5;
     const POP_DUR    = 0.45;
     const HOLD_DUR   = 0.9;
 
-    // Background
     const BG_BLACK = 0x000000;
     const BG_CREAM = 0xf5f2ec;
 
-    // Navigation
-    const SCAN_Z           = 24;    // how far ahead to look for open space
-    const SCAN_CANDIDATES  = 11;    // how many X positions to evaluate
-    const RETARGET_INTERVAL = 1.8;  // seconds between target updates
-    const STEER_HORIZON    = 18;    // angular denominator — lower = tighter turns
-    const MAX_TURN_RATE    = 0.5;   // rad/sec max heading change
-    const MAX_HEADING      = 0.5;   // clamp heading to ±this (keeps moving forward)
-    const GRID_MARGIN      = 3.0;   // don't target within this of grid edge
+    const REPULSE_R         = 5.5;
+    const REPULSE_K         = 28.0;
+    const STEER_K           = 1.4;
+    const SCAN_SECTORS      = 16;
+    const SCAN_RADIUS       = 18;
+    const SCAN_STEP         = 1.5;
+    const RETARGET_INTERVAL = 2.5;
+    const STEER_RATE        = 0.55;
 
-    // Banking
-    const BANK_AMT    = 0.28;
-    const BANK_FOLLOW = 5.0;
+    const BANK_AMT    = 0.18;
+    const BANK_SMOOTH = 6.0;
 
-    // Pillars
     const PIL_PROB = 0.22;
     const PIL_MIN  = 0.8;
     const PIL_MAX  = 9.0;
@@ -81,14 +54,10 @@ const CITY = (() => {
     const PIL_DUR  = 2.2;
     const PIL_STAG = 0.03;
 
-    // Login
-    const LOGIN_AT = 0.88;
-
-    // Draw distance
+    const LOGIN_AT  = 0.88;
     const DD_AHEAD  = 72;
     const DD_BEHIND = 10;
 
-    // Colours
     const C_FLOOR    = 0xd0ccc4;
     const C_PIL_TOP  = 0xede8df;
     const C_PIL_SIDE = 0xb0aca4;
@@ -105,13 +74,12 @@ const CITY = (() => {
     let loginFired = false;
 
     let camX = 0, camY = CAM_Y0, camZ = 0;
-    let heading     = 0;
-    let bankAngle   = 0;
-    let prevHeading = 0;
+    let heading   = 0;
+    let bankAngle = 0;
+    let vx = 0, vz = 0;
 
-    // Navigation state
-    let targetX      = 0;    // current navigation target X
-    let lastRetarget = 0;    // time of last target update
+    let biasHeading  = 0;
+    let lastRetarget = 0;
 
     let bgA, bgB;
     let tiles   = [];
@@ -149,12 +117,10 @@ const CITY = (() => {
         shape.closePath();
         floorGeo = new THREE.ShapeGeometry(shape);
         floorGeo.rotateX(-Math.PI / 2);
-
         pilGeo = new THREE.CylinderGeometry(r, r, 1, 6);
         pilGeo.rotateY(Math.PI / 6);
-
-        mFloor   = new THREE.MeshBasicMaterial({ color: C_FLOOR,    side: THREE.DoubleSide });
-        mPilTop  = new THREE.MeshBasicMaterial({ color: C_PIL_TOP  });
+        mFloor   = new THREE.MeshBasicMaterial({ color: C_FLOOR, side: THREE.DoubleSide });
+        mPilTop  = new THREE.MeshBasicMaterial({ color: C_PIL_TOP });
         mPilSide = new THREE.MeshBasicMaterial({ color: C_PIL_SIDE });
         mPil     = [mPilSide, mPilTop, mPilSide];
     }
@@ -177,11 +143,9 @@ const CITY = (() => {
             const z     = tileZ(worldZ, col);
             const isPil = !forceFloor && rndR(s) < PIL_PROB;
             const pilH  = isPil ? PIL_MIN + rndR(s) * (PIL_MAX - PIL_MIN) : 0;
-
-            t.x = x;  t.z = z;
-            t.isPil = isPil;  t.pilH = pilH;
-            t.riseT = null;   t.revealT = null;  t.hit = false;
-
+            t.x = x; t.z = z;
+            t.isPil = isPil; t.pilH = pilH;
+            t.riseT = null; t.revealT = null; t.hit = false;
             t.floorMesh.position.set(x, 0, z);
             t.floorMesh.visible = false;
             t.pilMesh.position.set(x, 0, z);
@@ -208,7 +172,6 @@ const CITY = (() => {
                 scene.add(floorMesh);
                 const pilMesh = new THREE.Mesh(pilGeo, mPil);
                 scene.add(pilMesh);
-
                 const t = { x:0, z:0, isPil:false, pilH:0,
                             riseT:null, revealT:null, hit:false,
                             inWave, diagN:null, floorMesh, pilMesh };
@@ -224,11 +187,10 @@ const CITY = (() => {
                 if (!inWave && !t.isPil) t.floorMesh.visible = true;
                 if (t.isPil) pillars.push(t);
             }
-
             rowData.push(rd);
         }
 
-        let minD =  Infinity, maxD = -Infinity;
+        let minD = Infinity, maxD = -Infinity;
         for (const t of tiles) {
             if (!t.inWave) continue;
             const d = (t.x + t.z) / Math.SQRT2;
@@ -264,47 +226,81 @@ const CITY = (() => {
     }
 
 
-    /* ── NAVIGATION — find best target X ────────────────────────
-       Scan Z slice is SCAN_Z units ahead of the camera.
-       We look at that Z and score candidate X positions by how
-       far each is from the nearest pillar in a Z band around
-       that slice. Most open space wins. Ties broken toward camX
-       so the camera doesn't take unnecessary detours.
-    ─────────────────────────────────────────────────────────── */
+    /* ── NAVIGATION ──────────────────────────────────────────── */
 
-    function scoreX(candX, scanZ) {
-        // scanZ is the world Z we're scanning (camZ - SCAN_Z = ahead)
-        const Z_BAND = RH * 3;   // how wide a Z slice to check
-        let minDist = Infinity;
-
-        for (const p of pillars) {
-            if (!p.isPil) continue;
-            if (Math.abs(p.z - scanZ) > Z_BAND) continue;
-            const d = Math.abs(p.x - candX);
-            if (d < minDist) minDist = d;
+    function pickBiasHeading() {
+        let best = -Infinity, bestA = heading;
+        for (let i = 0; i < SCAN_SECTORS; i++) {
+            const frac  = i / (SCAN_SECTORS - 1);
+            const angle = heading - Math.PI * 0.6 + frac * Math.PI * 1.2;
+            const sx = Math.sin(angle), sz = -Math.cos(angle);
+            let score = 0, ok = true;
+            for (let s = SCAN_STEP; s <= SCAN_RADIUS; s += SCAN_STEP) {
+                const rx = camX + sx * s, rz = camZ + sz * s;
+                let near = Infinity;
+                for (const p of pillars) {
+                    const d = Math.hypot(p.x - rx, p.z - rz);
+                    if (d < near) near = d;
+                }
+                if (near < 1.0) { ok = false; break; }
+                score += near / (1 + s * 0.12);
+            }
+            if (ok && score > best) { best = score; bestA = angle; }
         }
-
-        // Penalise being far from camX (prefer nearby paths over distant ones)
-        const detourPenalty = Math.abs(candX - camX) * 0.15;
-        return minDist - detourPenalty;
+        return bestA;
     }
 
-    function pickTargetX() {
-        const gridHalf = (COLS * CW) / 2 - GRID_MARGIN;
-        const scanZ    = camZ - SCAN_Z;   // world Z we're looking at
-        let bestScore  = -Infinity;
-        let bestX      = camX;
-
-        for (let i = 0; i < SCAN_CANDIDATES; i++) {
-            // Spread candidates evenly across the grid
-            const candX = -gridHalf + (2 * gridHalf * i) / (SCAN_CANDIDATES - 1);
-            const score = scoreX(candX, scanZ);
-            if (score > bestScore) {
-                bestScore = score;
-                bestX     = candX;
-            }
+    function updateNavigation(dt) {
+        let fx = 0, fz = 0, closestDist = Infinity, nearCount = 0;
+        for (const p of pillars) {
+            const dx = camX - p.x, dz = camZ - p.z;
+            const dist = Math.hypot(dx, dz);
+            if (dist >= REPULSE_R || dist < 0.01) continue;
+            if (dist < closestDist) closestDist = dist;
+            nearCount++;
+            const t   = 1 - dist / REPULSE_R;
+            const str = REPULSE_K * t * t * t / Math.max(dist, 0.5);
+            fx += dx * str;
+            fz += dz * str;
         }
-        return bestX;
+
+        const netForce = Math.hypot(fx, fz);
+        const stuck = nearCount >= 2
+                   && closestDist < REPULSE_R * 0.55
+                   && netForce < REPULSE_K * 0.5;
+        if (stuck) lastRetarget = 0;
+
+        if (T - lastRetarget > RETARGET_INTERVAL) {
+            biasHeading  = pickBiasHeading();
+            lastRetarget = T;
+        }
+        let diff = biasHeading - heading;
+        while (diff >  Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        const steerRate = stuck ? STEER_RATE * 3.0 : STEER_RATE;
+        heading += Math.max(-steerRate * dt, Math.min(steerRate * dt, diff));
+
+        const thrust = SPEED * eFwd(swoopT);
+        vx = -Math.sin(heading) * thrust + fx * 0.4;
+        vz = -Math.cos(heading) * thrust + fz * 0.4;
+
+        const MIN_FWD = SPEED * 0.4;
+        const fwdComponent = -vx * Math.sin(heading) - vz * Math.cos(heading);
+        if (fwdComponent < MIN_FWD) {
+            vx -= Math.sin(heading) * (fwdComponent - MIN_FWD);
+            vz -= Math.cos(heading) * (fwdComponent - MIN_FWD);
+        }
+
+        const spd = Math.hypot(vx, vz);
+        if (spd > SPEED * 2.2) { vx = vx/spd * SPEED*2.2; vz = vz/spd * SPEED*2.2; }
+
+        if (spd > 0.1) {
+            const velAngle = Math.atan2(-vx, -vz);
+            let hd = velAngle - heading;
+            while (hd >  Math.PI) hd -= Math.PI * 2;
+            while (hd < -Math.PI) hd += Math.PI * 2;
+            heading += hd * Math.min(1, STEER_K * dt);
+        }
     }
 
 
@@ -316,23 +312,17 @@ const CITY = (() => {
         T   += dt;
         phT += dt;
 
-        /* Phase machine */
-        if (phase === 'pre' && T >= WAVE_DELAY) {
-            phase = 'wave'; phT = 0; waveFront = 0;
-        }
+        if (phase === 'pre' && T >= WAVE_DELAY)  { phase = 'wave';  phT = 0; waveFront = 0; }
         if (phase === 'wave') {
             waveFront += WAVE_SPD * dt;
             if (waveFront >= waveMax) { phase = 'hold'; phT = 0; }
         }
-        if (phase === 'hold' && phT >= HOLD_DUR) {
-            phase = 'swoop'; phT = 0;
-        }
+        if (phase === 'hold' && phT >= HOLD_DUR) { phase = 'swoop'; phT = 0; }
         if (phase === 'swoop') {
             swoopT = Math.min(1, phT / SWOOP_DUR);
             if (swoopT >= 1) { phase = 'cruise'; phT = 0; }
         }
 
-        /* Wave reveal */
         for (const t of tiles) {
             if (!t.inWave || t.hit) continue;
             if (t.diagN * waveMax <= waveFront) {
@@ -340,64 +330,38 @@ const CITY = (() => {
                 if (!t.isPil) t.floorMesh.visible = true;
             }
         }
-
-        /* Pop bounce */
         for (const t of tiles) {
             if (!t.inWave || t.isPil || t.revealT === null) continue;
             const age = T - t.revealT;
             t.floorMesh.position.y = age < POP_DUR
-                ? POP_H * Math.sin(Math.PI * age / POP_DUR) * Math.exp(-3*age/POP_DUR)
-                : 0;
+                ? POP_H * Math.sin(Math.PI * age / POP_DUR) * Math.exp(-3*age/POP_DUR) : 0;
         }
 
-        /* Background crossfade */
-        if (phase === 'swoop' || phase === 'cruise') {
+        if (phase === 'swoop' || phase === 'cruise')
             renderer.setClearColor(bgA.clone().lerp(bgB, eIO(cl(swoopT / 0.6))));
-        }
 
-        /* Camera easing */
         const yE     = eIO(swoopT);
         const pitchE = eIn4(swoopT);
         const fwdE   = eFwd(swoopT);
-
-        camY = CAM_Y0 + (CRUISE_Y - CAM_Y0) * yE;
+        camY  = CAM_Y0 + (CRUISE_Y - CAM_Y0) * yE;
         const pitch = PITCH_DOWN + (PITCH_LEVEL - PITCH_DOWN) * pitchE;
 
-        /* ── Navigation + steering ───────────────────────────────
-           1. Every RETARGET_INTERVAL seconds, pick a new targetX.
-           2. Compute desired heading = atan2 toward that target.
-           3. Step heading toward desired at MAX_TURN_RATE.
-           4. Move in heading direction.
-        ──────────────────────────────────────────────────────── */
-        if (swoopT > 0.50 && (phase === 'cruise' || phase === 'swoop')) {
-            // Retarget periodically
-            if (T - lastRetarget > RETARGET_INTERVAL) {
-                targetX      = pickTargetX();
-                lastRetarget = T;
+        if (phase === 'swoop' || phase === 'cruise') {
+            const prevH = heading;
+
+            if (swoopT > 0.50) {
+                updateNavigation(dt);
+            } else {
+                vx = -Math.sin(heading) * SPEED * fwdE;
+                vz = -Math.cos(heading) * SPEED * fwdE;
             }
 
-            // Desired heading = angle toward targetX
-            // atan2(dx, horizon) — small horizon = tighter turns
-            const dx       = targetX - camX;
-            const desired  = Math.max(-MAX_HEADING, Math.min(MAX_HEADING,
-                             Math.atan2(dx, STEER_HORIZON)));
+            camX += vx * dt;
+            camZ += vz * dt;
 
-            prevHeading    = heading;
-            const diff     = desired - heading;
-            const maxStep  = MAX_TURN_RATE * dt;
-            heading       += Math.max(-maxStep, Math.min(maxStep, diff));
-            heading        = Math.max(-MAX_HEADING, Math.min(MAX_HEADING, heading));
-
-            // Bank: smooth follow of actual turn rate
-            const turnRate   = (heading - prevHeading) / Math.max(dt, 0.001);
-            const targetBank = -turnRate * BANK_AMT;
-            bankAngle       += (targetBank - bankAngle) * Math.min(1, BANK_FOLLOW * dt);
-        }
-
-        /* Move in heading direction */
-        if (phase === 'swoop' || phase === 'cruise') {
-            camX -= Math.sin(heading) * SPEED * fwdE * dt;
-            camZ -= Math.cos(heading) * SPEED * fwdE * dt;
+            const dh = heading - prevH;
+            bankAngle += (-(dh / Math.max(dt, 0.001)) * BANK_AMT - bankAngle)
+                       * Math.min(1, BANK_SMOOTH * dt);
         }
 
         camera.position.set(camX, camY, camZ);
@@ -406,19 +370,16 @@ const CITY = (() => {
         camera.rotation.y = heading;
         camera.rotation.z = bankAngle;
 
-        /* Row recycling */
         for (const rd of rowData) {
             if (rd.worldZ - camZ > RECYCLE_BEHIND) recycleRow(rd);
         }
 
-        /* Pillar rise */
         if (swoopT > 0.80) {
             for (const p of pillars) {
                 if (p.riseT !== null) continue;
                 const dz = camZ - p.z;
-                if (dz > 0 && dz < PIL_TRIG) {
+                if (dz > 0 && dz < PIL_TRIG)
                     p.riseT = T + Math.hypot(p.x - camX, dz) * PIL_STAG;
-                }
             }
         }
         for (const p of pillars) {
@@ -426,13 +387,12 @@ const CITY = (() => {
             const age = Math.max(0, T - p.riseT);
             const t   = eOut3(age / PIL_DUR);
             if (t > 0.001) {
-                const h              = p.pilH * t;
+                const h = p.pilH * t;
                 p.pilMesh.scale.y    = h;
                 p.pilMesh.position.y = h / 2;
             }
         }
 
-        /* Visibility cull */
         for (const t of tiles) {
             if (!t.hit) continue;
             const dz  = camZ - t.z;
@@ -441,7 +401,6 @@ const CITY = (() => {
             t.pilMesh.visible   = t.isPil && t.riseT !== null && vis;
         }
 
-        /* Login callback */
         if (!loginFired && swoopT >= LOGIN_AT) {
             loginFired = true;
             if (typeof CITY.onLoginReveal === 'function') CITY.onLoginReveal();
@@ -475,8 +434,8 @@ const CITY = (() => {
             T = 0; phT = 0; phase = 'pre';
             waveFront = 0; swoopT = 0; loginFired = false;
             camX = 0; camY = CAM_Y0; camZ = 0;
-            heading = 0; prevHeading = 0; bankAngle = 0;
-            targetX = 0; lastRetarget = 0;
+            heading = 0; bankAngle = 0; vx = 0; vz = 0;
+            biasHeading = 0; lastRetarget = 0;
 
             buildWorld();
 
