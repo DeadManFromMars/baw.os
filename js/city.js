@@ -1,48 +1,29 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    city.js  —  HEX CITY  (Three.js r128)
 
-   AVOIDANCE FIXES (vs last version)
-   ─────────────────────────────────
-   • SAFE_R was R*2.8 = 2.8. A pillar 3 units away never triggered
-     avoidance at all. Now SAFE_R = R*5.5.
+   NAVIGATION — target point, not avoidance math
+   ──────────────────────────────────────────────
+   Every RETARGET_INTERVAL seconds, the camera looks SCAN_Z units
+   ahead and samples SCAN_CANDIDATES evenly across the grid width.
+   Each candidate X is scored by its distance to the nearest pillar
+   at that Z slice. The most open candidate becomes targetX.
 
-   • Force was flat — same strength whether pillar was 2 or 28 units
-     ahead. Now uses lateralNeeded * SPEED / dz: the closer the
-     pillar in Z, the larger the demanded heading correction. Far
-     pillars get a gentle nudge; close ones get an urgent push.
+   The camera then steers its heading toward targetX using a simple
+   angular rate limit. No springs, no prediction math, no oscillation.
 
-   • Spring was TURN_K=1.8 — too gentle for reliable avoidance.
-     Now TURN_K=6.0 so the heading responds within ~0.5s.
-
-   • Steering only activated at swoopT>0.75 — pillars start rising
-     at swoopT>0.80, so avoidance had no time to work. Now starts
-     at swoopT>0.40 so path is established before pillars appear.
-
-   • Avoidance ignores p.riseT — ALL pillar tiles are obstacles
-     from the moment they exist in the data, not just risen ones.
-
-   MOVEMENT MODEL (heading-based, retained from last version)
-     heading > 0 = facing left, < 0 = facing right
-     camX -= sin(heading) * speed * dt
-     camZ -= cos(heading) * speed * dt
-     Gives natural curved arcs, not pendulum swings.
+   heading = atan2(targetX - camX, STEER_HORIZON)
+   then heading is rate-limited to MAX_TURN_RATE rad/sec.
 
    CAMERA (do not revert)
      rotation.order = 'YXZ' + manual rotation.x — no lookAt()
+     camX -= sin(heading) * speed * dt
      camZ -= cos(heading) * speed * dt  (-Z is forward)
-     Y  easeInOut   zero velocity at both ends
+     Y  easeInOut   zero vel at both ends
      pitch easeIn4  stays pointing down, tips level at end
-     fwd 45% delay  J-curve: drop first, then fly forward
+     fwd 45% delay  J-curve drop before forward flight
 
-   INFINITE GRID
-     Fixed pool of POOL_ROWS rows, recycled when behind camera.
-     Recycle condition: row.worldZ - camZ > RECYCLE_BEHIND
-
-   PUBLIC API
-     CITY.start()        run
-     CITY.stop()         cancel
-     CITY.toBackground() z-index 500 → 18
-     CITY.onLoginReveal  callback — assign before start()
+   INFINITE GRID — row recycling
+     row.worldZ - camZ > RECYCLE_BEHIND → move row to front
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const CITY = (() => {
@@ -79,43 +60,18 @@ const CITY = (() => {
     const BG_BLACK = 0x000000;
     const BG_CREAM = 0xf5f2ec;
 
-    /* ── Steering ────────────────────────────────────────────── */
+    // Navigation
+    const SCAN_Z           = 24;    // how far ahead to look for open space
+    const SCAN_CANDIDATES  = 11;    // how many X positions to evaluate
+    const RETARGET_INTERVAL = 1.8;  // seconds between target updates
+    const STEER_HORIZON    = 18;    // angular denominator — lower = tighter turns
+    const MAX_TURN_RATE    = 0.5;   // rad/sec max heading change
+    const MAX_HEADING      = 0.5;   // clamp heading to ±this (keeps moving forward)
+    const GRID_MARGIN      = 3.0;   // don't target within this of grid edge
 
-    const MAX_HEADING = 0.52;   // max heading angle (~30°), keeps motion forward-ish
-    const TURN_K      = 6.0;    // spring stiffness — higher = snappier response
-    const TURN_D      = 5.5;    // damping — keeps heading from oscillating
-    const BANK_AMT    = 0.26;   // roll amplitude (visual banking into turns)
-
-    // Wander — gentle base drift so straight runs don't feel dead
-    const WANDER_A1 = 0.13;
-    const WANDER_F1 = 0.046;
-    const WANDER_A2 = 0.06;
-    const WANDER_F2 = 0.11;
-
-    // Soft centre pull — prevents drifting off the grid edges
-    const CENTRE_K = 0.016;
-
-    /* ── Avoidance ───────────────────────────────────────────────
-       Two layers:
-
-       PREDICTIVE (hard): project where camera will be when it
-       arrives at each pillar's Z. If within SAFE_R, compute the
-       heading needed to offset by SAFE_R using:
-           headingNeeded = lateralNeeded * SPEED / dz
-       This scales naturally: far pillars → gentle nudge,
-       close pillars → urgent push. No flat weighting.
-
-       SOFT (lateral): a broader comfort zone. Gives the camera
-       awareness of nearby pillars even when not on direct course.
-
-       Both layers are active regardless of pillar rise state —
-       the camera avoids the TILE DATA, not the visual mesh.     */
-
-    const LOOK_AHEAD = 38;      // scan this far ahead (world units)
-    const SAFE_R     = R * 5.5; // hard avoidance radius — was too small before
-    const AVOID_CAP  = 0.85;    // max heading correction per pillar (rad)
-    const SOFT_R     = R * 7.0; // soft nudge radius
-    const SOFT_STR   = 0.10;    // soft nudge multiplier
+    // Banking
+    const BANK_AMT    = 0.28;
+    const BANK_FOLLOW = 5.0;
 
     // Pillars
     const PIL_PROB = 0.22;
@@ -149,7 +105,13 @@ const CITY = (() => {
     let loginFired = false;
 
     let camX = 0, camY = CAM_Y0, camZ = 0;
-    let heading = 0, headingRate = 0;
+    let heading     = 0;
+    let bankAngle   = 0;
+    let prevHeading = 0;
+
+    // Navigation state
+    let targetX      = 0;    // current navigation target X
+    let lastRetarget = 0;    // time of last target update
 
     let bgA, bgB;
     let tiles   = [];
@@ -200,8 +162,8 @@ const CITY = (() => {
 
     /* ── TILE POSITION ──────────────────────────────────────── */
 
-    function tileX(col)          { return col * CW - (COLS * CW) / 2 + CW / 2; }
-    function tileZ(worldZ, col)  { return worldZ + (col % 2 !== 0 ? RH / 2 : 0); }
+    function tileX(col)         { return col * CW - (COLS * CW) / 2 + CW / 2; }
+    function tileZ(worldZ, col) { return worldZ + (col % 2 !== 0 ? RH / 2 : 0); }
 
 
     /* ── ROW ASSIGNMENT ─────────────────────────────────────── */
@@ -209,17 +171,16 @@ const CITY = (() => {
     function assignRow(rd, worldZ, forceFloor) {
         rd.worldZ = worldZ;
         const s = { v: (++rowSeed) * 7919 + 1 };
-
         for (let col = 0; col < COLS; col++) {
-            const t   = rd.cols[col];
-            const x   = tileX(col);
-            const z   = tileZ(worldZ, col);
+            const t     = rd.cols[col];
+            const x     = tileX(col);
+            const z     = tileZ(worldZ, col);
             const isPil = !forceFloor && rndR(s) < PIL_PROB;
             const pilH  = isPil ? PIL_MIN + rndR(s) * (PIL_MAX - PIL_MIN) : 0;
 
             t.x = x;  t.z = z;
             t.isPil = isPil;  t.pilH = pilH;
-            t.riseT = null;  t.revealT = null;  t.hit = false;
+            t.riseT = null;   t.revealT = null;  t.hit = false;
 
             t.floorMesh.position.set(x, 0, z);
             t.floorMesh.visible = false;
@@ -290,12 +251,9 @@ const CITY = (() => {
                 if (i !== -1) pillars.splice(i, 1);
             }
         }
-
         let frontZ = Infinity;
         for (const r of rowData) { if (r.worldZ < frontZ) frontZ = r.worldZ; }
-
         assignRow(rd, frontZ - RH, false);
-
         for (const t of rd.cols) {
             t.hit    = true;
             t.inWave = false;
@@ -306,59 +264,47 @@ const CITY = (() => {
     }
 
 
-    /* ── STEERING ─────────────────────────────────────────────── */
+    /* ── NAVIGATION — find best target X ────────────────────────
+       Scan Z slice is SCAN_Z units ahead of the camera.
+       We look at that Z and score candidate X positions by how
+       far each is from the nearest pillar in a Z band around
+       that slice. Most open space wins. Ties broken toward camX
+       so the camera doesn't take unnecessary detours.
+    ─────────────────────────────────────────────────────────── */
 
-    // wanderBlend: 0..1, scales the wander component only.
-    // Avoidance is always at full strength regardless.
-    function computeDesiredHeading(wanderBlend) {
-        let dh = 0;
-
-        // Wander (fades in during late swoop)
-        dh += Math.sin(T * WANDER_F1 * Math.PI * 2)        * WANDER_A1 * wanderBlend;
-        dh += Math.sin(T * WANDER_F2 * Math.PI * 2 + 1.7)  * WANDER_A2 * wanderBlend;
-
-        // Soft centre pull (always active, keeps camera on the grid)
-        dh -= camX * CENTRE_K;
-
-        // Clamp heading for tan() stability
-        const h = Math.max(-0.55, Math.min(0.55, heading));
+    function scoreX(candX, scanZ) {
+        // scanZ is the world Z we're scanning (camZ - SCAN_Z = ahead)
+        const Z_BAND = RH * 3;   // how wide a Z slice to check
+        let minDist = Infinity;
 
         for (const p of pillars) {
-            // p.isPil is always true for entries in the pillars array,
-            // but guard anyway. Critically: we do NOT filter by p.riseT.
-            // The camera avoids all pillar TILES, risen or not.
             if (!p.isPil) continue;
-
-            const dz = camZ - p.z;    // positive = pillar is ahead of camera
-            if (dz <= 0 || dz > LOOK_AHEAD) continue;
-
-            // ── Predictive (hard) avoidance ──────────────────────
-            // Where will the camera be laterally when it reaches p.z?
-            const predCamX = camX - Math.tan(h) * dz;
-            const predDx   = p.x - predCamX;   // signed: + = pillar right of predicted path
-
-            if (Math.abs(predDx) < SAFE_R) {
-                // Camera is on course to pass within SAFE_R of this pillar.
-                // Compute heading needed to achieve SAFE_R clearance:
-                //   lateralNeeded * SPEED / dz gives the required heading.
-                //   As dz shrinks (pillar getting close), force grows — urgency scaling.
-                const lateralNeeded  = SAFE_R - Math.abs(predDx);
-                const headingNeeded  = Math.min(AVOID_CAP, lateralNeeded * SPEED / Math.max(dz, 1.0));
-                dh += Math.sign(predDx) * headingNeeded;
-            }
-
-            // ── Soft lateral repulsion (comfort zone, always active) ─
-            // Pushes gently away from nearby pillars even when not
-            // directly on collision course. Prevents threading too close.
-            const dx = p.x - camX;
-            if (Math.abs(dx) < SOFT_R) {
-                const soft   = (SOFT_R - Math.abs(dx)) / SOFT_R;
-                const zDecay = cl(1.0 - dz / LOOK_AHEAD);
-                dh += Math.sign(dx) * soft * zDecay * SOFT_STR;
-            }
+            if (Math.abs(p.z - scanZ) > Z_BAND) continue;
+            const d = Math.abs(p.x - candX);
+            if (d < minDist) minDist = d;
         }
 
-        return Math.max(-MAX_HEADING, Math.min(MAX_HEADING, dh));
+        // Penalise being far from camX (prefer nearby paths over distant ones)
+        const detourPenalty = Math.abs(candX - camX) * 0.15;
+        return minDist - detourPenalty;
+    }
+
+    function pickTargetX() {
+        const gridHalf = (COLS * CW) / 2 - GRID_MARGIN;
+        const scanZ    = camZ - SCAN_Z;   // world Z we're looking at
+        let bestScore  = -Infinity;
+        let bestX      = camX;
+
+        for (let i = 0; i < SCAN_CANDIDATES; i++) {
+            // Spread candidates evenly across the grid
+            const candX = -gridHalf + (2 * gridHalf * i) / (SCAN_CANDIDATES - 1);
+            const score = scoreX(candX, scanZ);
+            if (score > bestScore) {
+                bestScore = score;
+                bestX     = candX;
+            }
+        }
+        return bestX;
     }
 
 
@@ -390,7 +336,7 @@ const CITY = (() => {
         for (const t of tiles) {
             if (!t.inWave || t.hit) continue;
             if (t.diagN * waveMax <= waveFront) {
-                t.hit = true;  t.revealT = T;
+                t.hit = true; t.revealT = T;
                 if (!t.isPil) t.floorMesh.visible = true;
             }
         }
@@ -409,7 +355,7 @@ const CITY = (() => {
             renderer.setClearColor(bgA.clone().lerp(bgB, eIO(cl(swoopT / 0.6))));
         }
 
-        /* Camera easing (unchanged — these feel right) */
+        /* Camera easing */
         const yE     = eIO(swoopT);
         const pitchE = eIn4(swoopT);
         const fwdE   = eFwd(swoopT);
@@ -417,24 +363,38 @@ const CITY = (() => {
         camY = CAM_Y0 + (CRUISE_Y - CAM_Y0) * yE;
         const pitch = PITCH_DOWN + (PITCH_LEVEL - PITCH_DOWN) * pitchE;
 
-        /* ── Steering ────────────────────────────────────────────
-           Avoidance activates at swoopT > 0.40 so the camera has
-           already computed a path before pillars start rising at 0.80.
-           Wander fades in later (0.70) so early swoop is clean.
+        /* ── Navigation + steering ───────────────────────────────
+           1. Every RETARGET_INTERVAL seconds, pick a new targetX.
+           2. Compute desired heading = atan2 toward that target.
+           3. Step heading toward desired at MAX_TURN_RATE.
+           4. Move in heading direction.
         ──────────────────────────────────────────────────────── */
-        if (swoopT > 0.40) {
-            const wanderBlend = cl((swoopT - 0.70) / 0.30);
-            const target = computeDesiredHeading(wanderBlend);
-            const force  = (target - heading) * TURN_K - headingRate * TURN_D;
-            headingRate += force * dt;
-            heading     += headingRate * dt;
-            heading      = Math.max(-MAX_HEADING, Math.min(MAX_HEADING, heading));
+        if (swoopT > 0.50 && (phase === 'cruise' || phase === 'swoop')) {
+            // Retarget periodically
+            if (T - lastRetarget > RETARGET_INTERVAL) {
+                targetX      = pickTargetX();
+                lastRetarget = T;
+            }
+
+            // Desired heading = angle toward targetX
+            // atan2(dx, horizon) — small horizon = tighter turns
+            const dx       = targetX - camX;
+            const desired  = Math.max(-MAX_HEADING, Math.min(MAX_HEADING,
+                             Math.atan2(dx, STEER_HORIZON)));
+
+            prevHeading    = heading;
+            const diff     = desired - heading;
+            const maxStep  = MAX_TURN_RATE * dt;
+            heading       += Math.max(-maxStep, Math.min(maxStep, diff));
+            heading        = Math.max(-MAX_HEADING, Math.min(MAX_HEADING, heading));
+
+            // Bank: smooth follow of actual turn rate
+            const turnRate   = (heading - prevHeading) / Math.max(dt, 0.001);
+            const targetBank = -turnRate * BANK_AMT;
+            bankAngle       += (targetBank - bankAngle) * Math.min(1, BANK_FOLLOW * dt);
         }
 
-        /* Move in heading direction
-           heading = camera.rotation.y, so:
-             forward direction = (-sin(h), 0, -cos(h))
-             camX -= sin(h)*speed    camZ -= cos(h)*speed      */
+        /* Move in heading direction */
         if (phase === 'swoop' || phase === 'cruise') {
             camX -= Math.sin(heading) * SPEED * fwdE * dt;
             camZ -= Math.cos(heading) * SPEED * fwdE * dt;
@@ -444,10 +404,9 @@ const CITY = (() => {
         camera.rotation.order = 'YXZ';
         camera.rotation.x = pitch;
         camera.rotation.y = heading;
-        camera.rotation.z = -headingRate * BANK_AMT;   // bank into turns
+        camera.rotation.z = bankAngle;
 
-        /* Row recycling — correct condition:
-           row is behind camera when row.worldZ > camZ            */
+        /* Row recycling */
         for (const rd of rowData) {
             if (rd.worldZ - camZ > RECYCLE_BEHIND) recycleRow(rd);
         }
@@ -516,7 +475,8 @@ const CITY = (() => {
             T = 0; phT = 0; phase = 'pre';
             waveFront = 0; swoopT = 0; loginFired = false;
             camX = 0; camY = CAM_Y0; camZ = 0;
-            heading = 0; headingRate = 0;
+            heading = 0; prevHeading = 0; bankAngle = 0;
+            targetX = 0; lastRetarget = 0;
 
             buildWorld();
 
