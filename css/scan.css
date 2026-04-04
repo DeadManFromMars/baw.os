@@ -1,0 +1,623 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   scan.css
+   All styles for the scan phase and its subcomponents.
+
+   The scan phase is a full-screen data readout that plays after
+   the player passes the login. It has two columns:
+     LEFT  — a scrolling list of data rows (scan lines)
+     RIGHT — the hand-drawn typewriter box
+
+   This file also covers:
+     - The scan header / wordmark (positioned independently via JS)
+     - The VHS distortion effect (freeze + reverse sequence)
+     - The terminal bar (slides up from the bottom)
+     - The hand overlay images (#handImg, #handImgFlipped)
+     - The progress bar at the bottom of the left column
+     - The ellipsis loading dots inside pending rows
+     - Orphaned / resolved row highlight states
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SCAN PHASE CONTAINER
+   Full-viewport flexbox. Two-column layout.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+#scanPhase {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 60px;
+    width: 100%;
+    padding-top: 40px;
+}
+
+/* Dissolve animation — the whole phase blurs and whites out
+   before transitioning away. JS adds .dissolving. */
+#scanPhase.dissolving {
+    filter: blur(32px) brightness(2) saturate(0.1);
+    opacity: 0;
+    transition: filter 2s ease, opacity 2s ease;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   VHS DISTORTION
+   Applied during the freeze/reverse conductor sequence.
+   .vhs on #scanPhase triggers both the shake animation and
+   the scanline pseudo-element.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Whole-page jitter — the page physically shakes */
+#scanPhase.vhs {
+    animation: vhsShake 0.18s ease-in-out infinite;
+}
+
+@keyframes vhsShake {
+    0%,  100% { transform: translate( 0,   0);  filter: none; }
+    15%        { transform: translate(-3px, 1px); filter: hue-rotate(8deg); }
+    30%        { transform: translate( 3px,-2px); filter: hue-rotate(-8deg); }
+    45%        { transform: translate(-2px, 3px); filter: none; }
+    60%        { transform: translate( 4px,-1px); filter: hue-rotate(5deg); }
+    75%        { transform: translate(-1px, 2px); filter: none; }
+    90%        { transform: translate( 2px,-3px); filter: hue-rotate(-5deg); }
+}
+
+/* Horizontal scanline texture on top of the shaking content */
+#scanPhase.vhs::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,            transparent 3px,
+        rgba(0, 0, 0, 0.06)    3px,
+        rgba(0, 0, 0, 0.06)    4px
+    );
+    animation: vhsScan 0.12s linear infinite;
+}
+
+@keyframes vhsScan {
+    from { background-position: 0 0; }
+    to   { background-position: 0 8px; }
+}
+
+/* Dim geo lines during VHS for that "interference" look */
+#scanPhase.vhs .geo-top,
+#scanPhase.vhs .geo-left {
+    opacity: 0.3;
+}
+
+/* Full-screen dark vignette + edge glow — layered over everything
+   during the VHS freeze moment. JS adds .active. */
+.vhs-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    background: rgba(0, 0, 0, 0.55);
+    box-shadow:
+        inset 0 0 120px rgba(255, 0,   60,  0.2),
+        inset 0 0  40px rgba(0,   200, 255, 0.1);
+}
+
+.vhs-overlay.active {
+    opacity: 1;
+}
+
+/* Scanline texture on top of the vignette */
+.vhs-overlay.active::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,                    transparent 2px,
+        rgba(255, 255, 255, 0.03)    2px,
+        rgba(255, 255, 255, 0.03)    4px
+    );
+    pointer-events: none;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SCAN HEADER — WORDMARK + TAGLINE
+   Pinned with position:fixed so it moves independently of the
+   column layout. JS animates left/top to slide it around the page.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.scan-header {
+    position: fixed;
+    /* Initial position — keep in sync with CONFIG.globeX/Y in js/config.js */
+    left: 32%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 3;
+    pointer-events: none;
+    text-align: center;
+    white-space: nowrap;
+    /* Smooth transitions when JS updates left/top */
+    transition: left 2s ease, top 2s ease;
+}
+
+.scan-wordmark {
+    font-weight: 700;
+    font-size: clamp(2.4rem, 5.5vw, 4.8rem);
+    letter-spacing: -0.03em;
+    color: var(--ink);
+    line-height: 1;
+    margin-bottom: 4px;
+    display: inline-block;
+    white-space: nowrap;
+    /* Fades in from below on load */
+    opacity: 0;
+    animation: riseIn 1s 0.2s ease forwards;
+}
+
+/* The small pulsing red dot at the end of "BAWSOME ONLINE" */
+.scan-wordmark .red-dot {
+    display: inline-block;
+    width: 0.14em;
+    height: 0.14em;
+    border-radius: 50%;
+    background: var(--red);
+    margin-left: 0.05em;
+    vertical-align: middle;
+    margin-bottom: 0.04em;
+    animation: dotPulse 2s ease-in-out infinite;
+}
+
+.scan-tagline {
+    font-size: clamp(0.48rem, 0.9vw, 0.6rem);
+    font-weight: 400;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    text-transform: uppercase;
+    opacity: 0;
+    animation: riseIn 0.8s 0.6s ease forwards;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   LEFT COLUMN
+   Contains the scan lines wrap + progress bar.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.scan-left {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    border-right: 1px solid var(--border);
+    overflow: visible;
+    position: relative;
+    white-space: nowrap;
+    /* 40vw reserves the left column — adjust to shift content left/right */
+    width: 40vw;
+    flex-shrink: 0;
+}
+
+/* Gradient masks — fade the top of the scan rows into the background
+   so rows appear to scroll up from below and dissolve above.
+   Using ::before (top) and ::after (bottom) keeps the HTML clean. */
+.scan-left::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 55%;
+    background: linear-gradient(180deg, var(--cream) 55%, transparent 100%);
+    z-index: 2;
+    pointer-events: none;
+}
+
+.scan-left::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: linear-gradient(0deg, var(--cream) 20%, transparent 100%);
+    z-index: 2;
+    pointer-events: none;
+}
+
+
+/* ── Scan Lines Wrap ── */
+
+/* The scrollable window. justify-content:flex-end means new rows
+   append at the bottom and old rows get pushed up and clipped by overflow:hidden. */
+.scan-lines-wrap {
+    width: 100%;
+    height: calc(100vh - 200px);  /* stops before the progress bar */
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 0 0 20px;
+    padding-left: 8vw;  /* indent — keep in sync with CONFIG.scanLinesLeftPadding */
+}
+
+/* Inner container for the rows themselves.
+   gap uses clamp so spacing compresses gracefully on small screens. */
+.scan-lines {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(4px, 0.9vh, 10px);
+}
+
+
+/* ── Individual Scan Rows ── */
+
+/* Each row starts invisible and slightly below position.
+   JS adds .active two frames after insertion, triggering the
+   transition so rows slide up into view smoothly. */
+.scan-line {
+    display: flex;
+    align-items: baseline;
+    gap: clamp(8px, 1.4vw, 16px);
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    flex-shrink: 0;
+}
+
+.scan-line.active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+
+/* ── Row Size Scale ──
+   The s-prefix classes control value font size.
+   s0 is the default readable size. s-xl is used for dramatic
+   escalating rows just before the orphan reveal. */
+
+.scan-line.s0 .scan-line-val {
+    font-size: clamp(1.2rem, 2vw, 1.8rem);
+}
+
+.scan-line.s-xl .scan-line-val {
+    font-size: clamp(2.5rem, 10vw, 10rem);
+}
+
+.scan-line.s-xl .scan-line-key {
+    font-size: clamp(0.7rem, 1.2vw, 1rem);
+}
+
+
+/* ── Key Column (left side of each row) ── */
+
+.scan-line-key {
+    font-size: clamp(0.35rem, 0.65vw, 0.52rem);
+    letter-spacing: 0.16em;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-weight: 500;
+    flex-shrink: 0;
+    min-width: clamp(55px, 9vw, 110px);
+}
+
+/* Fade key labels on size-3 and smaller rows — they're decorative at that scale */
+.scan-line.s3 .scan-line-key,
+.scan-line.s4 .scan-line-key,
+.scan-line.s5 .scan-line-key {
+    opacity: 0.4;
+}
+
+
+/* ── Value Column (right side of each row) ── */
+
+.scan-line-val {
+    font-family: 'Space Mono', monospace;
+    color: var(--ink);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    word-break: break-all;
+}
+
+/* While the JS is still waiting for real data, the value shows
+   the bouncing ellipsis and gets the pending muted color. */
+.scan-line-val.pending {
+    color: var(--muted2);
+}
+
+
+/* ── Check Column (status icon on the right) ── */
+
+.scan-line-check {
+    font-size: clamp(0.5rem, 0.9vw, 0.75rem);
+    color: var(--red);
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+    margin-left: 3px;
+}
+
+/* JS adds .done once the row's value resolves */
+.scan-line.done .scan-line-check {
+    opacity: 1;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ELLIPSIS LOADING DOTS
+   Three bouncing dots that show while a value is pending.
+   Created in JS via makeEllipsis() and injected into .scan-line-val.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.ellipsis {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+}
+
+.ellipsis span {
+    display: inline-block;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--muted2);
+}
+
+/* Staggered delays give the wave effect — each dot hops 150ms after the last */
+.ellipsis span:nth-child(1) { animation: ellipsisHop 0.9s 0.00s ease-in-out infinite; }
+.ellipsis span:nth-child(2) { animation: ellipsisHop 0.9s 0.15s ease-in-out infinite; }
+.ellipsis span:nth-child(3) { animation: ellipsisHop 0.9s 0.30s ease-in-out infinite; }
+
+@keyframes ellipsisHop {
+    0%, 60%, 100% {
+        transform: translateY(0);
+        background: var(--muted2);
+    }
+    30% {
+        transform: translateY(-3px);
+        background: var(--muted);
+    }
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SPECIAL ROW STATES
+   Orphaned — flagged red during the reverse sequence.
+   Resolved — turns green after the hand animation fixes it.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Orphaned: the route_depth row that's marked as broken */
+.scan-line.orphaned .scan-line-val {
+    color: var(--red) !important;
+    background: rgba(232, 55, 42, 0.1);
+    padding: 3px 8px;
+    border-left: 3px solid var(--red);
+    font-size: 1.1rem !important;
+}
+
+.scan-line.orphaned .scan-line-key {
+    color: var(--red) !important;
+    font-size: 0.6rem !important;
+    opacity: 1 !important;
+}
+
+/* Resolved: same row after the hand animation types "resolved" */
+.scan-line.resolved .scan-line-val {
+    color: var(--green) !important;
+    background: rgba(0, 200, 83, 0.1);
+    padding: 3px 8px;
+    border-left: 3px solid var(--green);
+    font-size: 1.1rem !important;
+    transition: color 0.4s ease, background 0.4s ease, border-color 0.4s ease;
+}
+
+.scan-line.resolved .scan-line-key {
+    color: var(--green) !important;
+    font-size: 0.6rem !important;
+    opacity: 1 !important;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PROGRESS BAR
+   Fixed to the bottom of the viewport, spanning the left column.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.scan-progress {
+    position: fixed;
+    bottom: 32px;  /* JS reads CONFIG.progressBarBottom and can override this */
+    left: 8vw;     /* aligns with scan-lines-wrap left padding */
+    right: 60vw;   /* stops at the right edge of the left column */
+    z-index: 3;
+    opacity: 0;
+    animation: riseIn 0.6s 1.2s ease forwards;
+    transition: opacity 0.8s ease;
+}
+
+/* The thin track behind the fill bar */
+.progress-track {
+    height: 2px;
+    background: var(--muted2);
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+
+/* The fill bar. JS sets width% directly via style. */
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--red);
+    transition: width 0.25s ease;
+}
+
+/* Turns green when the orphan line is resolved */
+.progress-fill.green {
+    background: var(--green);
+    transition: background 0.6s ease;
+}
+
+/* Label row below the track: left = status text, right = percentage */
+.progress-meta {
+    font-size: 0.55rem;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+}
+
+.progress-meta span {
+    color: var(--red);
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   RIGHT COLUMN — TYPEWRITER BOX
+   The box is physically drawn by the hand animation in JS.
+   It starts as a zero-size element and grows via style.width/height.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.scan-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 0 10vw 0 8vw;
+    position: relative;
+}
+
+/* The drawn box itself — starts collapsed, grows via JS */
+#drawnBox {
+    position: fixed;
+    border: 2.5px solid var(--ink);
+    background: rgba(253, 252, 250, 0.95);
+    opacity: 0;
+    pointer-events: none;
+    overflow: hidden;
+    transition: opacity 0.3s ease;
+    z-index: 50;
+}
+
+.drawn-box-inner {
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* Typewriter text lines — uses DeadPostman for a handwritten feel.
+   Three separate divs allow JS to animate each line independently. */
+.tw-text,
+.tw-text2,
+.tw-text3 {
+    font-family: 'DeadPostman', monospace;
+    font-size: clamp(1.05rem, 4vw, 4rem);
+    color: #1a1a18;
+    font-weight: 400;
+    font-style: italic;
+    letter-spacing: -0.02em;
+    line-height: 1.6;
+    min-height: 1.7em;
+    display: block;
+}
+
+/* Blinking text cursor inserted by typeBeforeCursor() in JS */
+.cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    background: var(--ink);
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink 0.65s step-end infinite;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TERMINAL BAR
+   Dark panel that slides up from below the viewport.
+   Shows connection/command status during the conductor sequence.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+#termBar {
+    position: fixed;
+    bottom: -110px;  /* hidden off-screen — .visible slides it up */
+    left: 0;
+    right: 0;
+    height: 96px;
+    background: #080808;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    padding: 0 28px;
+    border-top: 1px solid #1a3a1a;
+    /* Bouncy ease-out cubic gives the slide-up a mechanical snap */
+    transition: bottom 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    font-family: 'Space Mono', monospace;
+}
+
+#termBar.visible {
+    bottom: 0;
+}
+
+.term-prompt {
+    color: #2a6a2a;
+    font-size: 0.82rem;
+    letter-spacing: 0.05em;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+.term-line {
+    color: #00cc44;
+    font-size: 0.82rem;
+    letter-spacing: 0.04em;
+    flex: 1;
+}
+
+/* The blinking block cursor at the typing position */
+.term-cursor {
+    display: inline-block;
+    width: 7px;
+    height: 0.9em;
+    background: #00cc44;
+    vertical-align: text-bottom;
+    animation: blink 0.8s step-end infinite;
+    margin-left: 2px;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   HAND IMAGES
+   Two hand PNGs — one draws the box (right-facing),
+   one fixes the orphaned line (left-facing, scaleX flipped).
+   Both are moved by JS via style.left/top.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Shared styles for both hands */
+#handImg,
+#handImgFlipped {
+    position: fixed;
+    width: 160px;
+    height: 160px;
+    z-index: 201;
+    pointer-events: none;
+    opacity: 0;
+    /* multiply blend makes the white background of the PNG disappear,
+       so the hand composites naturally over the content beneath it */
+    mix-blend-mode: multiply;
+    transition: opacity 0.5s ease;
+}
+
+/* The fixing hand faces left — CSS flip rather than a separate asset */
+#handImgFlipped {
+    transform: scaleX(-1);
+}

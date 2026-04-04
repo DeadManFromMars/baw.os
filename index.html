@@ -4,15 +4,61 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BAWSOME ONLINE</title>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+
+    <!--
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    FONTS
+    Space Grotesk + Space Mono loaded from Google Fonts.
+    The custom brand fonts (Vipnagorgialla, DeadPostman) are
+    loaded via @font-face in base.css from the /fonts/ folder.
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap"
+        rel="stylesheet"
+    >
+
+    <!--
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    CSS LOAD ORDER
+    Order matters. Each file depends on variables and resets
+    declared in the files above it.
+
+      base.css        — reset, :root variables, shared keyframes
+      background.css  — dot canvas, haze, globe, geo lines, corners
+      scan.css        — scan phase layout + all subcomponents
+      login.css       — login input, secured flash, hex canvas
+      arg.css         — registration + card upload prompts
+      radio.css       — draggable music player widget
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    -->
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/background.css">
+    <link rel="stylesheet" href="css/scan.css">
+    <link rel="stylesheet" href="css/login.css">
+    <link rel="stylesheet" href="css/arg.css">
+    <link rel="stylesheet" href="css/radio.css">
 </head>
 <body>
 
-    <audio id="bgMusic" loop></audio>
+    <!-- ─────────────────────────────────────────────────────────
+         AUDIO
+         Invisible. Controlled entirely by radio.js.
+         loop attribute handled in JS (nextTrack on ended).
+    ───────────────────────────────────────────────────────────── -->
+    <audio id="bgMusic"></audio>
 
+
+    <!-- ─────────────────────────────────────────────────────────
+         RADIO WIDGET
+         Draggable music player. Fixed bottom-right initially.
+         Becomes visible (opacity:1) after globe pin lines finish.
+         Drag handle is the pill bar at the top.
+    ───────────────────────────────────────────────────────────── -->
     <div id="radioWidget">
-        <div id="radioDragHandle"><div class="radio-drag-dots"></div></div>
+        <div id="radioDragHandle">
+            <div class="radio-drag-dots"></div>
+        </div>
         <div class="radio-inner">
             <div class="radio-marquee-wrap">
                 <div class="radio-marquee" id="radioTitle">Track Name</div>
@@ -34,12 +80,28 @@
             </div>
             <div class="radio-volume-wrap">
                 <span class="radio-vol-label">VOL</span>
-                <input type="range" class="radio-volume" id="radioVolume" min="0" max="100" value="30" oninput="setVolume(this.value/100)">
+                <input
+                    type="range"
+                    class="radio-volume"
+                    id="radioVolume"
+                    min="0" max="100" value="30"
+                    oninput="setVolume(this.value / 100)"
+                >
             </div>
             <div class="radio-playlist-hint">Playlist manager — coming soon</div>
         </div>
     </div>
 
+
+    <!-- ─────────────────────────────────────────────────────────
+         BACKGROUND LAYERS
+         z-index 0–5. All purely decorative.
+         Dot canvas is drawn by dots.js.
+         Haze is CSS-only animation.
+         VHS overlay activates during the conductor freeze.
+         Geo lines and corner accents are CSS-animated SVGs.
+         Scroll lines drift across the screen via CSS.
+    ───────────────────────────────────────────────────────────── -->
     <canvas id="dotCanvas"></canvas>
     <div class="haze"></div>
     <div class="vhs-overlay" id="vhsOverlay"></div>
@@ -47,51 +109,95 @@
     <div class="geo-left"></div>
     <div class="geo-corner"></div>
 
+    <!-- Corner SVG accent brackets — lines animate like pistons -->
     <svg class="corner-accent corner-tl" viewBox="0 0 180 180" fill="none">
-        <line x1="0" y1="120" x2="0" y2="40" /><line x1="0" y1="40" x2="80" y2="40" />
-        <line x1="24" y1="80" x2="24" y2="16" /><line x1="24" y1="16" x2="100" y2="16" />
+        <line x1="0"   y1="120" x2="0"   y2="40" />
+        <line x1="0"   y1="40"  x2="80"  y2="40" />
+        <line x1="24"  y1="80"  x2="24"  y2="16" />
+        <line x1="24"  y1="16"  x2="100" y2="16" />
     </svg>
     <svg class="corner-accent corner-tr" viewBox="0 0 220 220" fill="none">
-        <line x1="220" y1="0" x2="60" y2="160" /><line x1="220" y1="40" x2="100" y2="160" />
-        <line x1="170" y1="0" x2="40" y2="130" /><line x1="190" y1="0" x2="220" y2="0" />
-        <line x1="190" y1="0" x2="190" y2="50" />
+        <line x1="220" y1="0"   x2="60"  y2="160" />
+        <line x1="220" y1="40"  x2="100" y2="160" />
+        <line x1="170" y1="0"   x2="40"  y2="130" />
+        <line x1="190" y1="0"   x2="220" y2="0"   />
+        <line x1="190" y1="0"   x2="190" y2="50"  />
     </svg>
     <svg class="corner-accent corner-bl" viewBox="0 0 160 160" fill="none">
-        <line x1="0" y1="30" x2="0" y2="120" /><line x1="0" y1="120" x2="80" y2="120" />
-        <line x1="26" y1="80" x2="26" y2="144" /><line x1="26" y1="144" x2="110" y2="144" />
+        <line x1="0"   y1="30"  x2="0"   y2="120" />
+        <line x1="0"   y1="120" x2="80"  y2="120" />
+        <line x1="26"  y1="80"  x2="26"  y2="144" />
+        <line x1="26"  y1="144" x2="110" y2="144" />
     </svg>
     <svg class="corner-accent corner-br" viewBox="0 0 160 160" fill="none">
-        <line x1="160" y1="30" x2="160" y2="120" /><line x1="80" y1="120" x2="160" y2="120" />
-        <line x1="134" y1="80" x2="134" y2="144" /><line x1="50" y1="144" x2="134" y2="144" />
+        <line x1="160" y1="30"  x2="160" y2="120" />
+        <line x1="80"  y1="120" x2="160" y2="120" />
+        <line x1="134" y1="80"  x2="134" y2="144" />
+        <line x1="50"  y1="144" x2="134" y2="144" />
     </svg>
 
+    <!-- Thin horizontal lines that drift across the screen -->
     <div class="scroll-line sl-1"></div>
     <div class="scroll-line sl-2"></div>
     <div class="scroll-line sl-3"></div>
     <div class="scroll-line sl-4"></div>
     <div class="scroll-line sl-5"></div>
 
+
+    <!-- ─────────────────────────────────────────────────────────
+         TERMINAL BAR
+         Slides up from below the viewport during the conductor
+         sequence. Hidden off-screen (bottom:-110px) until
+         scan.js adds .visible.
+    ───────────────────────────────────────────────────────────── -->
     <div id="termBar">
         <span class="term-prompt">root@bsi-node-7 ~$</span>
-        <span class="term-line" id="termLine"><span class="term-cursor"></span></span>
+        <span class="term-line" id="termLine">
+            <span class="term-cursor"></span>
+        </span>
     </div>
 
-    <img id="handImg" src="Images/hand.png" alt="" />
-    <img id="handImgFlipped" src="Images/hand.png" alt="" />
 
-    <svg id="anonCursor" viewBox="0 0 20 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M0 0 L0 20 L5 15 L8 24 L11 23 L8 14 L14 14 Z" fill="#1a1a18" />
-    </svg>
+    <!-- ─────────────────────────────────────────────────────────
+         HAND IMAGES
+         Two hand PNGs moved by JS via style.left/top.
+         #handImg      — draws the typewriter box (approaches from right)
+         #handImgFlipped — fixes the orphan row (approaches from left)
+         mix-blend-mode:multiply in CSS makes the white bg invisible.
+    ───────────────────────────────────────────────────────────── -->
+    <img id="handImg"        src="Images/hand.png" alt="">
+    <img id="handImgFlipped" src="Images/hand.png" alt="">
 
+
+    <!-- ─────────────────────────────────────────────────────────
+         GLOBE
+         Canvas drawn by globe.js. SVG overlay holds the pin lines
+         and box anchors — they're SVG elements, not canvas draws,
+         so they can be individually animated without redrawing.
+    ───────────────────────────────────────────────────────────── -->
     <canvas id="globeCanvas"></canvas>
-    <svg id="globeOverlay" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:10;overflow:visible;"></svg>
+    <svg
+        id="globeOverlay"
+        style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:10;overflow:visible;"
+    ></svg>
 
-    <!-- ── SCAN PHASE ── -->
-    <div id="scanPhase" style="display: none;">
+
+    <!-- ─────────────────────────────────────────────────────────
+         SCAN PHASE
+         Hidden initially (display:none). Login.js reveals it
+         after the secured flash plays.
+         Left column: scrolling data rows + progress bar.
+         Right column: hand-drawn typewriter box.
+    ───────────────────────────────────────────────────────────── -->
+    <div id="scanPhase" style="display:none;">
+
         <div class="scan-header">
-            <div class="scan-wordmark">BAWSOME ONLINE<span class="red-dot"></span></div>
+            <div class="scan-wordmark">
+                BAWSOME ONLINE<span class="red-dot"></span>
+            </div>
             <div class="scan-tagline">Initializing Secure Session</div>
         </div>
+
         <div class="scan-left">
             <div class="scan-lines-wrap" id="scanLinesWrap">
                 <div class="scan-lines" id="scanLines"></div>
@@ -106,42 +212,58 @@
                 </div>
             </div>
         </div>
+
         <div class="scan-right" id="scanRight">
             <div id="drawnBox">
                 <div class="drawn-box-inner">
-                    <div class="tw-text" id="twText1"></div>
+                    <div class="tw-text"  id="twText1"></div>
                     <div class="tw-text2" id="twText2"></div>
                     <div class="tw-text3" id="twText3"></div>
                 </div>
             </div>
         </div>
+
     </div>
 
-    <!-- ── HONEYCOMB CANVAS ──
-         Fullscreen canvas. Drawn on first visit before the login card.
-         On returning visits this layer is skipped entirely.
-         The canvas stays in the DOM but is hidden after the sequence. -->
-    <canvas id="hexCanvas"></canvas>
 
-    <!-- ── SECURED FLASH ──
-         Appears after honeycombs settle. Flickers in with ripple
-         rectangles expanding outward, then flickers out. -->
+    <!-- hexCanvas removed — intro sequence now runs inside #cityCanvas via Three.js -->
+
+
+    <!-- ─────────────────────────────────────────────────────────
+         SECURED FLASH
+         Plays once after correct login. The word "SECURED" flickers
+         in with expanding SVG ripple rectangles, then flickers out.
+         Controlled entirely by login.js playSecuredFlash().
+    ───────────────────────────────────────────────────────────── -->
     <div id="securedFlash">
         <div id="securedWord">SECURED</div>
-        <svg id="securedRipples" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;"></svg>
+        <svg
+            id="securedRipples"
+            style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;"
+        ></svg>
     </div>
 
-    <!-- ── HEX CITY CANVAS ──
-         3D perspective fly-through running behind the login. -->
+
+    <!-- ─────────────────────────────────────────────────────────
+         HEX CITY CANVAS
+         3D perspective flythrough rendered by city.js.
+         Plays behind the login screen and continues in the background.
+         display:none here — session.js sets display:block when needed.
+         z-index set dynamically (500 during intro swoop, 18 after).
+    ───────────────────────────────────────────────────────────── -->
     <canvas id="cityCanvas" style="position:fixed;inset:0;width:100%;height:100%;z-index:18;display:none;"></canvas>
 
-    <!-- ── LOGIN PHASE ──
-         No card. Just the input floating over the city.
-         Enter key submits. -->
+
+    <!-- ─────────────────────────────────────────────────────────
+         LOGIN PHASE
+         A bare passphrase input floating over the hex city.
+         No card, no box — just the input. City renders through.
+    ───────────────────────────────────────────────────────────── -->
     <div id="loginPhase">
 
         <div class="lp-hud-tl">
-            <span class="lp-hud-dot"></span>BSI-NODE-7
+            <span class="lp-hud-dot"></span>
+            BSI-NODE-7
         </div>
 
         <div class="lp-hud-br">
@@ -158,7 +280,7 @@
                     placeholder="—"
                     autocomplete="off"
                     spellcheck="false"
-                />
+                >
             </div>
             <div class="lp-hint">ENTER TO AUTHENTICATE</div>
             <div class="msg" id="msg"></div>
@@ -169,15 +291,26 @@
 
     </div>
 
+
+    <!-- ─────────────────────────────────────────────────────────
+         ACCESS GRANTED OVERLAY
+         Full-screen takeover before redirect to stage2.
+         Unused currently (redirect path not implemented in this version).
+    ───────────────────────────────────────────────────────────── -->
     <div id="overlay">
         <div class="ov-title">Access <span>Granted.</span></div>
         <div class="ov-sub">Loading classified archive</div>
-        <div class="ov-bar"><div class="ov-fill" id="ovFill"></div></div>
+        <div class="ov-bar">
+            <div class="ov-fill" id="ovFill"></div>
+        </div>
     </div>
 
-    <!-- ── ARG REGISTRATION PROMPT ──
+
+    <!-- ─────────────────────────────────────────────────────────
+         ARG REGISTRATION PROMPT
          New visitors only. Appears after the dissolve sequence.
-         Extremely minimal — just an input and a submit. -->
+         Minimal: one input, one arrow button.
+    ───────────────────────────────────────────────────────────── -->
     <div id="argRegPrompt">
         <div class="arg-minimal-inner">
             <input
@@ -188,7 +321,7 @@
                 autocomplete="off"
                 spellcheck="false"
                 maxlength="32"
-            />
+            >
             <button class="arg-minimal-btn" id="argRegBtn" onclick="argRegister()">
                 <span id="argRegBtnText">→</span>
             </button>
@@ -197,22 +330,94 @@
         </div>
     </div>
 
-    <!-- ── CARD PROMPT ──
-         Returning visitors. Just a drop zone — no text, no labels.
-         The action speaks for itself. -->
+
+    <!-- ─────────────────────────────────────────────────────────
+         CARD UPLOAD PROMPT
+         Returning registered visitors. A card-reader slit UI.
+         Clicking it opens the hidden file input.
+         The "—" ghost button resets to registration if needed.
+    ───────────────────────────────────────────────────────────── -->
     <div id="argCardPrompt">
         <div class="arg-minimal-inner">
             <div class="arg-card-slot" onclick="document.getElementById('argCardFile').click()">
                 <div class="arg-card-slot-line"></div>
                 <div class="arg-card-slot-line"></div>
             </div>
-            <input type="file" id="argCardFile" accept="image/*"
-                   style="display:none" onchange="argUploadCard(this)">
+            <input
+                type="file"
+                id="argCardFile"
+                accept="image/*"
+                style="display:none"
+                onchange="argUploadCard(this)"
+            >
             <div class="arg-minimal-msg" id="argCardMsg"></div>
             <button class="arg-minimal-ghost" onclick="argSwitchToRegister()">—</button>
         </div>
     </div>
 
-    <script src="script.js"></script>
+
+    <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+         JAVASCRIPT LOAD ORDER
+
+         Order is critical — each module depends on the ones above it.
+
+         Tier 1: Constants (no deps)
+           config.js   — all magic numbers, single source of truth
+
+         Tier 2: Pure utilities (dep: config.js)
+           utils.js    — pure functions, zero DOM, zero side effects
+
+         Tier 3: Data collection (dep: utils.js)
+           data.js     — fingerprint + session data, populates DataStore
+
+         Tier 4: Independent visual modules (dep: config.js, utils.js)
+           city.js     — hex city 3D renderer (CITY module)
+           hex.js      — honeycomb intro canvas (HEX module)
+           dots.js     — dot canvas background (DotCanvas module)
+           radio.js    — music player (Radio module)
+           globe.js    — spinning globe + pin lines
+
+         Tier 5: Gameplay modules (dep: everything above)
+           scan.js     — scan rows + conductor sequence (Scan module)
+           login.js    — login form + secured flash (Login module)
+           arg.js      — ARG backend + registration (Arg module)
+
+         Tier 6: Orchestration (dep: all gameplay modules)
+           session.js  — reads localStorage, routes to correct flow
+
+         DEV ONLY (remove before launch):
+           dev.js      — keyboard shortcuts + dev bypass
+
+         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+
+    <!-- Tier 1 -->
+    <script src="js/config.js"></script>
+
+    <!-- Tier 2 -->
+    <script src="js/utils.js"></script>
+
+    <!-- Tier 3 -->
+    <script src="js/data.js"></script>
+
+    <!-- Tier 4 — order within this tier doesn't matter -->
+    <!-- Three.js must load before city.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="js/city.js"></script>
+    <script src="js/hex.js"></script>
+    <script src="js/dots.js"></script>
+    <script src="js/radio.js"></script>
+    <script src="js/globe.js"></script>
+
+    <!-- Tier 5 — order within this tier doesn't matter -->
+    <script src="js/scan.js"></script>
+    <script src="js/login.js"></script>
+    <script src="js/arg.js"></script>
+
+    <!-- Tier 6 — must be last -->
+    <script src="js/session.js"></script>
+
+    <!-- DEV ONLY — remove this line before deploying -->
+    <script src="js/dev.js"></script>
+
 </body>
 </html>

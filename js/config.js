@@ -1,0 +1,85 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   config.js
+   Single source of truth for every magic number in the project.
+
+   WHY A CONFIG FILE?
+   When a value like "8vw" appears in three places (CSS, JS layout,
+   JS animation), keeping them in sync is error-prone. This file
+   consolidates values that must be consistent across the codebase.
+   CSS-only values stay in CSS. JS-only values stay in their module.
+   Cross-cutting values live here.
+
+   Load order: must be the FIRST script tag.
+   Everything else imports from window.CONFIG (implicit global —
+   fine for a project this size, no module bundler needed).
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+const CONFIG = Object.freeze({
+
+    /* ── Globe position (viewport %) ─────────────────────────
+       globeX/Y set the globe canvas center during the scan phase.
+       Must match .scan-header left/top in scan.css.
+       startGlobeMove() in globe.js animates toward these. */
+    globe: {
+        initialX:   32,    // % from left — matches .scan-header left:32%
+        initialY:   50,    // % from top  — matches .scan-header top:50%
+        centerX:    50,    // % — where globe moves after dissolve
+        centerY:    50,    //
+        postScanY:  12,    // % — where wordmark moves after dissolve
+        size:       0.35,  // multiplier against wordmark width
+        speed:      0.1,   // radians per second (spin rate)
+        moveDuration: 2000, // ms for position tween
+    },
+
+    /* ── Scan lines ──────────────────────────────────────────
+       maxVisible: how many rows stay on screen at once.
+       leftPadding: must match .scan-lines-wrap padding-left in scan.css.
+       linesHeight: must match .scan-lines-wrap height in scan.css. */
+    scan: {
+        maxVisible:    12,
+        leftPadding:   '8vw',
+        linesHeight:   'calc(100vh - 200px)',
+        progressHideDelay: 2000,  // ms after 100% before bar fades
+    },
+
+    /* ── Progress bar ────────────────────────────────────────
+       These values are applied to the DOM directly by layout.js.
+       Kept here so they're findable without reading through DOM code. */
+    progress: {
+        bottom:     10,    // px from viewport bottom
+        barHeight:  4,     // px
+        fontSize:   '0.88rem',
+    },
+
+    /* ── Drawn box (hand animation start position) ───────────
+       Expressed as % of viewport W/H so it scales with screen size. */
+    drawnBox: {
+        leftPct:  62,   // % of viewport width
+        topPct:   18,   // % of viewport height
+    },
+
+    /* ── Auth ────────────────────────────────────────────────
+       Access code and redirect are centralised here so you only
+       change one line to update the password or destination. */
+    auth: {
+        accessCode:  'bawsome',
+        redirectUrl: 'stage2.html',
+    },
+
+    /* ── Backend ─────────────────────────────────────────────
+       Base URL for the Flask backend. Switch to your production
+       URL before deploying. */
+    backend: {
+        baseUrl: 'http://localhost:5000',
+    },
+
+    /* ── City canvas (Three.js hex city sequence) ────────────
+       The full intro sequence (wave reveal → swoop → cruise) is
+       handled inside city.js. Login reveal is callback-based via
+       CITY.onLoginReveal — no fixed timer needed here.
+       LOGIN_REVEAL_AT inside city.js controls when login appears. */
+    city: {
+        /* reserved for future city config values */
+    },
+
+});

@@ -1,0 +1,161 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   base.css
+   Foundation layer. Load this first.
+
+   Contains:
+     - Custom font declarations
+     - CSS reset (box-sizing, margin, padding normalization)
+     - Design token variables (:root)
+     - html / body baseline rules
+     - Shared keyframe animations used across multiple modules
+     - Shared utility classes (e.g. .msg status states)
+
+   Do NOT put component-specific rules here.
+   If a rule only applies to one section (login, scan, radio…),
+   it belongs in that section's own file.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+
+/* ── Custom Fonts ──────────────────────────────────────────────
+   Loaded from local files so the site works offline and avoids
+   any Google Fonts fingerprinting.
+   font-display: swap means the fallback renders immediately while
+   the font file loads — no invisible text (FOIT).
+────────────────────────────────────────────────────────────── */
+
+@font-face {
+    font-family: 'Vipnagorgialla Rg';
+    src: url('../fonts/Vipnagorgialla/Vipnagorgialla_Rg.otf') format('opentype');
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'DeadPostman';
+    src: url('../fonts/DeadPostmanRespawned/DeadPostmanRespawned.ttf') format('truetype');
+    font-display: swap;
+}
+
+
+/* ── Box Model Reset ───────────────────────────────────────────
+   border-box makes width/height include padding and border,
+   which is almost always what you want. Applying it universally
+   via the * selector (including pseudo-elements) is the modern
+   best-practice reset. margin/padding zeroed so we control
+   spacing deliberately rather than fighting browser defaults.
+────────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+
+    /* Default every element to the brand font.
+       Individual components override this where needed
+       (e.g. Space Mono for monospace readouts). */
+    font-family: 'Vipnagorgialla Rg', sans-serif;
+}
+
+
+/* ── Design Tokens ─────────────────────────────────────────────
+   All magic numbers live here as named variables. This is the
+   single source of truth for the colour palette and common
+   values. To retheme the whole site, only this block changes.
+
+   Naming convention:
+     --<name>          primary value
+     --<name>2         secondary / muted variant
+────────────────────────────────────────────────────────────── */
+
+:root {
+    /* Neutrals */
+    --cream:    #f5f2ec;
+    --white:    #fdfcfa;
+    --ink:      #1a1a18;
+    --ink2:     #3a3a35;
+    --muted:    #8a8a80;
+    --muted2:   #c8c8c0;
+    --sage:     #7a9a8a;
+
+    /* Accent */
+    --red:      #e8372a;
+    --red2:     rgba(232, 55, 42, 0.1);    /* soft red for backgrounds/shadows */
+    --green:    #00c853;
+
+    /* Borders */
+    --border:   rgba(26, 26, 24, 0.08);    /* very subtle — used for dividers */
+    --border2:  rgba(26, 26, 24, 0.14);    /* slightly stronger — used for inputs */
+}
+
+
+/* ── Document Baseline ─────────────────────────────────────────
+   overflow:hidden on both html and body locks the viewport —
+   this site is a fullscreen experience with no scrolling.
+   All scrollable content lives inside fixed/absolute containers.
+────────────────────────────────────────────────────────────── */
+
+html,
+body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background: var(--cream);
+    color: var(--ink);
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SHARED KEYFRAME ANIMATIONS
+   These are used in two or more CSS modules.
+   Module-specific animations live in their own files.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Fade + rise — used for wordmark, tagline, progress bar */
+@keyframes riseIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Pulsing dot — used in wordmark and HUD corner labels */
+@keyframes dotPulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.6);
+        opacity: 0.4;
+    }
+}
+
+/* Generic blink — used for terminal cursor and login prompt char */
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0; }
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   UTILITY: STATUS MESSAGE
+   Reused by the login form and ARG prompts.
+   JS sets .error / .success / .info class names directly.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.msg {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    min-height: 1rem;
+    font-weight: 500;
+}
+
+.msg.error   { color: var(--red); }
+.msg.success { color: var(--sage); }
+.msg.info    { color: var(--muted); }

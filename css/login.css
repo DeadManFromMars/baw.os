@@ -1,0 +1,308 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   login.css
+   Login phase — a floating passphrase input over the hex city.
+
+   Design intent: no card, no box — just the word "PASSPHRASE",
+   a bare underlined input, and a one-line hint. The city canvas
+   plays through behind it. Minimal = intentional opacity.
+
+   Contains:
+     - #loginPhase container
+     - HUD corner labels (.lp-hud-tl, .lp-hud-br)
+     - Center input cluster (.lp-center, .lp-label, .lp-input)
+     - Status message overrides for this context
+     - Progress bar (login verification state)
+     - Access granted overlay (#overlay)
+     - Secured flash (#securedFlash, #securedWord)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   CONTAINER
+   Full-viewport, centered. No background — city canvas shows through.
+   Pointer-events off until JS makes it visible.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+#loginPhase {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.2s ease;
+    /* Explicitly no background — the hex city canvas at z-index:18
+       renders through this element. */
+    background: transparent;
+}
+
+#loginPhase.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   HUD CORNER LABELS
+   Lightweight labels pinned to the viewport corners.
+   They suggest a security camera UI without cluttering the space.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Top-left: node identifier */
+.lp-hud-tl {
+    position: absolute;
+    top: 28px;
+    left: 36px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.52rem;
+    letter-spacing: 0.28em;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0.45;
+}
+
+/* Pulsing status dot — tells the player the node is live */
+.lp-hud-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--red);
+    display: inline-block;
+    animation: dotPulse 1.5s ease-in-out infinite;
+    flex-shrink: 0;
+}
+
+/* Bottom-right: session ID (populated by JS from dataReady.session) */
+.lp-hud-br {
+    position: absolute;
+    bottom: 28px;
+    right: 36px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.48rem;
+    letter-spacing: 0.22em;
+    color: var(--ink);
+    opacity: 0.3;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   CENTER INPUT CLUSTER
+   The three stacked elements: label, input, hint.
+   Everything centered on the viewport, no card behind it.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.lp-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    position: relative;
+    z-index: 2;
+}
+
+/* "PASSPHRASE" — micro label above the input */
+.lp-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.52rem;
+    letter-spacing: 0.35em;
+    color: var(--ink);
+    opacity: 0.4;
+}
+
+.lp-input-wrap {
+    position: relative;
+}
+
+/* The input itself — just a bottom border, no box.
+   The city renders through the transparent background.
+   caret-color:red gives the cursor the brand accent. */
+.lp-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--ink);
+    padding: 10px 4px;
+    width: 260px;
+    font-family: 'Space Mono', monospace;
+    font-size: 1.1rem;
+    letter-spacing: 0.3em;
+    color: var(--ink);
+    outline: none;
+    text-align: center;
+    transition: border-color 0.2s;
+    caret-color: var(--red);
+}
+
+.lp-input:focus {
+    border-bottom-color: var(--red);
+}
+
+.lp-input::placeholder {
+    color: var(--ink);
+    opacity: 0.2;
+    letter-spacing: 0.1em;
+}
+
+/* "ENTER TO AUTHENTICATE" — micro hint below the input */
+.lp-hint {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.42rem;
+    letter-spacing: 0.3em;
+    color: var(--ink);
+    opacity: 0.2;
+}
+
+/* Status message — overrides base .msg colours for this context */
+#loginPhase #msg {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.1em;
+    min-height: 18px;
+    text-align: center;
+}
+
+#loginPhase #msg.error   { color: var(--red);  opacity: 0.9; }
+#loginPhase #msg.success { color: var(--sage); }
+
+
+/* ── Login progress bar ──
+   Only shown while JS is verifying the passphrase. */
+#loginPhase .progress-wrap {
+    width: 260px;
+    height: 1px;
+    background: rgba(26, 26, 24, 0.1);
+    display: none;
+}
+
+#loginPhase .progress-wrap.show {
+    display: block;
+}
+
+#loginPhase .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--red);
+    transition: width 1.5s ease;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ACCESS GRANTED OVERLAY
+   Full-screen cream takeover that plays before redirect to stage2.
+   JS adds .show to trigger the fade-in.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+#overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--cream);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.8s ease;
+}
+
+#overlay.show {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.ov-title {
+    font-weight: 700;
+    font-size: 3.5rem;
+    letter-spacing: -0.03em;
+    color: var(--ink);
+}
+
+.ov-title span {
+    color: var(--red);
+}
+
+.ov-sub {
+    font-size: 0.58rem;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    text-transform: uppercase;
+}
+
+.ov-bar {
+    width: 200px;
+    height: 1px;
+    background: var(--border);
+    overflow: hidden;
+}
+
+.ov-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--red);
+    transition: width 2.2s ease;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SECURED FLASH
+   The word "SECURED" flickers in over the hex city after login,
+   fires expanding rectangular ripples, then flickers out.
+   The ripple rects are SVG, animated by JS. Only the word
+   and its container need CSS here.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+#securedFlash {
+    position: fixed;
+    inset: 0;
+    z-index: 510;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    /* Starts invisible — JS controls opacity directly via flicker sequence */
+    opacity: 0;
+}
+
+#securedWord {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(1rem, 2.5vw, 1.6rem);
+    letter-spacing: 0.5em;
+    color: var(--ink);
+    border: 1px solid var(--ink);
+    padding: 10px 32px;
+    position: relative;
+    z-index: 1;
+}
+
+/* The ripple SVG sits absolutely within #securedFlash.
+   It's zero-overhead — JS spawns and removes rect elements inside it. */
+#securedRipples {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   HONEYCOMB CANVAS
+   Full-screen black canvas drawn only on a first visit.
+   Hidden by default — JS shows it before the sequence starts.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+#hexCanvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 500;  /* above everything — this is the intro screen */
+    display: none;  /* shown by JS when the sequence starts */
+    pointer-events: none;
+}

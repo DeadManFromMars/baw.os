@@ -1,0 +1,422 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   background.css
+   All decorative background layers that sit behind the UI.
+
+   Z-index stack (ascending = closer to viewer):
+     0   dot canvas          — animated dot texture
+     1   haze overlay        — light-leak radial gradients
+     3   scroll lines        — thin drifting horizontal bars
+     4   corner SVG accents  — piston-animated bracket lines
+     5   geo lines           — solid red top bar + left bar
+     9   globe canvas        — spinning dot globe
+
+   Contains:
+     - Dot canvas (#dotCanvas)
+     - Haze overlay (.haze)
+     - Globe canvas (#globeCanvas)
+     - Geo accent bars (.geo-top, .geo-left, .geo-corner)
+     - SVG corner brackets (.corner-accent and children)
+     - Scrolling accent lines (.scroll-line, .sl-1 through .sl-5)
+     - Accent reveal system (body.accents-ready)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+
+/* ── Dot Canvas ────────────────────────────────────────────────
+   A <canvas> drawn in JS. Tiny dots that drift slowly,
+   parallax-shifted by mouse position.
+   opacity:0.13 keeps it subliminal — texture, not noise.
+────────────────────────────────────────────────────────────── */
+
+#dotCanvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.13;
+}
+
+
+/* ── Haze Overlay ──────────────────────────────────────────────
+   Two soft radial gradients that drift across the corners,
+   giving the page a subtle analogue warmth / light-leak effect.
+   It breathes gently using hazeDrift.
+────────────────────────────────────────────────────────────── */
+
+.haze {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+        radial-gradient(ellipse at 15%  8%,  rgba(255, 255, 255, 0.75) 0%, transparent 45%),
+        radial-gradient(ellipse at 85% 88%,  rgba(255, 248, 235, 0.55) 0%, transparent 40%);
+    animation: hazeDrift 14s ease-in-out infinite alternate;
+}
+
+@keyframes hazeDrift {
+    from {
+        opacity: 0.85;
+        transform: scale(1);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1.05) translate(-6px, -3px);
+    }
+}
+
+
+/* ── Globe Canvas ──────────────────────────────────────────────
+   The spinning dot globe drawn in JS.
+   Sits between the haze and the scan phase so it reads as a
+   background element rather than UI chrome.
+   Pointer-events off — interaction is handled via globeOverlay SVG.
+────────────────────────────────────────────────────────────── */
+
+#globeCanvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 9;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   GEO ACCENT BARS
+   Hard geometric lines that frame the page. They suggest a
+   security/surveillance aesthetic — camera feeds, sensor readouts.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Solid 3px red bar across the very top of the viewport */
+.geo-top {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--red);
+    z-index: 5;
+}
+
+/* Red bar that fades out as it descends the left edge.
+   The gradient to transparent makes it feel deliberate,
+   not like a cut-off element. */
+.geo-left {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--red) 0%, transparent 25%);
+    z-index: 5;
+}
+
+/* Small right-angle bracket in the top-left corner.
+   Adds visual weight without adding more lines. */
+.geo-corner {
+    position: fixed;
+    top: 3px;
+    left: 3px;
+    width: 80px;
+    height: 80px;
+    border-right:  1px solid rgba(232, 55, 42, 0.15);
+    border-bottom: 1px solid rgba(232, 55, 42, 0.15);
+    z-index: 5;
+    pointer-events: none;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SVG CORNER ACCENTS
+   Four SVG elements with <line> children positioned at each
+   corner of the viewport. Each line animates like a piston —
+   sliding back and forth along its axis.
+
+   The accentFadeIn animation brings opacity from 0 → 0.2 once
+   on load (kept at final opacity via animation-fill-mode:forwards).
+   Each piston animation then oscillates opacity between 0.10–0.22
+   on top of that.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.corner-accent {
+    position: fixed;
+    z-index: 4;
+    pointer-events: none;
+    overflow: visible;
+}
+
+/* All lines start invisible. Animations bring them in individually
+   with staggered delays so they appear one by one. */
+.corner-accent line {
+    stroke: var(--ink);
+    stroke-width: 1.5;
+    opacity: 0;
+}
+
+
+/* ── Top-left: horizontal + vertical pistons ── */
+
+.corner-tl {
+    top: 0;
+    left: 0;
+    width: 180px;
+    height: 180px;
+}
+
+/* stroke-dasharray/dashoffset draws the line partially —
+   dashoffset 80 on an 80-unit dash means the line starts
+   invisible and "draws itself" as dashoffset approaches 0.
+   The pistonRight/Down animations handle the motion. */
+.corner-tl line:nth-child(1) {
+    animation:
+        accentFadeIn  0.8s  0.4s ease-in-out forwards,
+        pistonRight   3.5s  0.4s ease-in-out infinite alternate;
+    stroke-dasharray: 80;
+    stroke-dashoffset: 80;
+}
+.corner-tl line:nth-child(2) {
+    animation:
+        accentFadeIn  0.8s  0.8s ease-in-out forwards,
+        pistonDown    3.5s  0.8s ease-in-out infinite alternate;
+    stroke-dasharray: 80;
+    stroke-dashoffset: 80;
+}
+.corner-tl line:nth-child(3) {
+    animation:
+        accentFadeIn  0.8s  1.2s ease-in-out forwards,
+        pistonRight   3.5s  1.2s ease-in-out infinite alternate;
+}
+.corner-tl line:nth-child(4) {
+    animation:
+        accentFadeIn  0.8s  1.6s ease-in-out forwards,
+        pistonDown    3.5s  1.6s ease-in-out infinite alternate;
+}
+
+
+/* ── Top-right: diagonal slashes ── */
+
+.corner-tr {
+    top: 0;
+    right: 0;
+    width: 220px;
+    height: 220px;
+}
+
+.corner-tr line:nth-child(1) {
+    animation:
+        accentFadeIn  0.8s  0.5s ease-in-out forwards,
+        pistonDiag    4.0s  1.3s ease-in-out infinite alternate;
+}
+.corner-tr line:nth-child(2) {
+    animation:
+        accentFadeIn  0.8s  0.8s ease-in-out forwards,
+        pistonDiag    4.0s  1.8s ease-in-out infinite alternate;
+}
+.corner-tr line:nth-child(3) {
+    animation:
+        accentFadeIn  0.8s  1.1s ease-in-out forwards,
+        pistonDiag    4.0s  2.2s ease-in-out infinite alternate;
+}
+.corner-tr line:nth-child(4) {
+    animation:
+        accentFadeIn  0.8s  1.3s ease-in-out forwards,
+        pistonDiag    4.0s  2.6s ease-in-out infinite alternate;
+}
+.corner-tr line:nth-child(5) {
+    animation:
+        accentFadeIn  0.8s  1.5s ease-in-out forwards,
+        pistonDiag    4.0s  3.0s ease-in-out infinite alternate;
+}
+
+
+/* ── Bottom-left: horizontal + vertical pistons ── */
+
+.corner-bl {
+    bottom: 0;
+    left: 0;
+    width: 160px;
+    height: 160px;
+}
+
+.corner-bl line:nth-child(1) {
+    animation:
+        accentFadeIn  0.8s  0.6s ease-in-out forwards,
+        pistonRight   3.8s  1.4s ease-in-out infinite alternate;
+}
+.corner-bl line:nth-child(2) {
+    animation:
+        accentFadeIn  0.8s  0.9s ease-in-out forwards,
+        pistonUp      3.8s  1.8s ease-in-out infinite alternate;
+}
+.corner-bl line:nth-child(3) {
+    animation:
+        accentFadeIn  0.8s  1.2s ease-in-out forwards,
+        pistonRight   3.8s  2.2s ease-in-out infinite alternate;
+}
+.corner-bl line:nth-child(4) {
+    animation:
+        accentFadeIn  0.8s  1.5s ease-in-out forwards,
+        pistonUp      3.8s  2.6s ease-in-out infinite alternate;
+}
+
+
+/* ── Bottom-right: leftward + upward pistons ── */
+
+.corner-br {
+    bottom: 0;
+    right: 0;
+    width: 160px;
+    height: 160px;
+}
+
+.corner-br line:nth-child(1) {
+    animation:
+        accentFadeIn  0.8s  0.7s ease-in-out forwards,
+        pistonLeft    4.2s  1.5s ease-in-out infinite alternate;
+}
+.corner-br line:nth-child(2) {
+    animation:
+        accentFadeIn  0.8s  1.0s ease-in-out forwards,
+        pistonUp      4.2s  1.9s ease-in-out infinite alternate;
+}
+.corner-br line:nth-child(3) {
+    animation:
+        accentFadeIn  0.8s  1.3s ease-in-out forwards,
+        pistonLeft    4.2s  2.3s ease-in-out infinite alternate;
+}
+.corner-br line:nth-child(4) {
+    animation:
+        accentFadeIn  0.8s  1.6s ease-in-out forwards,
+        pistonUp      4.2s  2.7s ease-in-out infinite alternate;
+}
+
+
+/* ── Piston keyframes ── */
+
+/* One-time fade-in on page load. fill-mode:forwards holds the
+   final opacity so the piston animations layer on top correctly. */
+@keyframes accentFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 0.2; }
+}
+
+/* Each piston slides along one axis and breathes opacity slightly.
+   The alternate direction on the animation makes them oscillate
+   without needing duplicate keyframes for the return journey. */
+@keyframes pistonRight {
+    from { transform: translateX(-12px); opacity: 0.10; }
+    to   { transform: translateX(0);     opacity: 0.22; }
+}
+
+@keyframes pistonLeft {
+    from { transform: translateX(12px);  opacity: 0.10; }
+    to   { transform: translateX(0);     opacity: 0.22; }
+}
+
+@keyframes pistonDown {
+    from { transform: translateY(-12px); opacity: 0.10; }
+    to   { transform: translateY(0);     opacity: 0.22; }
+}
+
+@keyframes pistonUp {
+    from { transform: translateY(12px);  opacity: 0.10; }
+    to   { transform: translateY(0);     opacity: 0.22; }
+}
+
+@keyframes pistonDiag {
+    from { transform: translate(8px, -8px); opacity: 0.10; }
+    to   { transform: translate(0,    0);   opacity: 0.22; }
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SCROLLING ACCENT LINES
+   Five thin horizontal bars that drift across the screen at
+   different speeds and heights. Pure CSS — no JS needed.
+   They appear staggered via scrollLineIn animation delays.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.scroll-line {
+    position: fixed;
+    z-index: 3;
+    pointer-events: none;
+    height: 2px;
+    background: var(--ink);
+    opacity: 0;
+}
+
+/* Each line is individually tuned — different top%, width, speed,
+   direction (reverse = right-to-left), and appearance delay. */
+
+.sl-1 {
+    top: 22%;
+    width: 60px;
+    animation:
+        scrollLineIn   1s  2.0s ease forwards,
+        scrollLineDrift 18s  3.0s linear infinite;
+}
+.sl-2 {
+    top: 55%;
+    width: 40px;
+    animation:
+        scrollLineIn   1s  2.5s ease forwards,
+        scrollLineDrift 22s  3.5s linear infinite reverse;
+}
+.sl-3 {
+    top: 38%;
+    width: 80px;
+    animation:
+        scrollLineIn   1s  3.0s ease forwards,
+        scrollLineDrift 14s  4.0s linear infinite;
+}
+.sl-4 {
+    top: 72%;
+    width: 50px;
+    animation:
+        scrollLineIn   1s  3.5s ease forwards,
+        scrollLineDrift 26s  4.5s linear infinite reverse;
+}
+.sl-5 {
+    top: 15%;
+    width: 35px;
+    animation:
+        scrollLineIn   1s  4.0s ease forwards,
+        scrollLineDrift 20s  5.0s linear infinite;
+}
+
+@keyframes scrollLineIn {
+    from { opacity: 0;    }
+    to   { opacity: 0.12; }
+}
+
+@keyframes scrollLineDrift {
+    from { left: -100px; }
+    to   { left: calc(100vw + 100px); }
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ACCENT REVEAL SYSTEM
+   On a first visit the honeycomb canvas covers everything.
+   Accents (geo lines, corners, haze, scroll lines) are suppressed
+   with !important until the honeycomb finishes, at which point
+   JS adds .accents-ready to <body> and the animations run normally.
+
+   On returning visits, JS adds .accents-ready immediately on load
+   so accents are visible from the first frame.
+
+   Using :not(.accents-ready) means we never need to manually
+   toggle individual elements — adding the class does it all at once.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+body:not(.accents-ready) .corner-accent line,
+body:not(.accents-ready) .scroll-line,
+body:not(.accents-ready) .geo-top,
+body:not(.accents-ready) .geo-left,
+body:not(.accents-ready) .geo-corner,
+body:not(.accents-ready) .haze {
+    opacity: 0 !important;
+    animation: none !important;
+    transition: none !important;
+}

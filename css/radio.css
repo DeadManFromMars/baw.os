@@ -1,0 +1,298 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   radio.css
+   The draggable music player widget.
+
+   The radio widget is a frosted-glass panel that slides in after
+   the globe pin lines finish drawing. It stays visible for the
+   duration of the session and can be dragged anywhere on screen.
+
+   Structure:
+     #radioWidget
+       └─ #radioDragHandle         (grab bar at top)
+       └─ .radio-inner
+            └─ .radio-marquee-wrap (scrolling song title)
+            └─ .radio-artist       (artist name)
+            └─ .radio-progress-wrap
+                 └─ .radio-progress-bar → .radio-progress-fill
+                 └─ .radio-times       (current / duration)
+            └─ .radio-controls    (prev, play/pause, next)
+            └─ .radio-volume-wrap (VOL label + range slider)
+            └─ .radio-playlist-hint
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   WIDGET CONTAINER
+   Fixed bottom-right initially. JS overrides left/top when dragged.
+   backdrop-filter gives the frosted glass effect.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+#radioWidget {
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    width: 280px;
+    z-index: 200;
+
+    /* Starts hidden — JS adds .visible after pin lines draw */
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.5s ease;
+
+    /* Frosted glass panel */
+    border-radius: 16px;
+    background: rgba(253, 252, 250, 0.55);
+    backdrop-filter: blur(24px) saturate(1.4);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow:
+        0 8px 32px rgba(26, 26, 24, 0.12),
+        inset 0  1px 0 rgba(255, 255, 255, 0.8),
+        inset 0 -1px 0 rgba(26,  26,  24,  0.06);
+
+    /* Prevent text selection while dragging */
+    user-select: none;
+}
+
+#radioWidget.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+
+/* ── Drag Handle ── */
+
+/* The pill bar at the top — cursor:grab signals draggability.
+   JS attaches mousedown here to start the drag sequence. */
+#radioDragHandle {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    border-bottom: 1px solid rgba(26, 26, 24, 0.06);
+    border-radius: 16px 16px 0 0;
+}
+
+#radioDragHandle:active {
+    cursor: grabbing;
+}
+
+/* The visual indicator — a short rounded bar, like a modal sheet handle */
+.radio-drag-dots {
+    width: 32px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(26, 26, 24, 0.15);
+}
+
+
+/* ── Inner Content ── */
+
+.radio-inner {
+    padding: 14px 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TRACK INFO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Clipping wrapper — overflow:hidden crops the marquee */
+.radio-marquee-wrap {
+    overflow: hidden;
+    width: 100%;
+    position: relative;
+}
+
+/* The scrolling title. JS toggles .fits when text is short enough
+   that it doesn't need to scroll — animation is paused in that case. */
+.radio-marquee {
+    font-family: 'Vipnagorgialla Rg', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--ink);
+    white-space: nowrap;
+    display: inline-block;
+    animation: marqueeScroll 10s linear infinite;
+    letter-spacing: -0.02em;
+}
+
+@keyframes marqueeScroll {
+    0%   { transform: translateX(100%); }
+    100% { transform: translateX(-100%); }
+}
+
+/* No scrolling needed — text fits */
+.radio-marquee.fits {
+    animation: none;
+}
+
+.radio-artist {
+    font-size: 0.5rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-top: -6px;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PROGRESS BAR
+   Clickable — JS reads click position and scrubs the audio.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.radio-progress-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.radio-progress-bar {
+    height: 3px;
+    background: rgba(26, 26, 24, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.radio-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--red);
+    border-radius: 2px;
+    /* Linear transition so the bar advances smoothly between updates */
+    transition: width 0.5s linear;
+}
+
+/* Time stamps: current on the left, total on the right */
+.radio-times {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.42rem;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PLAYBACK CONTROLS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.radio-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+/* Shared button style — small circular pill */
+.radio-btn {
+    background: rgba(26, 26, 24, 0.06);
+    border: 1px solid rgba(26, 26, 24, 0.1);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.6rem;
+    color: var(--ink);
+    transition: background 0.15s, transform 0.1s;
+    padding: 0;
+}
+
+.radio-btn:hover  { background: rgba(26, 26, 24, 0.12); }
+.radio-btn:active { transform: scale(0.92); }
+
+/* Play/pause button is larger and inverted (dark bg, cream icon) */
+.radio-play {
+    width: 42px;
+    height: 42px;
+    font-size: 0.8rem;
+    background: var(--ink);
+    color: var(--cream);
+    border-color: transparent;
+}
+
+.radio-play:hover { background: var(--ink2); }
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   VOLUME CONTROL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.radio-volume-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.radio-vol-label {
+    font-size: 0.4rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+/* Custom range slider — reset browser appearance, restyle the track and thumb */
+.radio-volume {
+    flex: 1;
+    height: 3px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(26, 26, 24, 0.1);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+/* Thumb — webkit */
+.radio-volume::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--ink);
+    cursor: pointer;
+    border: none;
+}
+
+/* Thumb — Firefox */
+.radio-volume::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--ink);
+    cursor: pointer;
+    border: none;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   PLAYLIST HINT
+   The "Playlist manager — coming soon" footer.
+   Cursor pointer hints it'll eventually be clickable.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.radio-playlist-hint {
+    font-size: 0.38rem;
+    letter-spacing: 0.15em;
+    color: var(--muted2);
+    text-transform: uppercase;
+    text-align: center;
+    border-top: 1px solid rgba(26, 26, 24, 0.06);
+    padding-top: 8px;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.radio-playlist-hint:hover {
+    color: var(--muted);
+}

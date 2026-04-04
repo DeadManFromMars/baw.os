@@ -1,0 +1,206 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   arg.css
+   ARG registration and card upload prompts.
+
+   Two prompts, one shown at a time:
+     #argRegPrompt  — new visitor, picks a username
+     #argCardPrompt — returning visitor, uploads their card image
+
+   Design language: ultra-minimal. No boxes, no decorative chrome.
+   The bare input and single action button carry all the weight.
+   The UI trusts the player to understand what's being asked.
+
+   Contains:
+     - Shared prompt container rules (#argRegPrompt, #argCardPrompt)
+     - Minimal input, button, message, and sub-label styles
+     - Card slot dropzone (two lines = card reader slit)
+     - Ghost "switch to register" button
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SHARED PROMPT CONTAINER
+   Both prompts use identical positioning and visibility logic.
+   JS adds/removes .visible and .fading.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+#argRegPrompt,
+#argCardPrompt {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.2s ease;
+}
+
+#argRegPrompt.visible,
+#argCardPrompt.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* Faster fade-out when dismissing (fading class) */
+#argRegPrompt.fading,
+#argCardPrompt.fading {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.8s ease;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   INNER LAYOUT
+   Centered column — everything stacks vertically.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.arg-minimal-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   TEXT INPUT
+   Single bare input — no box, no label, just an underline.
+   The placeholder "—" is the entire instruction.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.arg-minimal-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--ink);
+    padding: 12px 0;
+    width: 240px;
+    font-family: 'Space Mono', monospace;
+    font-size: 1rem;
+    letter-spacing: 0.2em;
+    color: var(--ink);
+    outline: none;
+    text-align: center;
+    transition: border-color 0.2s;
+}
+
+.arg-minimal-input:focus {
+    border-bottom-color: var(--red);
+}
+
+.arg-minimal-input::placeholder {
+    color: var(--muted);
+    opacity: 0.4;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SUBMIT BUTTON
+   Arrow-only. Transparent background. Becomes ink-coloured on hover.
+   Minimal presence — the player's eye should be on the input.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.arg-minimal-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: color 0.15s;
+    padding: 4px 12px;
+}
+
+.arg-minimal-btn:hover {
+    color: var(--ink);
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   STATUS MESSAGE
+   Tiny centered text below the button.
+   JS sets .error / .success classes.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.arg-minimal-msg {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+    min-height: 16px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.arg-minimal-msg.error   { color: var(--red); }
+.arg-minimal-msg.success { color: var(--sage); }
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ONE-WORD SUB-LABEL
+   "designate" beneath the registration input.
+   Near-invisible — provides context without demanding attention.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.arg-minimal-sub {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.5rem;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    opacity: 0.4;
+    text-transform: uppercase;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   CARD SLOT
+   Two parallel horizontal lines suggesting a card reader slit.
+   Clicking it opens the hidden file input.
+   Opacity low at rest — brightens on hover to signal interactivity.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.arg-card-slot {
+    width: 120px;
+    height: 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    opacity: 0.4;
+    transition: opacity 0.2s;
+}
+
+.arg-card-slot:hover {
+    opacity: 0.8;
+}
+
+.arg-card-slot-line {
+    width: 100%;
+    height: 1px;
+    background: var(--ink);
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   GHOST SWITCH BUTTON
+   The "—" button on the card prompt that resets to registration.
+   Barely visible — it's an escape hatch, not a primary action.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.arg-minimal-ghost {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 1rem;
+    cursor: pointer;
+    opacity: 0.25;
+    transition: opacity 0.2s;
+    padding: 4px 8px;
+    font-family: 'Space Mono', monospace;
+}
+
+.arg-minimal-ghost:hover {
+    opacity: 0.6;
+}
