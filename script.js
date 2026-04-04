@@ -1,58 +1,173 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// HEX CITY v2
+// HEX CITY v4
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Pillars rise from flat hex floor after the honeycomb
-// sequence. Camera starts high and descends into the city
-// then flies through on a gentle curved path forever.
+// One continuous 3D scene. Full camera orientation —
+// the camera pitches, yaws, and rolls as it swoops,
+// turns, and dodges pillars. No axis locking.
+//
+// SEQUENCE:
+//   1. Black screen, then draw wave spreads across hex floor.
+//      Camera is high up looking straight down — looks 2D.
+//   2. Camera pitches forward and dives toward the ground.
+//      The 3D nature becomes apparent as it swoops in.
+//   3. Camera levels off. Pillars begin rising around it.
+//   4. Camera flies forward forever, banking into turns,
+//      yawing to dodge pillars, feeling like a living thing.
+//
+// ALL TUNING CONSTANTS are at the top, clearly labelled.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const CITY = (() => {
 
-    // ── Tuning ──
-    const HEX_R = 1.0;
-    const HEX_GAP = 0.02;
-    const GRID_COLS = 56;
-    const GRID_ROWS = 100;
-    const PILLAR_CHANCE = 0.30;
-    const PILLAR_H_MIN = 0.4;
-    const PILLAR_H_MAX = 4.5;
-    const RISE_DUR = 2200;
-    const RISE_DELAY = 1800;
-    const CAM_DESCEND_H = 3.0;
-    const CAM_CRUISE_H = 1.4;
-    const CAM_DESCEND_DUR = 2800;
-    const CAM_SPEED = 1.8;   // forward units/sec
-    const FOV_DEG = 72;
+    // ─────────────────────────────────────────────────
+    // GRID
+    // ─────────────────────────────────────────────────
+    const HEX_R = 1.0;    // radius of each hexagon (world units)
+    const HEX_GAP = 0.02;   // gap between hexagons
+    const GRID_COLS = 56;     // columns across
+    const GRID_ROWS = 100;    // rows deep
 
-    // Drift is now handled by a smooth path, not raw sin
-    const DRIFT_PERIOD = 22;    // seconds for one full left-right sweep
-    const DRIFT_AMP = 2.8;   // how far left/right the path wanders (world units)
+    // ─────────────────────────────────────────────────
+    // PILLARS
+    // ─────────────────────────────────────────────────
+    const PILLAR_CHANCE = 0.30;  // fraction of hexes that become pillars (0–1)
+    const PILLAR_H_MIN = 0.4;   // shortest pillar
+    const PILLAR_H_MAX = 4.5;   // tallest pillar
 
-    // Pillar avoidance
-    const AVOID_RADIUS = 2.8;   // start avoiding at this distance
-    const AVOID_STRENGTH = 0.6;   // gentle — just enough to steer clear
-    const AVOID_LOOKAHEAD = 4.0;   // also check pillars slightly ahead
+    // ─────────────────────────────────────────────────
+    // DRAW WAVE — spreading ring that reveals hex cells
+    // ─────────────────────────────────────────────────
+    const WAVE_START_DELAY = 800;   // ms of black before the wave begins
+    const WAVE_SPEED = 9.0;   // world units per second the wave expands
+    const WAVE_ORIGIN_X = 0.0;   // X centre of the wave (0 = grid centre)
+    const WAVE_ORIGIN_Z = 20.0;  // Z centre of the wave (near camera start)
 
-    const CREAM = 'rgb(245,242,236)';
-    const CREAM_SIDE = 'rgb(195,190,180)';
-    const CREAM_DARK = 'rgb(155,150,140)';
-    const FLOOR = 'rgb(220,216,208)';
-    const BG = 'rgb(245,242,236)';  // horizon fill
+    // ─────────────────────────────────────────────────
+    // HEX POP — spring bounce as each cell is revealed
+    // ─────────────────────────────────────────────────
+    const POP_DURATION = 700;   // ms for the spring to settle
+    const POP_AMPLITUDE = 0.18;  // how high the cell pops (world units)
 
+    // ─────────────────────────────────────────────────
+    // PILLAR RISE
+    // ─────────────────────────────────────────────────
+    const PILLAR_RISE_START = 6000;  // ms after scene start before pillars begin rising
+    const PILLAR_RISE_DUR = 2200;  // ms for each pillar to reach full height
+    const PILLAR_RISE_STAGGER = 38;    // ms extra delay per world unit from wave origin
+
+    // ─────────────────────────────────────────────────
+    // CAMERA — starting position
+    // ─────────────────────────────────────────────────
+    const CAM_START_X = 0.0;    // start centred on the grid
+    const CAM_START_Y = 20.0;   // high above — makes it look 2D at first
+    const CAM_START_Z = 8.0;    // a little way into the grid
+
+    // ─────────────────────────────────────────────────
+    // CAMERA — swoop (the dive from high to cruise height)
+    // ─────────────────────────────────────────────────
+    const CAM_CRUISE_H = 1.6;    // final height above ground during cruise
+    const CAM_SWOOP_DUR = 7500;   // ms for the full swoop
+    const CAM_SWOOP_EASE = 5;      // easing power — higher = lingers high, dives sharp
+    //                                 try: 3 = gentle arc, 5 = dramatic, 8 = cliff drop
+
+    // ─────────────────────────────────────────────────
+    // CAMERA — orientation during swoop
+    // Pitch is the up/down angle of the camera in radians.
+    // -PI/2 = looking straight down, 0 = looking straight forward.
+    // ─────────────────────────────────────────────────
+    const CAM_PITCH_START = -1.48;  // almost straight down at the beginning
+    const CAM_PITCH_END = 0.00;  // level at cruise (0 = horizon)
+    const CAM_PITCH_EASE = 4;     // easing power for pitch transition
+
+    // ─────────────────────────────────────────────────
+    // CAMERA — cruise flight
+    // ─────────────────────────────────────────────────
+    const CAM_SPEED = 1.8;   // forward units per second
+    const FOV_DEG = 72;    // field of view in degrees
+
+    // ─────────────────────────────────────────────────
+    // CAMERA — lateral drift (the wandering S-curve path)
+    // ─────────────────────────────────────────────────
+    const DRIFT_PERIOD = 22;    // seconds per full left-right cycle
+    const DRIFT_AMP = 2.8;   // maximum lateral wander (world units)
+
+    // ─────────────────────────────────────────────────
+    // CAMERA — banking (roll when turning)
+    // The camera rolls into turns like an aircraft banking.
+    // ─────────────────────────────────────────────────
+    const BANK_STRENGTH = 0.35;  // how much the camera rolls per unit of lateral velocity
+    //                              try: 0.1 = subtle, 0.4 = dramatic
+    const BANK_SMOOTH = 0.08;  // how quickly the bank angle follows the turn (0–1)
+
+    // ─────────────────────────────────────────────────
+    // CAMERA — yaw (turning left/right to face direction of travel)
+    // ─────────────────────────────────────────────────
+    const YAW_STRENGTH = 0.18;   // how much the camera turns to face lateral movement
+    const YAW_SMOOTH = 0.05;   // how quickly yaw follows lateral velocity
+
+    // ─────────────────────────────────────────────────
+    // CAMERA — pillar avoidance
+    // ─────────────────────────────────────────────────
+    const AVOID_RADIUS = 2.8;   // avoid pillars within this distance
+    const AVOID_STRENGTH = 0.6;   // push force (gentle = 0.3, strong = 1.0)
+    const AVOID_LOOKAHEAD = 4.0;   // look this far ahead for pillars
+
+    // ─────────────────────────────────────────────────
+    // DRAW DISTANCES
+    // ─────────────────────────────────────────────────
+    const DRAW_FLOOR = 30;   // flat tiles rendered within this Z distance
+    const DRAW_PILLAR = 38;   // pillars rendered within this Z distance
+
+    // ─────────────────────────────────────────────────
+    // COLOURS
+    // ─────────────────────────────────────────────────
+    const CREAM = 'rgb(245,242,236)';   // pillar top face
+    const CREAM_SIDE = 'rgb(195,190,180)';   // pillar lit side face
+    const CREAM_DARK = 'rgb(155,150,140)';   // pillar shadow side face
+    const FLOOR = 'rgb(220,216,208)';   // flat hex floor tiles
+
+    // ─────────────────────────────────────────────────
+    // BACKGROUND FADE
+    // The scene opens on pure black and fades to cream
+    // as the wave spreads. BG_FADE_DUR controls how many
+    // seconds the fade takes after the wave starts.
+    // ─────────────────────────────────────────────────
+    const BG_FADE_DUR = 3.0;   // seconds to fade from black to cream after wave starts
+
+    // ─────────────────────────────────────────────────
+    // INTERNAL STATE — do not edit these
+    // ─────────────────────────────────────────────────
     let cv, ctx;
     let pillars = [], flats = [];
     let raf = null;
     let startT = null;
+    let waveActive = false;
 
-    // Camera state — persists across frames for smooth lerping
-    let camX = 0, camY = CAM_DESCEND_H, camZ = 0;
-    let camVX = 0; // lateral velocity, lerped each frame
+    // Camera position
+    let camX = CAM_START_X;
+    let camY = CAM_START_Y;
+    let camZ = CAM_START_Z;
 
+    // Camera orientation (all in radians)
+    let camPitch = CAM_PITCH_START;   // up/down tilt
+    let camYaw = 0;                 // left/right facing
+    let camRoll = 0;                 // banking tilt
+
+    // Smooth velocity for lateral movement
+    let camVX = 0;   // lateral velocity (used for banking + avoidance)
+    let targetYaw = 0;   // where yaw wants to be
+    let targetRoll = 0;   // where roll wants to be
+
+    // Seeded random so the city is identical every run
     let seed = 137;
     function rand() {
         seed = (seed * 1664525 + 1013904223) & 0xffffffff;
         return Math.abs(seed) / 0x7fffffff;
     }
+
+    // ─────────────────────────────────────────────────
+    // WORLD BUILDING
+    // ─────────────────────────────────────────────────
 
     function hexCenter(col, row) {
         const cw = HEX_R * 1.5 + HEX_GAP;
@@ -73,82 +188,138 @@ const CITY = (() => {
 
     function buildWorld() {
         seed = 137;
-        pillars = []; flats = [];
+        pillars = [];
+        flats = [];
+
         for (let c = 0; c < GRID_COLS; c++) {
             for (let r = 0; r < GRID_ROWS; r++) {
                 const { x, z } = hexCenter(c, r);
                 const pts = hexPts(x, z, HEX_R * 0.94);
+                const dx = x - WAVE_ORIGIN_X;
+                const dz = z - WAVE_ORIGIN_Z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+
                 if (rand() < PILLAR_CHANCE) {
                     const h = PILLAR_H_MIN + rand() * (PILLAR_H_MAX - PILLAR_H_MIN);
-                    const riseOffset = Math.sqrt(x * x + (z - 8) * (z - 8)) * 40;
-                    pillars.push({ x, z, pts, targetH: h, currentH: 0, riseOffset });
+                    pillars.push({
+                        x, z, pts,
+                        targetH: h,      // final height when fully risen
+                        currentH: 0,      // current animated height
+                        dist,              // distance from wave origin (for stagger)
+                        drawnAt: null,   // ms timestamp when wave reached this cell
+                        popOffset: 0,      // vertical pop bounce (world units)
+                    });
                 } else {
-                    flats.push({ x, z, pts });
+                    flats.push({
+                        x, z, pts,
+                        dist,
+                        drawnAt: null,
+                        popOffset: 0,
+                    });
                 }
             }
         }
     }
 
+    // ─────────────────────────────────────────────────
+    // PROJECTION — full 3D camera with pitch, yaw, roll
+    //
+    // World point → translate to camera space →
+    // apply yaw (left/right turn) →
+    // apply pitch (up/down tilt) →
+    // apply roll (banking) →
+    // perspective divide → screen coordinates
+    // ─────────────────────────────────────────────────
     function project(wx, wy, wz, W, H) {
         const fov = (FOV_DEG * Math.PI) / 180;
         const flen = (W / 2) / Math.tan(fov / 2);
-        const rx = wx - camX;
-        const ry = wy - camY;
-        const rz = wz - camZ;
-        if (rz <= 0.05) return null;
+
+        // Step 1 — translate world point into camera-relative space
+        let rx = wx - camX;
+        let ry = wy - camY;
+        let rz = wz - camZ;
+
+        // Step 2 — apply YAW (rotate around Y axis)
+        const cosYaw = Math.cos(-camYaw);
+        const sinYaw = Math.sin(-camYaw);
+        const rx1 = rx * cosYaw + rz * sinYaw;
+        const rz1 = -rx * sinYaw + rz * cosYaw;
+
+        // Step 3 — apply PITCH (rotate around X axis)
+        const cosPitch = Math.cos(-camPitch);
+        const sinPitch = Math.sin(-camPitch);
+        const ry2 = ry * cosPitch - rz1 * sinPitch;
+        const rz2 = ry * sinPitch + rz1 * cosPitch;
+
+        // Step 4 — apply ROLL (rotate around Z axis)
+        const cosRoll = Math.cos(-camRoll);
+        const sinRoll = Math.sin(-camRoll);
+        const rx3 = rx1 * cosRoll - ry2 * sinRoll;
+        const ry3 = rx1 * sinRoll + ry2 * cosRoll;
+
+        // Behind the camera — don't draw
+        if (rz2 <= 0.05) return null;
+
         return {
-            sx: (rx / rz) * flen + W / 2,
-            sy: (-ry / rz) * flen + H / 2,
-            depth: rz
+            sx: (rx3 / rz2) * flen + W / 2,
+            sy: (-ry3 / rz2) * flen + H / 2,
+            depth: rz2
         };
     }
 
-    // Subdivided top face — prevents projection warping
-    const SUBDIV = 4;
-    ctx.beginPath();
-    let started = false;
-    for (let i = 0; i < 6; i++) {
-        const j = (i + 1) % 6;
-        const [ax, az] = p.pts[i];
-        const [bx, bz] = p.pts[j];
-        for (let s = 0; s <= SUBDIV; s++) {
-            const t = s / SUBDIV;
-            const wx = ax + (bx - ax) * t;
-            const wz = az + (bz - az) * t;
-            const pt = project(wx, p.currentH, wz, W, H);
-            if (!pt) continue;
-            if (!started) { ctx.moveTo(pt.sx, pt.sy); started = true; }
-            else ctx.lineTo(pt.sx, pt.sy);
+    // ─────────────────────────────────────────────────
+    // DRAWING HELPERS
+    // ─────────────────────────────────────────────────
+
+    // Fills a polygon from an array of projected screen points
+    function fillPoly(pts, color) {
+        const visible = pts.filter(p => p !== null);
+        if (visible.length < 3) return;
+        ctx.beginPath();
+        ctx.moveTo(visible[0].sx, visible[0].sy);
+        for (let i = 1; i < visible.length; i++) {
+            ctx.lineTo(visible[i].sx, visible[i].sy);
         }
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
     }
-    ctx.closePath();
-    ctx.fillStyle = CREAM;
-    ctx.fill();
+
+    // Draws a single pillar — side faces + subdivided top face
     function drawPillar(p, W, H) {
+        if (p.drawnAt === null) return;
         if (p.currentH < 0.01) return;
+
         const top = p.pts.map(([px, pz]) => project(px, p.currentH, pz, W, H));
         const bot = p.pts.map(([px, pz]) => project(px, 0, pz, W, H));
         const anyVisible = top.some(t => t !== null) || bot.some(b => b !== null);
         if (!anyVisible) return;
 
-        // Side faces — cull back faces using face midpoint
+        // ── Side faces — back-face culled ──
         for (let i = 0; i < 6; i++) {
             const j = (i + 1) % 6;
             if (!top[i] || !top[j] || !bot[i] || !bot[j]) continue;
-            const [px0, pz0] = p.pts[i], [px1, pz1] = p.pts[j];
-            const ex = px1 - px0, ez = pz1 - pz0;
+
+            const [px0, pz0] = p.pts[i];
+            const [px1, pz1] = p.pts[j];
+            const ex = px1 - px0;
+            const ez = pz1 - pz0;
             const midX = (px0 + px1) / 2;
             const midZ = (pz0 + pz1) / 2;
+
+            // Positive dot = face points away from camera = skip it
             const dot = ex * (midZ - camZ) - ez * (midX - camX);
-            if (dot > 0) continue;  // cull back faces
+            if (dot < 0) continue;
+
+            // Simple directional shading — light comes from upper-right
             const angle = Math.atan2(ez, ex);
             const shade = Math.cos(angle - Math.PI / 4);
             const color = shade > 0 ? CREAM_SIDE : CREAM_DARK;
             fillPoly([top[i], top[j], bot[j], bot[i]], color);
         }
 
-        // Subdivided top face — prevents projection warping at close range
-        const SUBDIV = 4;
+        // ── Top face — subdivided to prevent warping at close range ──
+        const SUBDIV = 4;   // subdivisions per hex edge
         ctx.beginPath();
         let started = false;
         for (let i = 0; i < 6; i++) {
@@ -170,31 +341,88 @@ const CITY = (() => {
         ctx.fill();
     }
 
+    // Draws a flat hex floor tile
     function drawFlat(f, W, H) {
-        const pts = f.pts.map(([px, pz]) => project(px, 0, pz, W, H));
-        // Only skip if ALL points are null
+        if (f.drawnAt === null) return;
+        const y = f.popOffset || 0;
+        const pts = f.pts.map(([px, pz]) => project(px, y, pz, W, H));
         if (pts.every(p => p === null)) return;
-        // Fill with nulls replaced by neighbours for edge tiles
+        // Replace nulls with screen-edge fallback so edge tiles still fill
         fillPoly(pts.map(p => p || { sx: W / 2, sy: H }), FLOOR);
     }
 
+    // ─────────────────────────────────────────────────
+    // MAIN RENDER LOOP
+    // ─────────────────────────────────────────────────
     function render(now) {
         if (!startT) startT = now;
         const ms = now - startT;
         const elapsed = ms / 1000;
 
-        const W = cv.width, H = cv.height;
+        const W = cv.width;
+        const H = cv.height;
 
-        ctx.fillStyle = BG;
+        // ── BACKGROUND — fades from black to cream as wave spreads ──
+        // Before the wave: pure black.
+        // After wave starts: linearly fades to the cream background colour
+        // over BG_FADE_DUR seconds. Gives the scene a dawn-breaking feel.
+        let bgR = 0, bgG = 0, bgB = 0;
+        if (waveActive) {
+            const fadeT = Math.min(1, ((ms - WAVE_START_DELAY) / 1000) / BG_FADE_DUR);
+            bgR = Math.round(fadeT * 245);
+            bgG = Math.round(fadeT * 242);
+            bgB = Math.round(fadeT * 236);
+        }
+        ctx.fillStyle = `rgb(${bgR},${bgG},${bgB})`;
         ctx.fillRect(0, 0, W, H);
 
-        // ── Pillar rise ──
-        const riseElapsed = ms - RISE_DELAY;
+        // ── DRAW WAVE ─────────────────────────────────
+        // After WAVE_START_DELAY a radius expands from the wave origin.
+        // Any cell whose centre falls inside gets marked drawn — permanently.
+        if (!waveActive && ms >= WAVE_START_DELAY) waveActive = true;
+
+        if (waveActive) {
+            const waveRadius = ((ms - WAVE_START_DELAY) / 1000) * WAVE_SPEED;
+
+            for (const f of flats) {
+                if (f.drawnAt !== null) continue;
+                const dx = f.x - WAVE_ORIGIN_X;
+                const dz = f.z - WAVE_ORIGIN_Z;
+                if (Math.sqrt(dx * dx + dz * dz) <= waveRadius) f.drawnAt = now;
+            }
+            for (const p of pillars) {
+                if (p.drawnAt !== null) continue;
+                const dx = p.x - WAVE_ORIGIN_X;
+                const dz = p.z - WAVE_ORIGIN_Z;
+                if (Math.sqrt(dx * dx + dz * dz) <= waveRadius) p.drawnAt = now;
+            }
+        }
+
+        // ── HEX POP ───────────────────────────────────
+        // For a short window after drawnAt, the flat cell rises and settles.
+        // Spring formula: fast rise, slight overshoot, quick settle.
+        for (const f of flats) {
+            if (f.drawnAt === null) { f.popOffset = 0; continue; }
+            const age = now - f.drawnAt;
+            f.popOffset = age < POP_DURATION
+                ? POP_AMPLITUDE
+                * Math.sin(Math.PI * (age / POP_DURATION))
+                * Math.exp(-2.5 * age / POP_DURATION)
+                : 0;
+        }
+
+        // ── PILLAR RISE ───────────────────────────────
+        // Pillars start rising at PILLAR_RISE_START.
+        // Each pillar waits an extra (dist * PILLAR_RISE_STAGGER) ms
+        // based on its distance from the wave origin — creates a
+        // ripple-outward effect rather than all rising at once.
+        const riseElapsed = ms - PILLAR_RISE_START;
         if (riseElapsed > 0) {
             for (const p of pillars) {
-                const t = Math.max(0, Math.min(1,
-                    (riseElapsed - p.riseOffset) / RISE_DUR
-                ));
+                if (p.drawnAt === null) continue;
+                const stagger = p.dist * PILLAR_RISE_STAGGER;
+                const t = Math.max(0, Math.min(1, (riseElapsed - stagger) / PILLAR_RISE_DUR));
+                // Ease out cubic with a tiny overshoot bounce at the top
                 const ease = t < 1
                     ? 1 - Math.pow(1 - t, 3) + Math.sin(t * Math.PI) * 0.06
                     : 1;
@@ -202,56 +430,79 @@ const CITY = (() => {
             }
         }
 
-        // ── Camera descent ──
-        const descendT = Math.min(1, ms / CAM_DESCEND_DUR);
-        const descendEase = 1 - Math.pow(1 - descendT, 3);
-        camY = CAM_DESCEND_H + (CAM_CRUISE_H - CAM_DESCEND_H) * descendEase;
+        // ── CAMERA HEIGHT — the swoop ─────────────────
+        // descendT goes 0→1 over CAM_SWOOP_DUR milliseconds.
+        // High easing power = camera lingers up high then
+        // accelerates sharply downward before pulling level.
+        const descendT = Math.min(1, ms / CAM_SWOOP_DUR);
+        const descendEase = 1 - Math.pow(1 - descendT, CAM_SWOOP_EASE);
+        const pitchEase = 1 - Math.pow(1 - descendT, CAM_PITCH_EASE);
 
-        // ── Forward motion with seamless loop ──
+        // Height: start high, end at cruise level
+        camY = CAM_START_Y + (CAM_CRUISE_H - CAM_START_Y) * descendEase;
+
+        // Pitch: start looking straight down, end looking straight forward
+        camPitch = CAM_PITCH_START + (CAM_PITCH_END - CAM_PITCH_START) * pitchEase;
+
+        // ── FORWARD MOTION ────────────────────────────
+        // Speed is multiplied by descendEase so the camera
+        // accelerates forward as it pulls out of the dive —
+        // feels like gaining speed as you level off.
         const rowH = HEX_R * Math.sqrt(3) + HEX_GAP;
         const gridDepth = GRID_ROWS * rowH;
-        camZ = (elapsed * CAM_SPEED) % gridDepth;
+        const speedMult = Math.pow(descendEase, 0.5);
+        camZ = (CAM_START_Z + elapsed * CAM_SPEED * speedMult) % gridDepth;
 
-        // ── Lateral path — smooth sinusoidal base ──
-        // Two layered sines at different periods = non-repeating feel
-        const pathX = Math.sin((elapsed / DRIFT_PERIOD) * Math.PI * 2) * DRIFT_AMP
-            + Math.sin((elapsed / (DRIFT_PERIOD * 0.61)) * Math.PI * 2) * DRIFT_AMP * 0.35;
+        // ── LATERAL DRIFT PATH ────────────────────────
+        // Two layered sines at different periods = feels non-repeating.
+        const pathX =
+            Math.sin((elapsed / DRIFT_PERIOD) * Math.PI * 2) * DRIFT_AMP +
+            Math.sin((elapsed / (DRIFT_PERIOD * 0.61)) * Math.PI * 2) * DRIFT_AMP * 0.35;
 
-        // ── Pillar avoidance ──
-        // Accumulate a gentle lateral push away from nearby pillars
+        // ── PILLAR AVOIDANCE ──────────────────────────
+        // Accumulate a lateral push away from close pillars ahead.
+        // Purely additive on top of the drift path — never overrides it.
         let avoidX = 0;
         for (const p of pillars) {
             const dz = p.z - camZ;
-            // Only care about pillars ahead (and a tiny bit behind)
             if (dz < -1.5 || dz > AVOID_LOOKAHEAD) continue;
             const dx = p.x - camX;
             const dist = Math.sqrt(dx * dx + dz * dz);
             if (dist < AVOID_RADIUS && dist > 0.01) {
-                // Force is proportional to how close we are, weighted by height
                 const proximity = 1 - dist / AVOID_RADIUS;
                 const heightWeight = Math.min(p.currentH / 2.0, 1.0);
                 avoidX -= (dx / dist) * proximity * AVOID_STRENGTH * heightWeight;
             }
         }
-        // Clamp avoidance — it adds to the path, not overrides it
         avoidX = Math.max(-1.5, Math.min(1.5, avoidX));
 
-        // Target X = path + avoidance
+        // Smooth camera X toward target with damped spring velocity
         const targetX = pathX + avoidX;
-
-        // Smooth camera toward target — the lerp factor controls how snappy it feels
-        // 0.02 = very silky, 0.06 = responsive but still smooth
-        camVX += (targetX - camX) * 0.025;
-        camVX *= 0.88; // dampen velocity so it doesn't oscillate
+        camVX += (targetX - camX) * 0.025;   // spring force toward target
+        camVX *= 0.88;                         // dampen so it doesn't oscillate
         camX += camVX;
 
-        // ── Collect and sort visible objects ──
+        // ── YAW — camera nose follows direction of travel ──
+        // Suppressed during the swoop (yawInfluence = 0 at top, 1 when level)
+        // so the camera looks straight ahead during the dive.
+        const yawInfluence = descendEase;
+        targetYaw = camVX * YAW_STRENGTH * yawInfluence;
+        camYaw += (targetYaw - camYaw) * YAW_SMOOTH;
+
+        // ── ROLL — camera banks into turns ────────────
+        // Negative camVX (moving left) = positive roll = right wing dips.
+        // Also suppressed during the swoop.
+        targetRoll = -camVX * BANK_STRENGTH * yawInfluence;
+        camRoll += (targetRoll - camRoll) * BANK_SMOOTH;
+
+        // ── COLLECT AND SORT VISIBLE OBJECTS ──────────
+        // Painter's algorithm — draw furthest first so closer things
+        // naturally paint over the top.
         const flatObjs = [];
         const pillarObjs = [];
-        const DRAW_FLOOR = 30;
-        const DRAW_PILLAR = 38;
 
         for (const f of flats) {
+            if (f.drawnAt === null) continue;
             const dz = f.z - camZ;
             const dzWrapped = dz < -4 ? dz + gridDepth : dz;
             if (dzWrapped > -4 && dzWrapped < DRAW_FLOOR) {
@@ -260,6 +511,7 @@ const CITY = (() => {
             }
         }
         for (const p of pillars) {
+            if (p.drawnAt === null) continue;
             const dz = p.z - camZ;
             const dzWrapped = dz < -2 ? dz + gridDepth : dz;
             if (dzWrapped > -2 && dzWrapped < DRAW_PILLAR) {
@@ -268,15 +520,20 @@ const CITY = (() => {
             }
         }
 
+        // Sort furthest first
         flatObjs.sort((a, b) => b.depth - a.depth);
         pillarObjs.sort((a, b) => b.depth - a.depth);
 
+        // Draw floor tiles first, pillars on top
         for (const item of flatObjs) drawFlat(item.obj, W, H);
         for (const item of pillarObjs) drawPillar(item.obj, W, H);
 
         raf = requestAnimationFrame(render);
     }
 
+    // ─────────────────────────────────────────────────
+    // PUBLIC API
+    // ─────────────────────────────────────────────────
     return {
         start() {
             cv = document.getElementById('cityCanvas');
@@ -284,7 +541,10 @@ const CITY = (() => {
             ctx = cv.getContext('2d');
             cv.width = window.innerWidth;
             cv.height = window.innerHeight;
-            cv.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:18;display:block;';
+            cv.style.cssText =
+                'position:fixed;top:0;left:0;width:100%;height:100%;display:block;';
+            // z-index is set by the caller (playInitiationSequence) so it
+            // can sit above login during the intro then step back after.
             window.addEventListener('resize', () => {
                 cv.width = window.innerWidth;
                 cv.height = window.innerHeight;
@@ -292,10 +552,12 @@ const CITY = (() => {
             buildWorld();
             raf = requestAnimationFrame(render);
         },
+
         stop() {
             if (raf) cancelAnimationFrame(raf);
         }
     };
+
 })();
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1931,21 +2193,37 @@ function playSecuredFlash(onComplete) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 function playInitiationSequence(onComplete) {
-    document.getElementById('loginPhase').style.opacity = '0';
+    // Hide login to start — it fades in after the swoop lands
+    const login = document.getElementById('loginPhase');
+    login.style.opacity = '0';
+    login.style.pointerEvents = 'none';
 
-    HEX.play(() => {
-        CITY.start();
-        const login = document.getElementById('loginPhase');
+    // Bring city canvas above everything so the black intro and
+    // swoop play over the top of all UI layers
+    const cityCanvas = document.getElementById('cityCanvas');
+    cityCanvas.style.zIndex = '500';
+
+    CITY.start();
+
+    // After the swoop lands, step city canvas behind the login card
+    // so the player can see and interact with the input
+    // Keep this in sync with CAM_SWOOP_DUR in the CITY module
+    const SWOOP_DUR = 7500;
+
+    setTimeout(() => {
+        cityCanvas.style.zIndex = '18';
+    }, SWOOP_DUR);
+
+    // Show login a moment after the swoop ends
+    setTimeout(() => {
         login.style.transition = 'opacity 1.4s ease';
-        setTimeout(() => {
-            login.style.opacity = '1';
-            const pw = document.getElementById('password');
-            if (pw) pw.focus();
-        }, 800);
+        login.style.opacity = '1';
+        login.style.pointerEvents = 'all';
+        const pw = document.getElementById('password');
+        if (pw) pw.focus();
         if (onComplete) onComplete();
-    });
+    }, SWOOP_DUR + 200);
 }
-
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ARG BACKEND — SESSION & REGISTRATION
@@ -1975,17 +2253,20 @@ function checkSessionState() {
     const registered = localStorage.getItem('baw_registered');
 
     if (!gatePassed) {
-        // First time — play the full honeycomb sequence then show login
+        // First time visitor — play the full black screen + swoop intro
         playInitiationSequence();
         return;
     }
 
-    // Gate passed — accents show immediately, no hex sequence
+    // Returning visitor — accents show immediately, no swoop intro
     document.body.classList.add('accents-ready');
+
+    // City plays in the background at normal z-index
+    const cityCanvas = document.getElementById('cityCanvas');
+    cityCanvas.style.zIndex = '18';
     CITY.start();
 
-    // Gate passed — skip straight to post-sequence state
-    // Hide the login card, position globe, show appropriate prompt
+    // Skip straight to the post-sequence state
     const login = document.getElementById('loginPhase');
     login.style.opacity = '0';
     login.style.pointerEvents = 'none';
