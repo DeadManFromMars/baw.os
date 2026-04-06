@@ -42,44 +42,20 @@ document.addEventListener('DOMContentLoaded', () => {
    camera reaches cruise height (signalled by CITY.onLoginReveal).
 ════════════════════════════════════════════════════════════════ */
 
-function _handleFirstVisit() {
-    const cityCanvas = document.getElementById('cityCanvas');
-    const loginEl    = document.getElementById('loginPhase');
+/* ════════════════════════════════════════════════════════════════
+   INIT OVERLAY
+   Shown on every visit — black screen with minimal prompt.
+   One click satisfies the browser autoplay requirement and
+   kicks off whatever callback is passed in.
+════════════════════════════════════════════════════════════════ */
 
-    // Login starts hidden
-    loginEl.style.opacity       = '0';
-    loginEl.style.pointerEvents = 'none';
-
-    // CITY fires this callback when the camera is nearly level
-    CITY.onLoginReveal = () => {
-        CITY.toBackground();
-        loginEl.style.transition    = 'opacity 1.4s ease';
-        loginEl.style.opacity       = '1';
-        loginEl.style.pointerEvents = 'all';
-        document.getElementById('password')?.focus();
-    };
-
-    cityCanvas.style.display = 'block';
-
-    /* ── Click-to-initialise overlay ───────────────────────────────
-       Sits above everything on a black screen. One click:
-         1. Satisfies the browser autoplay requirement for SceneAudio
-         2. Fades the overlay out
-         3. Starts the CITY sequence
-       Built in JS — no HTML changes needed.
-    ────────────────────────────────────────────────────────────── */
+function _showInitOverlay(onStart) {
     const overlay = document.createElement('div');
     overlay.id = 'initOverlay';
     overlay.style.cssText = [
-        'position:fixed',
-        'inset:0',
-        'z-index:1000',
-        'background:#000',
-        'display:flex',
-        'align-items:center',
-        'justify-content:center',
-        'cursor:pointer',
-        'transition:opacity 0.6s ease',
+        'position:fixed', 'inset:0', 'z-index:1000', 'background:#000',
+        'display:flex', 'align-items:center', 'justify-content:center',
+        'cursor:pointer', 'transition:opacity 0.6s ease',
     ].join(';');
 
     overlay.innerHTML = `
@@ -108,8 +84,28 @@ function _handleFirstVisit() {
     overlay.addEventListener('click', () => {
         overlay.style.opacity = '0';
         overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
-        CITY.start();  // audio unblocked — sequence begins
+        onStart();
     }, { once: true });
+}
+
+function _handleFirstVisit() {
+    const cityCanvas = document.getElementById('cityCanvas');
+    const loginEl    = document.getElementById('loginPhase');
+
+    loginEl.style.opacity       = '0';
+    loginEl.style.pointerEvents = 'none';
+
+    CITY.onLoginReveal = () => {
+        CITY.toBackground();
+        loginEl.style.transition    = 'opacity 1.4s ease';
+        loginEl.style.opacity       = '1';
+        loginEl.style.pointerEvents = 'all';
+        document.getElementById('password')?.focus();
+    };
+
+    cityCanvas.style.display = 'block';
+
+    _showInitOverlay(() => CITY.start());
 }
 
 
@@ -120,35 +116,33 @@ function _handleFirstVisit() {
 ════════════════════════════════════════════════════════════════ */
 
 function _handleReturningVisit(registered) {
-    document.body.classList.add('accents-ready');
+    _showInitOverlay(() => {
+        document.body.classList.add('accents-ready');
 
-    const cityCanvas = document.getElementById('cityCanvas');
-    cityCanvas.style.zIndex  = '18';
-    cityCanvas.style.display = 'block';
+        const cityCanvas = document.getElementById('cityCanvas');
+        cityCanvas.style.zIndex  = '18';
+        cityCanvas.style.display = 'block';
 
-    // Skip the intro sequence — city starts mid-cruise
-    CITY.onLoginReveal = null;
-    CITY.start();
+        CITY.onLoginReveal = null;
+        CITY.start();
 
-    // Login phase stays hidden
-    const loginEl = document.getElementById('loginPhase');
-    loginEl.style.opacity       = '0';
-    loginEl.style.pointerEvents = 'none';
+        const loginEl = document.getElementById('loginPhase');
+        loginEl.style.opacity       = '0';
+        loginEl.style.pointerEvents = 'none';
 
-    // Restore globe / header to post-scan positions
-    if (window.startGlobeMove) {
-        window.startGlobeMove(CONFIG.globe.centerX, CONFIG.globe.centerY);
-    }
-    const header = document.querySelector('.scan-header');
-    if (header) {
-        header.style.left = '50%';
-        header.style.top  = CONFIG.globe.postScanY + '%';
-    }
+        if (window.startGlobeMove) {
+            window.startGlobeMove(CONFIG.globe.centerX, CONFIG.globe.centerY);
+        }
+        const header = document.querySelector('.scan-header');
+        if (header) {
+            header.style.left = '50%';
+            header.style.top  = CONFIG.globe.postScanY + '%';
+        }
 
-    // Route to the right ARG prompt
-    if (registered) {
-        setTimeout(() => Arg.showArgCardPrompt(), 400);
-    } else {
-        setTimeout(() => Arg.showArgRegistration(), 400);
-    }
+        if (registered) {
+            setTimeout(() => Arg.showArgCardPrompt(), 400);
+        } else {
+            setTimeout(() => Arg.showArgRegistration(), 400);
+        }
+    });
 }
