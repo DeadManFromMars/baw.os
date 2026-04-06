@@ -40,6 +40,7 @@ const Login = (() => {
 
         if (password !== CONFIG.auth.accessCode) {
             showMessage('Invalid credentials. This attempt has been logged.', 'error');
+            if (typeof CITY !== 'undefined') CITY.corruptEffect();
             if (inputEl) { inputEl.value = ''; inputEl.focus(); }
             return;
         }
