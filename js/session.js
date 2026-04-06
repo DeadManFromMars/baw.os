@@ -47,24 +47,69 @@ function _handleFirstVisit() {
     const loginEl    = document.getElementById('loginPhase');
 
     // Login starts hidden
-    loginEl.style.opacity      = '0';
+    loginEl.style.opacity       = '0';
     loginEl.style.pointerEvents = 'none';
 
     // CITY fires this callback when the camera is nearly level
     CITY.onLoginReveal = () => {
-        // Step canvas behind login UI
         CITY.toBackground();
-
-        // Fade login in
         loginEl.style.transition    = 'opacity 1.4s ease';
         loginEl.style.opacity       = '1';
         loginEl.style.pointerEvents = 'all';
         document.getElementById('password')?.focus();
     };
 
-    // City starts at z-index 500 (above everything) — set inside CITY.start()
     cityCanvas.style.display = 'block';
-    CITY.start();
+
+    /* ── Click-to-initialise overlay ───────────────────────────────
+       Sits above everything on a black screen. One click:
+         1. Satisfies the browser autoplay requirement for SceneAudio
+         2. Fades the overlay out
+         3. Starts the CITY sequence
+       Built in JS — no HTML changes needed.
+    ────────────────────────────────────────────────────────────── */
+    const overlay = document.createElement('div');
+    overlay.id = 'initOverlay';
+    overlay.style.cssText = [
+        'position:fixed',
+        'inset:0',
+        'z-index:1000',
+        'background:#000',
+        'display:flex',
+        'align-items:center',
+        'justify-content:center',
+        'cursor:pointer',
+        'transition:opacity 0.6s ease',
+    ].join(';');
+
+    overlay.innerHTML = `
+        <div style="text-align:center;pointer-events:none;user-select:none;">
+            <div style="
+                font-family:'Courier New',Courier,monospace;
+                font-size:clamp(10px,1.1vw,14px);
+                letter-spacing:0.35em;
+                color:#fff;
+                opacity:0.9;
+                margin-bottom:0.9em;
+                text-transform:uppercase;
+            ">INITIALISE SEQUENCE</div>
+            <div style="
+                font-family:'Courier New',Courier,monospace;
+                font-size:clamp(9px,0.85vw,11px);
+                letter-spacing:0.25em;
+                color:#fff;
+                opacity:0.35;
+                text-transform:uppercase;
+            ">CLICK ANYWHERE TO BEGIN</div>
+        </div>`;
+
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', () => {
+        overlay.style.opacity = '0';
+        overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
+        CITY.start();  // audio unblocked — sequence begins
+    }, { once: true });
 }
 
 

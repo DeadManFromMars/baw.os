@@ -3,7 +3,7 @@
 
    Handles everything that happens on the login screen:
      - Listening for Enter key / form submission
-     - Validating the passphrase against CONFIG.auth.accessCode
+     - Validating the passphrase via POST /api/verify (server-side)
      - Showing status messages (wrong password, etc.)
      - The "SECURED" flash animation that plays on correct login
      - The city swoop intro sequence (first-visit only)
@@ -38,7 +38,24 @@ const Login = (() => {
         const inputEl  = document.getElementById('password');
         const password = inputEl ? inputEl.value.trim().toLowerCase() : '';
 
-        if (password !== CONFIG.auth.accessCode) {
+        // Verify the passphrase server-side — the code never lives in the frontend.
+        let ok = false;
+        try {
+            const res  = await fetch(`${CONFIG.apiBase}/api/verify`, {
+                method:      'POST',
+                credentials: 'include',
+                headers:     { 'Content-Type': 'application/json' },
+                body:        JSON.stringify({ code: password }),
+            });
+            const data = await res.json();
+            ok = data.ok === true;
+        } catch (err) {
+            console.error('[Login] /api/verify failed:', err);
+            showMessage('Connection error. Please try again.', 'error');
+            return;
+        }
+
+        if (!ok) {
             showMessage('Invalid credentials. This attempt has been logged.', 'error');
             if (typeof CITY !== 'undefined') CITY.corruptEffect();
             if (inputEl) { inputEl.value = ''; inputEl.focus(); }
@@ -48,22 +65,23 @@ const Login = (() => {
         // Mark the gate as passed so returning visits skip the intro
         localStorage.setItem('baw_gate_passed', 'true');
 
-        // Fade out the login phase
+        // Fade out the login phase UI
         const loginPhase = document.getElementById('loginPhase');
         loginPhase.style.transition = 'opacity 0.6s ease';
         loginPhase.style.opacity    = '0';
 
-        await Utils.sleep(700);
+        // Fade music out, then continue into the SECURED flash sequence
+        SceneAudio.fadeOut(async () => {
+            await Utils.sleep(200);
 
-        // Stop the city canvas (it was running during the login screen)
-        CITY.stop();
-        document.getElementById('cityCanvas').style.display = 'none';
+            CITY.stop();
+            document.getElementById('cityCanvas').style.display = 'none';
 
-        // Play the "SECURED" flash, then reveal the scan phase
-        await playSecuredFlash();
+            await playSecuredFlash();
 
-        loginPhase.style.display = 'none';
-        _revealScanPhase();
+            loginPhase.style.display = 'none';
+            _revealScanPhase();
+        });
     }
 
     /* Fades the scan phase in after login, then starts streaming rows. */

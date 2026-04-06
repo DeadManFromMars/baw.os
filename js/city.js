@@ -5,6 +5,90 @@
                 Infinite, seamless, no recording needed.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SceneAudio  —  LOGIN-SCENE AMBIENT MUSIC
+
+   Fades "The Edge.mp3" in when the hex wave starts, and fades it
+   out on correct login before the SECURED flash plays.
+
+   TUNING — adjust these four constants to taste:
+     VOLUME       peak volume (0.0 – 1.0)
+     FADE_IN_DUR  seconds to reach peak volume after wave starts
+     FADE_OUT_DUR seconds to silence after correct login
+     SRC          path to the audio file
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+const SceneAudio = (() => {
+
+    /* ── TUNING ─────────────────────────────────────── */
+    const VOLUME       = 0.35;                        // peak volume  0.0 – 1.0
+    const FADE_IN_DUR  = 3.5;                         // seconds to fade in
+    const FADE_OUT_DUR = 1.8;                         // seconds to fade out
+    const SRC          = 'Audio/Music/The Edge.mp3';  // path relative to index.html
+    /* ─────────────────────────────────────────────── */
+
+    let audio        = null;
+    let fadeTimer    = null;
+    let started      = false;
+
+    /* Smoothly ramp audio.volume toward `target` over `durationSec`.
+       Calls `onDone` when finished (optional). */
+    function fadeTo(target, durationSec, onDone) {
+        if (!audio) return;
+        clearInterval(fadeTimer);
+
+        const STEPS    = 60;
+        const interval = (durationSec * 1000) / STEPS;
+        const delta    = (target - audio.volume) / STEPS;
+
+        fadeTimer = setInterval(() => {
+            audio.volume = Math.max(0, Math.min(1, audio.volume + delta));
+            if (Math.abs(audio.volume - target) < 0.005) {
+                audio.volume = target;
+                clearInterval(fadeTimer);
+                if (onDone) onDone();
+            }
+        }, interval);
+    }
+
+    return {
+        /* Fade music in — called when the hex wave begins.
+           Idempotent: safe to call multiple times. */
+        fadeIn() {
+            if (started) return;
+            started = true;
+
+            audio        = new Audio(SRC);
+            audio.loop   = true;
+            audio.volume = 0;
+
+            // Browser autoplay policy: play() returns a Promise.
+            // Silently swallow the rejection if blocked.
+            audio.play().catch(() => {
+                console.warn('[SceneAudio] Autoplay blocked — music will start on first user interaction.');
+                const resume = () => { audio.play().catch(() => {}); document.removeEventListener('click', resume); };
+                document.addEventListener('click', resume, { once: true });
+            });
+
+            fadeTo(VOLUME, FADE_IN_DUR);
+        },
+
+        /* Fade music out — called on correct login.
+           `onDone` is invoked when volume reaches 0. */
+        fadeOut(onDone) {
+            if (!audio) { if (onDone) onDone(); return; }
+            fadeTo(0, FADE_OUT_DUR, onDone);
+        },
+
+        /* Convenience: set volume directly (e.g. from a settings panel). */
+        setVolume(v) {
+            if (audio) audio.volume = Math.max(0, Math.min(1, v));
+        },
+    };
+
+})();
+
+
 const CITY = (() => {
 
     /* ── TUNING ─────────────────────────────────────────────── */
@@ -26,7 +110,7 @@ const CITY = (() => {
     const SWOOP_DUR   = 7.0;
     const SPEED       = 2.2;    // forward speed (units/sec)
 
-    const WAVE_DELAY = 0.5;
+    const WAVE_DELAY = 3.0;
     const WAVE_SPD   = 14.0;
     const POP_H      = 0.5;
     const POP_DUR    = 0.45;
@@ -51,6 +135,7 @@ const CITY = (() => {
     const CORRUPT_SHAKE = 0.18; // max camera shake in world units
     const CORRUPT_TWIST = 0.12; // max roll twist in radians
     let   corruptT      = 0;    // counts down from CORRUPT_DUR to 0
+    let   corruptDirty  = false; // true while corrupt needs a reset pass
 
     // Glass shatter
     const COLLIDE_R    = 1.6;
@@ -401,25 +486,22 @@ const CITY = (() => {
         skyTileOffset = (skyTileOffset + STREAK_SPEED * 0.016) % STREAK_TILE;
 
         for (const s of skyStreaks) {
-            // Streak moves from behind camera toward distance
-            // zOff counts down from 0 (at camera) toward -STREAK_TILE (far)
-            // We offset by a per-streak stagger so they're spread out
-            const tileZ  = cz + s.zOff - skyTileOffset;
-            // Wrap: keep streak cycling in the range [cz+10, cz+10-STREAK_TILE]
-            const nearZ  = tileZ - Math.floor((tileZ - (cz + 10)) / STREAK_TILE) * STREAK_TILE;
-            const farZ   = nearZ - s.len;
+            // nearZ starts behind camera, scrolls forward into distance
+            // offset by zOff so each streak is staggered across the tile period
+            const raw   = (skyTileOffset + s.zOff) % STREAK_TILE;
+            const nearZ = cz + 8 - raw;          // starts 8 units behind camera
+            const farZ  = nearZ - s.len;
 
-            const nearDepth = Math.max(0, cz - nearZ);
-            const farDepth  = Math.max(0, cz - farZ);
-            const nearT = Math.min(1, nearDepth / SKY_FAR);
-            const farT  = Math.min(1, farDepth  / SKY_FAR);
+            const nearDepth = cz - nearZ;         // negative = behind, positive = ahead
+            const farDepth  = cz - farZ;
+            const farT  = Math.min(1, Math.max(0, farDepth  / SKY_FAR));
 
-            const nearX = cx + s.lane * (1 - nearT);
+            const nearX = cx + s.lane;
             const farX  = cx + s.lane * (1 - farT);
             const hw    = s.width * 0.5;
 
-            // Fade out at distance, always fully visible near camera
-            const fadeOut = Math.pow(1 - nearT, 0.8);
+            // Fade out as far end approaches vanishing point
+            const fadeOut = Math.pow(1 - farT, 0.8);
             s.mesh.material.opacity = s.baseOp * fadeOut * streakAlpha;
 
             const pos = s.geo.attributes.position;
@@ -437,7 +519,7 @@ const CITY = (() => {
         const dt = Math.min(clock.getDelta(), 0.05);
         T   += dt; phT += dt;
 
-        if (phase === 'pre'  && T  >= WAVE_DELAY) { phase = 'wave';  phT = 0; waveFront = 0; }
+        if (phase === 'pre'  && T  >= WAVE_DELAY) { phase = 'wave';  phT = 0; waveFront = 0; SceneAudio.fadeIn(); }
         if (phase === 'wave') {
             waveFront += WAVE_SPD * dt;
             if (waveFront >= waveMax) { phase = 'hold'; phT = 0; }
@@ -532,7 +614,8 @@ const CITY = (() => {
                 }
             }
 
-        } else if (corruptT === 0) {
+        } else if (corruptT === 0 && corruptDirty) {
+            corruptDirty = false;
             for (const t of tiles) {
                 if (!t.hit) continue;
                 t.floorMesh.position.set(t.x, 0, t.z);
@@ -671,6 +754,7 @@ const CITY = (() => {
         // Call this on wrong password — geometry warps and glitches
         corruptEffect() {
             corruptT = CORRUPT_DUR;
+            corruptDirty = true;
         },
 
         stop() {
