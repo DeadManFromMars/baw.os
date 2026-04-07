@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!gatePassed) {
         _handleFirstVisit();
     } else {
-        _handleReturningVisit(registered);
+        _handleReturningVisit();
     }
 
 });
@@ -115,21 +115,35 @@ function _handleFirstVisit() {
    Jump straight to the ARG flow.
 ════════════════════════════════════════════════════════════════ */
 
-function _handleReturningVisit(registered) {
+function _handleReturningVisit() {
+    // Returning visitors have already passed the gate — skip city and login entirely.
+    // Click to init → globe is already visible → show choice prompt.
     _showInitOverlay(() => {
         document.body.classList.add('accents-ready');
 
+        // Hide city canvas — not needed on returning visits
         const cityCanvas = document.getElementById('cityCanvas');
-        cityCanvas.style.zIndex  = '18';
-        cityCanvas.style.display = 'block';
+        if (cityCanvas) cityCanvas.style.display = 'none';
 
-        CITY.onLoginReveal = null;
-        CITY.start();
-
+        // Hide login — they've already authenticated
         const loginEl = document.getElementById('loginPhase');
-        loginEl.style.opacity       = '0';
-        loginEl.style.pointerEvents = 'none';
+        if (loginEl) {
+            loginEl.style.opacity       = '0';
+            loginEl.style.pointerEvents = 'none';
+        }
 
+        // Show scan phase header (wordmark) only — hide data columns
+        const scanPhase = document.getElementById('scanPhase');
+        if (scanPhase) {
+            scanPhase.style.display = 'flex';
+            scanPhase.style.opacity = '1';
+        }
+        const scanLeft  = document.querySelector('.scan-left');
+        const scanRight = document.querySelector('.scan-right');
+        if (scanLeft)  scanLeft.style.display  = 'none';
+        if (scanRight) scanRight.style.display = 'none';
+
+        // Move globe and header to post-scan position
         if (window.startGlobeMove) {
             window.startGlobeMove(CONFIG.globe.centerX, CONFIG.globe.centerY);
         }
@@ -139,10 +153,7 @@ function _handleReturningVisit(registered) {
             header.style.top  = CONFIG.globe.postScanY + '%';
         }
 
-        if (registered) {
-            setTimeout(() => Arg.showArgCardPrompt(), 400);
-        } else {
-            setTimeout(() => Arg.showArgRegistration(), 400);
-        }
+        // Show the choice prompt — register or offer token
+        setTimeout(() => Arg.showArgChoice(), 400);
     });
 }

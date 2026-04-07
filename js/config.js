@@ -58,20 +58,10 @@ const CONFIG = Object.freeze({
         topPct:   18,   // % of viewport height
     },
 
-    /* ── Auth ────────────────────────────────────────────────
-       Access code and redirect are centralised here so you only
-       change one line to update the password or destination. */
-    auth: {
-        accessCode:  'bawsome',
-        redirectUrl: 'stage2.html',
-    },
-
     /* ── Backend ─────────────────────────────────────────────
        Base URL for the Flask backend. Switch to your production
        URL before deploying. */
-    backend: {
-        baseUrl: 'http://localhost:5000',
-    },
+    apiBase: 'http://localhost:5000',
 
     /* ── City canvas (Three.js hex city sequence) ────────────
        The full intro sequence (wave reveal → swoop → cruise) is

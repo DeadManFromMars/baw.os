@@ -796,7 +796,7 @@ async function triggerDissolve() {
 
     // Show the ARG registration flow
     await Utils.sleep(2400);
-    if (window.showArgRegistration) window.showArgRegistration();
+    if (window.showArgChoice) window.showArgChoice();
 }
 
 

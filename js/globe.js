@@ -251,10 +251,11 @@
                 if (pin.progress >= 1) pin.boxEl.setAttribute('opacity', '1');
             }
 
-            /* ── Start music once all pin lines are done ── */
+            /* ── Once all pin lines are done: start music + show choice ── */
             if (!musicStarted && pins.length > 0 && pins.every(p => p.progress >= 1)) {
                 musicStarted = true;
                 Radio.start();
+                if (window.showArgChoice) window.showArgChoice();
             }
 
             requestAnimationFrame(drawFrame);

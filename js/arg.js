@@ -2,16 +2,31 @@
    arg.js  —  ARG BACKEND + REGISTRATION FLOW
 
    Handles everything after the scan phase dissolves:
+     - Showing the choice prompt (register or offer token)
      - Showing the registration prompt (new visitors)
      - Showing the card upload prompt (returning visitors)
      - Calling the Flask backend to register / verify card
      - Downloading the generated player card after registration
-     - Fading prompts out and triggering globe pin lines
+     - Showing welcome + logout persistently after success
 
-   BACKEND ROUTES (all at CONFIG.backend.baseUrl):
+   BACKEND ROUTES (all at CONFIG.apiBase):
      POST /auth/register   { username }  → { username, ... }
      POST /card/upload     FormData(card) → { username, ... }
      GET  /card/download   → binary image blob
+
+   STATE MACHINE:
+     globe pin lines done
+       → showArgChoice()          [register / offer token, right side]
+     user picks register
+       → showArgRegistration()    [reg form, centered]
+     register / upload success
+       → fadeOutAndProceed()      [pin lines, then showWelcomeAndLogout()]
+     showWelcomeAndLogout()
+       → welcome (top-centre) + logout (bottom-left) visible, all prompts locked away
+       → window.argWelcomeShown = true  ← gates showArgChoice() from re-firing
+     logout
+       → welcome + logout hidden, window.argWelcomeShown = false
+       → showArgChoice() after 800ms
 
    DEPENDENCIES:
      config.js, utils.js, globe.js (window.startPinLines)
@@ -21,9 +36,6 @@ const Arg = (() => {
 
     /* ════════════════════════════════════════════════════════
        API HELPER
-       Wraps fetch with credentials, JSON body, and error handling.
-       Returns { ok, status, data } — callers don't need to think
-       about fetch API details, they just check `ok`.
     ════════════════════════════════════════════════════════ */
 
     async function apiFetch(path, method = 'GET', body = null) {
@@ -35,11 +47,10 @@ const Arg = (() => {
         if (body) options.body = JSON.stringify(body);
 
         try {
-            const res  = await fetch(CONFIG.backend.baseUrl + path, options);
+            const res  = await fetch(CONFIG.apiBase + path, options);
             const data = await res.json();
             return { ok: res.ok, status: res.status, data };
         } catch (err) {
-            // Network failure or JSON parse error
             return { ok: false, status: 0, data: { error: '—' } };
         }
     }
@@ -47,7 +58,6 @@ const Arg = (() => {
 
     /* ════════════════════════════════════════════════════════
        MESSAGE HELPER
-       Sets the text and type class of a message element by ID.
     ════════════════════════════════════════════════════════ */
 
     function setMessage(elementId, text, type) {
@@ -59,22 +69,58 @@ const Arg = (() => {
 
 
     /* ════════════════════════════════════════════════════════
-       SHOW REGISTRATION PROMPT
-       Hides the card prompt (if visible) and shows the reg form.
-       Called from scan.js after the dissolve and from session.js
-       for returning-but-unregistered visitors.
+       SHOW CHOICE PROMPT
+       Called by globe.js once all pin lines finish drawing.
+       Gated by window.argWelcomeShown so it never re-fires
+       after a successful registration / card upload.
+    ════════════════════════════════════════════════════════ */
+
+    function showArgChoice() {
+        // Guard: once the player is welcomed, the choice prompt is retired.
+        if (window.argWelcomeShown) return;
+        SFX.negative();
+
+        // Fade out whichever prompt is currently visible, then show choice.
+        for (const id of ['argRegPrompt', 'argCardPrompt']) {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            if (el.classList.contains('visible')) {
+                el.classList.remove('visible');
+                el.classList.add('fading');
+                setTimeout(() => el.classList.remove('fading'), 800);
+            }
+        }
+
+        const choicePrompt = document.getElementById('argChoicePrompt');
+        if (choicePrompt) {
+            choicePrompt.style.display = '';
+            // Short delay so the outgoing prompt fades before the choice fades in
+            setTimeout(() => {
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    choicePrompt.classList.add('visible');
+                }));
+            }, 200);
+        }
+    }
+
+    // Expose on window immediately so globe.js / dev.js / scan.js can call it.
+    window.showArgChoice = showArgChoice;
+
+
+    /* ════════════════════════════════════════════════════════
+       SHOW REGISTRATION PROMPT  (centered)
     ════════════════════════════════════════════════════════ */
 
     function showArgRegistration() {
-        const cardPrompt = document.getElementById('argCardPrompt');
-        if (cardPrompt) cardPrompt.classList.remove('visible');
+        for (const id of ['argCardPrompt', 'argChoicePrompt']) {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('visible');
+        }
 
         const regPrompt = document.getElementById('argRegPrompt');
         if (!regPrompt) return;
         regPrompt.classList.add('visible');
 
-        // Focus the input after the opacity transition finishes.
-        // Guard against double-binding if called more than once.
         setTimeout(() => {
             const inputEl = document.getElementById('argUsername');
             if (!inputEl || inputEl.dataset.listenerBound) return;
@@ -86,20 +132,20 @@ const Arg = (() => {
         }, 600);
     }
 
-    /* Expose on window so scan.js can call it after the dissolve
-       without creating a circular dependency between modules. */
     window.showArgRegistration = showArgRegistration;
 
 
     /* ════════════════════════════════════════════════════════
-       SHOW CARD PROMPT
-       For returning registered visitors — skip registration and
-       go straight to card upload.
+       SHOW CARD PROMPT  (right side, same position as choice prompt)
+       Positioning is handled by CSS class .arg-right-prompt on
+       #argCardPrompt — see arg.css.
     ════════════════════════════════════════════════════════ */
 
     function showArgCardPrompt() {
-        const regPrompt = document.getElementById('argRegPrompt');
-        if (regPrompt) regPrompt.classList.remove('visible');
+        for (const id of ['argRegPrompt', 'argChoicePrompt']) {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('visible');
+        }
 
         const cardPrompt = document.getElementById('argCardPrompt');
         if (cardPrompt) cardPrompt.classList.add('visible');
@@ -107,9 +153,100 @@ const Arg = (() => {
 
 
     /* ════════════════════════════════════════════════════════
+       CHOICE BUTTONS
+    ════════════════════════════════════════════════════════ */
+
+    function chooseRegister() {
+        SFX.positive();
+        const choicePrompt = document.getElementById('argChoicePrompt');
+        if (choicePrompt) {
+            choicePrompt.classList.remove('visible');
+            choicePrompt.classList.add('fading');
+            setTimeout(() => choicePrompt.classList.remove('fading'), 800);
+        }
+        setTimeout(showArgRegistration, 300);
+    }
+
+    function chooseCard() {
+        SFX.positive();
+        const choicePrompt = document.getElementById('argChoicePrompt');
+        if (choicePrompt) {
+            choicePrompt.classList.remove('visible');
+            choicePrompt.classList.add('fading');
+            setTimeout(() => choicePrompt.classList.remove('fading'), 800);
+        }
+        setTimeout(showArgCardPrompt, 300);
+    }
+
+
+    /* ════════════════════════════════════════════════════════
+       WELCOME + LOGOUT
+       Shown once, after a successful register or card upload.
+       Never hidden until the player explicitly logs out.
+
+       Welcome reads: "WELCOME  USERNAME!"
+       The HTML structure is:
+         <div id="argWelcome">WELCOME  <span id="argWelcomeName"></span>!</div>
+       — the "!" and "WELCOME" text are in the HTML, only the name
+         span is populated here.
+
+       Both elements are controlled exclusively via .visible class.
+       window.argWelcomeShown is set true here and false on logout,
+       gating showArgChoice() from re-appearing.
+    ════════════════════════════════════════════════════════ */
+
+    function showWelcomeAndLogout() {
+        const username = localStorage.getItem('baw_username') || '—';
+
+        // Set the gate — choice prompt will not re-appear
+        window.argWelcomeShown = true;
+
+        // Lock all prompts away permanently (until logout)
+        for (const id of ['argChoicePrompt', 'argRegPrompt', 'argCardPrompt']) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('visible', 'fading');
+                el.style.display = 'none';
+            }
+        }
+
+        // Populate name and fade welcome in
+        const nameEl  = document.getElementById('argWelcomeName');
+        const welcome = document.getElementById('argWelcome');
+        if (nameEl)  nameEl.textContent = username;
+        if (welcome) {
+            welcome.style.removeProperty('display');
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                welcome.classList.add('visible');
+            }));
+        }
+
+        // Fade logout button in (bottom-left)
+        const logout = document.getElementById('argLogout');
+        if (logout) {
+            logout.style.removeProperty('display');
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                logout.classList.add('visible');
+            }));
+        }
+    }
+
+    function handleLogout() {
+        SFX.negative();
+        // Short delay so the negative sound has a moment to play
+        // before the page reloads and kills the audio context.
+        setTimeout(() => {
+            localStorage.removeItem('baw_registered');
+            localStorage.removeItem('baw_username');
+            localStorage.removeItem('baw_gate_passed');
+            window.location.reload();
+        }, 400);
+    }
+
+
+    /* ════════════════════════════════════════════════════════
        SWITCH TO REGISTER
-       Called by the ghost "—" button on the card prompt.
-       Clears stored registration data and shows the reg form.
+       Ghost button on the card prompt.
     ════════════════════════════════════════════════════════ */
 
     function switchToRegister() {
@@ -128,28 +265,30 @@ const Arg = (() => {
 
     /* ════════════════════════════════════════════════════════
        FADE OUT PROMPT + START PIN LINES
-       Called after a successful registration or card upload.
-       Fades the active prompt out, then tells the globe to draw
-       its pin lines (which eventually trigger the radio widget).
+       Called after successful registration or card upload.
+       Pin lines start immediately; welcome appears as they draw.
     ════════════════════════════════════════════════════════ */
 
     function fadeOutAndProceed(promptId) {
+        SFX.positive();
         const prompt = document.getElementById(promptId);
         if (prompt) {
             prompt.classList.remove('visible');
             prompt.classList.add('fading');
         }
         setTimeout(() => {
+            if (prompt) {
+                prompt.classList.remove('fading');
+                prompt.style.display = 'none';
+            }
             if (window.startPinLines) window.startPinLines();
-            if (prompt) prompt.style.display = 'none';
+            showWelcomeAndLogout();
         }, 1200);
     }
 
 
     /* ════════════════════════════════════════════════════════
        REGISTER
-       Reads the username input, POSTs to /auth/register,
-       downloads the generated card, then proceeds.
     ════════════════════════════════════════════════════════ */
 
     async function register() {
@@ -164,7 +303,6 @@ const Arg = (() => {
             return;
         }
 
-        // Disable UI while request is in flight
         if (btnEl)   btnEl.disabled      = true;
         if (btnText) btnText.textContent = '...';
         if (subEl)   subEl.style.opacity = '0';
@@ -183,7 +321,6 @@ const Arg = (() => {
         localStorage.setItem('baw_username',   username);
         setMessage('argRegMsg', '—', 'success');
 
-        // Download the card image, then proceed
         await Utils.sleep(400);
         await downloadCard();
         await Utils.sleep(1200);
@@ -193,8 +330,6 @@ const Arg = (() => {
 
     /* ════════════════════════════════════════════════════════
        UPLOAD CARD
-       Accepts a file input change event, POSTs the image as
-       FormData, reads the username from the response, proceeds.
     ════════════════════════════════════════════════════════ */
 
     async function uploadCard(fileInput) {
@@ -207,12 +342,13 @@ const Arg = (() => {
         formData.append('card', file);
 
         try {
-            const res  = await fetch(CONFIG.backend.baseUrl + '/card/upload', {
+            const res  = await fetch(CONFIG.apiBase + '/card/upload', {
                 method: 'POST', credentials: 'include', body: formData,
             });
             const data = await res.json();
 
             if (res.ok) {
+                localStorage.setItem('baw_registered', 'true');
                 localStorage.setItem('baw_username', data.username);
                 setMessage('argCardMsg', '', 'success');
                 await Utils.sleep(1000);
@@ -224,35 +360,32 @@ const Arg = (() => {
             setMessage('argCardMsg', '—', 'error');
         }
 
-        // Reset the file input so the same file can be re-selected if needed
         fileInput.value = '';
     }
 
 
     /* ════════════════════════════════════════════════════════
        DOWNLOAD CARD
-       GETs the generated card image as a blob, creates a
-       temporary <a> element and triggers a browser download.
-       The cache-busting `t=` param prevents stale cached images.
     ════════════════════════════════════════════════════════ */
 
     async function downloadCard() {
         try {
             const res = await fetch(
-                `${CONFIG.backend.baseUrl}/card/download?t=${Date.now()}`,
+                `${CONFIG.apiBase}/card/download?t=${Date.now()}`,
                 { method: 'GET', credentials: 'include' }
             );
             if (!res.ok) return;
 
-            const blob  = await res.blob();
-            const url   = URL.createObjectURL(blob);
+            const blob   = await res.blob();
+            const url    = URL.createObjectURL(blob);
             const anchor = document.createElement('a');
             anchor.href     = url;
-            anchor.download = 'bawsome_card';
+            const uname = localStorage.getItem('baw_username') || 'card';
+            anchor.download = `bawsome_${uname}_card`;
             document.body.appendChild(anchor);
             anchor.click();
             document.body.removeChild(anchor);
-            URL.revokeObjectURL(url);  // free the object URL immediately after use
+            URL.revokeObjectURL(url);
         } catch (err) {
             console.error('[ARG] Card download failed:', err);
         }
@@ -261,13 +394,16 @@ const Arg = (() => {
 
     /* ════════════════════════════════════════════════════════
        PUBLIC API
-       Functions exposed for HTML onclick="" handlers and session.js.
     ════════════════════════════════════════════════════════ */
 
     return {
+        showArgChoice,
+        chooseRegister,
+        chooseCard,
         showArgRegistration,
         showArgCardPrompt,
         switchToRegister,
+        handleLogout,
         register,
         uploadCard,
         downloadCard,
@@ -275,12 +411,8 @@ const Arg = (() => {
 
 })();
 
-/* ── Global shims for HTML onclick="" attributes ────────────────
-   HTML uses inline handlers which need global function names.
-   These forward to the Arg module. If you refactor to addEventListener,
-   delete these shims. */
-function argRegister()             { Arg.register(); }
-function argUploadCard(input)      { Arg.uploadCard(input); }
-function argSwitchToRegister()     { Arg.switchToRegister(); }
-function showArgRegistration()     { Arg.showArgRegistration(); }
-function showArgCardPrompt()       { Arg.showArgCardPrompt(); }
+/* ── Global shims for HTML onclick="" attributes ── */
+function argRegister()         { Arg.register(); }
+function argUploadCard(input)  { Arg.uploadCard(input); }
+function argSwitchToRegister() { Arg.switchToRegister(); }
+function showArgCardPrompt()   { Arg.showArgCardPrompt(); }

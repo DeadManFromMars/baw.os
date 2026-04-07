@@ -24,12 +24,19 @@
    JS adds/removes .visible and .fading.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
+/* All three ARG prompts share the same right-side position.
+   They are shown one at a time — JS adds/removes .visible.
+   right:17vw + top:50% + translateY(-50%) keeps them vertically
+   centred on the right third of the screen, clear of the globe. */
 #argRegPrompt,
-#argCardPrompt {
+#argCardPrompt,
+#argChoicePrompt {
     position: fixed;
-    inset: 0;
+    right: 17vw;
+    top: 50%;
+    transform: translateY(-50%);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     z-index: 300;
     opacity: 0;
@@ -38,14 +45,16 @@
 }
 
 #argRegPrompt.visible,
-#argCardPrompt.visible {
+#argCardPrompt.visible,
+#argChoicePrompt.visible {
     opacity: 1;
     pointer-events: all;
 }
 
 /* Faster fade-out when dismissing (fading class) */
 #argRegPrompt.fading,
-#argCardPrompt.fading {
+#argCardPrompt.fading,
+#argChoicePrompt.fading {
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.8s ease;
@@ -160,26 +169,30 @@
    Opacity low at rest — brightens on hover to signal interactivity.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
+/* Card slot — contains the SVG card diagram.
+   Sized to match the card's aspect ratio (56×86 viewBox → ~70×108px).
+   Opacity low at rest, brightens on hover to signal "insert card here". */
 .arg-card-slot {
-    width: 120px;
-    height: 80px;
+    width: 70px;
+    height: 108px;
     display: flex;
-    flex-direction: column;
+    align-items: center;
     justify-content: center;
-    gap: 6px;
     cursor: pointer;
-    opacity: 0.4;
-    transition: opacity 0.2s;
+    opacity: 0.35;
+    transition: opacity 0.25s, transform 0.25s;
 }
 
 .arg-card-slot:hover {
-    opacity: 0.8;
+    opacity: 0.75;
+    transform: translateY(-3px);
 }
 
-.arg-card-slot-line {
+/* The SVG card illustration — fills the slot container */
+.arg-card-diagram {
     width: 100%;
-    height: 1px;
-    background: var(--ink);
+    height: 100%;
+    display: block;
 }
 
 
@@ -188,6 +201,30 @@
    The "—" button on the card prompt that resets to registration.
    Barely visible — it's an escape hatch, not a primary action.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Back button — shared by both reg and card prompts.
+   Sits below the status message. Same ghost family as .arg-minimal-ghost
+   but slightly more readable — this is a nav action, not an escape hatch. */
+.arg-back-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.5rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    cursor: pointer;
+    opacity: 0.45;
+    transition: opacity 0.2s, color 0.15s;
+    padding: 6px 0;
+    margin-top: 8px;
+}
+
+.arg-back-btn:hover {
+    opacity: 1;
+    color: var(--ink);
+}
+
 
 .arg-minimal-ghost {
     background: transparent;
@@ -203,4 +240,92 @@
 
 .arg-minimal-ghost:hover {
     opacity: 0.6;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   CHOICE PROMPT
+   Two buttons — "register" and "offer token" — stacked vertically.
+   Same minimal language as the rest of the ARG UI.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.arg-choice-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 8px 0;
+    width: 180px;
+    transition: color 0.15s;
+    border-bottom: 1px solid transparent;
+}
+
+.arg-choice-btn:hover {
+    color: var(--ink);
+    border-bottom-color: var(--ink);
+}
+
+/* The "—" divider between the two options */
+.arg-choice-divider {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.5rem;
+    color: var(--muted);
+    opacity: 0.3;
+    letter-spacing: 0.2em;
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   WELCOME + LOGOUT
+   Hidden by default. JS adds .visible class to show them.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+#argWelcome {
+    position: fixed;
+    top: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Vipnagorgialla Rg', sans-serif;
+    font-size: clamp(1.2rem, 2.5vw, 2rem);
+    letter-spacing: 0.12em;
+    color: var(--ink);
+    text-transform: uppercase;
+    white-space: nowrap;
+    z-index: 400;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.4s ease;
+}
+
+#argWelcome.visible {
+    opacity: 1;
+}
+
+#argLogout {
+    position: fixed;
+    bottom: 28px;
+    left: 36px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.25em;
+    color: var(--muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 1.4s ease, color 0.15s;
+    z-index: 400;
+    text-transform: uppercase;
+    padding: 8px 0;
+    pointer-events: none;
+}
+
+#argLogout.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+#argLogout:hover {
+    color: var(--ink);
 }

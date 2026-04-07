@@ -61,20 +61,26 @@
         const loginEl = document.getElementById('loginPhase');
         if (loginEl) { loginEl.style.transition = 'none'; loginEl.style.display = 'none'; }
 
-        // Show the scan phase and immediately dissolve it
+        // Show scan header only — hide data columns
         const scanPhase = document.getElementById('scanPhase');
         if (scanPhase) { scanPhase.style.display = 'flex'; scanPhase.style.opacity = '1'; }
+        const scanLeft  = document.querySelector('.scan-left');
+        const scanRight = document.querySelector('.scan-right');
+        if (scanLeft)  scanLeft.style.display  = 'none';
+        if (scanRight) scanRight.style.display = 'none';
 
-        // Dissolve is on the Scan module — call it directly
-        // triggerDissolve is not exported but we can reach it via session state.
-        // Simplest: jump the globe and show the ARG prompt directly.
+        // Stop city and jump globe to post-scan position
+        if (typeof CITY !== 'undefined') CITY.stop();
+        const cityCanvas = document.getElementById('cityCanvas');
+        if (cityCanvas) cityCanvas.style.display = 'none';
+
         if (window.startGlobeMove) {
             window.startGlobeMove(CONFIG.globe.centerX, CONFIG.globe.centerY);
         }
         const header = document.querySelector('.scan-header');
         if (header) { header.style.left = '50%'; header.style.top = CONFIG.globe.postScanY + '%'; }
 
-        setTimeout(() => Arg.showArgRegistration(), 400);
+        setTimeout(() => Arg.showArgChoice(), 400);
 
     }, true);  // useCapture:true so we intercept before the login handler
 
