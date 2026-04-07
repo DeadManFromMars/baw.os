@@ -1,18 +1,29 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    inventory.css  —  INVENTORY OVERLAY
 
-   Design language: matches the site — cream/ink palette, Space Mono,
-   ultra-minimal, no heavy boxes. Feels like a secure terminal readout
-   rather than a game UI.
+   Design language: cream/ink palette, Space Mono, ultra-minimal.
+   Feels like a secure terminal readout, not a game UI.
 
    Layout:
-     #inventoryOverlay         full-screen, flex row
-       .inv-left               item list (~32%)
-         .inv-header           label + close
-         .inv-list             scrollable rows
-       .inv-right              viewer (~68%)
-         #invCanvas            Three.js card
-         OR .inv-blackhole-canvas  locked item
+     #inventoryOverlay
+       .inv-left
+         .inv-header
+         .inv-tabs
+         .inv-wheel-wrap          ← clips the wheel, holds selector
+           .inv-wheel-selector    ← STATIC centre marker, JS never moves it
+           .inv-wheel             ← rows are position:absolute inside here
+       .inv-right
+         #invCanvas / .inv-blackhole-canvas
+
+   Wheel alignment contract:
+     .inv-wheel-selector is top:50% + translateY(-50%), height = ROW_HEIGHT.
+     JS places each row so its midpoint = wrapH/2 + dist*ROW_HEIGHT.
+     When dist=0 the active row's midpoint = wrapH/2 = selector centre.
+     They are always aligned. JS never sets selector position.
+
+   To change row height: update ROW_HEIGHT in WHEEL_CONFIG (inventory.js)
+   AND the height values in .inv-wheel-selector and .inv-row below.
+   Both must stay in sync.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 
@@ -77,82 +88,129 @@
     line-height: 1;
 }
 
-.inv-close-btn:hover {
-    color: var(--ink);
-}
+.inv-close-btn:hover { color: var(--ink); }
 
-.inv-list {
+
+/* ── Wheel wrap ──────────────────────────────────────────────── */
+
+/*
+  Contains both the selector and the wheel track.
+  overflow:hidden clips rows that have scrolled out of the visible band.
+  The mask fades rows out softly at top and bottom.
+  position:relative lets JS read .getBoundingClientRect().height correctly.
+*/
+
+.inv-wheel-wrap {
     flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: 4px 0;
-    scrollbar-width: thin;
-    scrollbar-color: var(--muted2) transparent;
+    position: relative;
+    overflow: hidden;
+
+    -webkit-mask-image: linear-gradient(
+        to bottom,
+        transparent 0%,
+        black 16%,
+        black 84%,
+        transparent 100%
+    );
+    mask-image: linear-gradient(
+        to bottom,
+        transparent 0%,
+        black 16%,
+        black 84%,
+        transparent 100%
+    );
 }
 
-.inv-list::-webkit-scrollbar       { width: 2px; }
-.inv-list::-webkit-scrollbar-track { background: transparent; }
-.inv-list::-webkit-scrollbar-thumb { background: var(--muted2); border-radius: 1px; }
 
-.inv-loading,
-.inv-empty {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.45rem;
-    letter-spacing: 0.3em;
-    color: var(--muted);
-    text-align: center;
-    padding: 40px 0;
+/* ── Selector — static centre marker ────────────────────────── */
+
+/*
+  This element NEVER moves. JS does not touch it.
+  It marks the vertical centre of the wheel wrap.
+  Two thin ink lines top and bottom — understated, matches the
+  cream/ink terminal aesthetic. No fill, no color, no gimmicks.
+
+  Height must equal ROW_HEIGHT in WHEEL_CONFIG (default 52px).
+*/
+
+.inv-wheel-selector {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 52px;                               /* sync with ROW_HEIGHT */
+    transform: translateY(-50%);
+
+    border-top:    1px solid rgba(0, 0, 0, 0.13);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.13);
+
+    pointer-events: none;
+    z-index: 2;   /* above rows so lines draw on top of row content */
+}
+
+
+/* ── Wheel track ─────────────────────────────────────────────── */
+
+/*
+  Full-size absolute container. JS places rows inside via style.top.
+  No layout mode — rows are purely JS-positioned.
+*/
+
+.inv-wheel {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
 }
 
 
 /* ── Item rows ───────────────────────────────────────────────── */
 
-.inv-list {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: 120px 0;   /* top/bottom breathing room so active row centres */
-    scrollbar-width: none;
-    scroll-behavior: smooth;
-}
-.inv-list::-webkit-scrollbar { display: none; }
+/*
+  Every row is position:absolute. JS sets:
+    style.top       — vertical position (changes every frame)
+    style.transform — translateX (pull) + scale (falloff)
+    style.opacity   — falloff
+
+  transform-origin: left center keeps scale anchored to the left
+  edge so text stays left-aligned as items shrink.
+
+  No CSS transition on transform/opacity/top — the JS spring loop
+  handles interpolation. Adding CSS transitions here would cause
+  double-interpolation and visible stuttering.
+*/
 
 .inv-row {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 52px;                               /* sync with ROW_HEIGHT */
+
     display: flex;
     align-items: center;
     gap: 14px;
-    padding: 14px 28px 14px 24px;
+    padding: 0 28px 0 24px;
+
     cursor: pointer;
     border-left: 3px solid transparent;
     user-select: none;
-    /* DDR wheel transform — set by JS */
     transform-origin: left center;
-    transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                opacity   0.25s ease,
-                background 0.15s,
-                border-color 0.15s,
-                padding 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-    will-change: transform, opacity;
+    will-change: transform, opacity, top;
 }
 
 .inv-row:hover {
     background: rgba(26, 26, 24, 0.04);
 }
 
-/* Active row — pops forward, full opacity, red accent */
+/* Active row — red left bar + boosted text weight */
 .inv-row-active {
-    background: rgba(232, 55, 42, 0.06) !important;
     border-left-color: var(--red) !important;
-    padding-left: 32px !important;
-    transform: scale(1.06) !important;
-    opacity: 1 !important;
 }
 
-.inv-row-active .inv-row-name  { color: var(--ink) !important; font-weight: 700; }
-.inv-row-active .inv-row-index { color: var(--red) !important; }
+.inv-row-active .inv-row-name  { color: var(--ink)  !important; font-weight: 700; }
+.inv-row-active .inv-row-index { color: var(--red)  !important; }
+.inv-row-active .inv-row-type  { color: var(--muted) !important; }
 
-/* Distance-based dimming set via JS inline opacity/transform */
-
+/* Row content */
 .inv-row-index {
     font-family: 'Space Mono', monospace;
     font-size: 0.5rem;
@@ -184,12 +242,14 @@
     text-transform: uppercase;
 }
 
+/* Locked rows */
 .inv-row-locked .inv-row-name,
 .inv-row-locked .inv-row-type,
 .inv-row-locked .inv-row-index {
     color: var(--muted2);
 }
 
+/* Redacted text flicker */
 .inv-row-redacted {
     animation: inv-redact-flicker 5s ease-in-out infinite;
 }
@@ -198,8 +258,55 @@
     0%, 88%, 100% { opacity: 0.5; }
     90%  { opacity: 0.15; }
     92%  { opacity: 0.45; }
-    95%  { opacity: 0.1; }
-    97%  { opacity: 0.4; }
+    95%  { opacity: 0.1;  }
+    97%  { opacity: 0.4;  }
+}
+
+
+/* ── Stickers tab — flat scrollable list ─────────────────────── */
+
+/*
+  Sticker rows reuse .inv-row but override the absolute positioning
+  so they flow normally. JS hides .inv-wheel-selector in this tab.
+  .inv-wheel becomes a normal scrollable column.
+*/
+
+.inv-row-sticker-flat {
+    position: static   !important;
+    height:   auto     !important;
+    top:      auto     !important;
+    padding-top:    10px !important;
+    padding-bottom: 10px !important;
+    transform:  none   !important;
+    opacity:    1      !important;
+    will-change: auto  !important;
+}
+
+.inv-wheel:has(.inv-row-sticker-flat) {
+    position:   static;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display:    flex;
+    flex-direction: column;
+    scrollbar-width: thin;
+    scrollbar-color: var(--muted2) transparent;
+}
+
+.inv-wheel:has(.inv-row-sticker-flat)::-webkit-scrollbar       { width: 2px; }
+.inv-wheel:has(.inv-row-sticker-flat)::-webkit-scrollbar-track { background: transparent; }
+.inv-wheel:has(.inv-row-sticker-flat)::-webkit-scrollbar-thumb { background: var(--muted2); border-radius: 1px; }
+
+
+/* ── Empty / loading states ──────────────────────────────────── */
+
+.inv-loading,
+.inv-empty {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.45rem;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    text-align: center;
+    padding: 40px 0;
 }
 
 
@@ -254,7 +361,7 @@
 }
 
 
-/* ── Black hole (locked item) ────────────────────────────────── */
+/* ── Black hole (locked items) ───────────────────────────────── */
 
 .inv-blackhole-canvas {
     display: block;
@@ -262,7 +369,6 @@
     height: 100%;
     position: absolute;
     inset: 0;
-    opacity: 1;
 }
 
 .inv-blackhole-label {
@@ -304,12 +410,8 @@
     text-orientation: mixed;
 }
 
-#inventoryBtn.visible {
-    opacity: 1;
-    pointer-events: all;
-}
-
-#inventoryBtn:hover { color: var(--ink); }
+#inventoryBtn.visible { opacity: 1; pointer-events: all; }
+#inventoryBtn:hover   { color: var(--ink); }
 
 
 /* ── Card editor button — right side of globe ────────────────── */
@@ -336,14 +438,11 @@
     text-orientation: mixed;
 }
 
-#cardEditorBtn.visible {
-    opacity: 1;
-    pointer-events: all;
-}
+#cardEditorBtn.visible { opacity: 1; pointer-events: all; }
+#cardEditorBtn:hover   { color: var(--ink); }
 
-#cardEditorBtn:hover { color: var(--ink); }
 
-/* ── Dev sticker button — above the globe, centered ─────────── */
+/* ── Dev sticker button ──────────────────────────────────────── */
 
 #devStickerBtn {
     position: fixed;
@@ -366,17 +465,11 @@
     padding: 6px 14px;
 }
 
-#devStickerBtn.visible {
-    opacity: 1;
-    pointer-events: all;
-}
+#devStickerBtn.visible             { opacity: 1; pointer-events: all; }
+#devStickerBtn:hover               { color: var(--ink); border-color: var(--muted); }
 
-#devStickerBtn:hover {
-    color: var(--ink);
-    border-color: var(--muted);
-}
 
-/* ── Tabs ─────────────────────────────────────────────────── */
+/* ── Tabs ────────────────────────────────────────────────────── */
 
 .inv-tabs {
     display: flex;
