@@ -25,6 +25,7 @@ const SFX = (() => {
 
     const SFX_VOLUME = 0.35;
     const BASE_PATH  = 'Audio/Sounds/HUD/';
+    const STAMP_PATH = 'Audio/Sounds/Stamp/';
 
     function make(file) {
         const audio = new Audio(BASE_PATH + file);
@@ -37,6 +38,12 @@ const SFX = (() => {
         hover:    make('hover.mp3'),
         positive: make('positive.mp3'),
         negative: make('negative.mp3'),
+        stamp:    (() => {
+            const a = new Audio(STAMP_PATH + 'stamp_impact.mp3');
+            a.volume  = SFX_VOLUME;
+            a.preload = 'auto';
+            return a;
+        })(),
     };
 
     function play(sound) {
@@ -53,6 +60,7 @@ const SFX = (() => {
         hover()    { play('hover');    },
         positive() { play('positive'); },
         negative() { play('negative'); },
+        stamp()    { play('stamp');    },
     };
 
 })();

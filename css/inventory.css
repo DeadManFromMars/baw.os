@@ -1,0 +1,409 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   inventory.css  —  INVENTORY OVERLAY
+
+   Design language: matches the site — cream/ink palette, Space Mono,
+   ultra-minimal, no heavy boxes. Feels like a secure terminal readout
+   rather than a game UI.
+
+   Layout:
+     #inventoryOverlay         full-screen, flex row
+       .inv-left               item list (~32%)
+         .inv-header           label + close
+         .inv-list             scrollable rows
+       .inv-right              viewer (~68%)
+         #invCanvas            Three.js card
+         OR .inv-blackhole-canvas  locked item
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+
+/* ── Overlay ─────────────────────────────────────────────────── */
+
+#inventoryOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 600;
+    display: flex;
+    flex-direction: row;
+    background: rgba(245, 242, 236, 0.97);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+    font-family: 'Space Mono', monospace;
+}
+
+#inventoryOverlay.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+
+/* ── Left panel ──────────────────────────────────────────────── */
+
+.inv-left {
+    width: 32%;
+    min-width: 260px;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border2);
+}
+
+.inv-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 28px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.inv-header-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.48rem;
+    letter-spacing: 0.45em;
+    color: var(--muted);
+    text-transform: uppercase;
+}
+
+.inv-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    transition: color 0.15s;
+    line-height: 1;
+}
+
+.inv-close-btn:hover {
+    color: var(--ink);
+}
+
+.inv-list {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 4px 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--muted2) transparent;
+}
+
+.inv-list::-webkit-scrollbar       { width: 2px; }
+.inv-list::-webkit-scrollbar-track { background: transparent; }
+.inv-list::-webkit-scrollbar-thumb { background: var(--muted2); border-radius: 1px; }
+
+.inv-loading,
+.inv-empty {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.45rem;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    text-align: center;
+    padding: 40px 0;
+}
+
+
+/* ── Item rows ───────────────────────────────────────────────── */
+
+.inv-list {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 120px 0;   /* top/bottom breathing room so active row centres */
+    scrollbar-width: none;
+    scroll-behavior: smooth;
+}
+.inv-list::-webkit-scrollbar { display: none; }
+
+.inv-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 28px 14px 24px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    user-select: none;
+    /* DDR wheel transform — set by JS */
+    transform-origin: left center;
+    transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                opacity   0.25s ease,
+                background 0.15s,
+                border-color 0.15s,
+                padding 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    will-change: transform, opacity;
+}
+
+.inv-row:hover {
+    background: rgba(26, 26, 24, 0.04);
+}
+
+/* Active row — pops forward, full opacity, red accent */
+.inv-row-active {
+    background: rgba(232, 55, 42, 0.06) !important;
+    border-left-color: var(--red) !important;
+    padding-left: 32px !important;
+    transform: scale(1.06) !important;
+    opacity: 1 !important;
+}
+
+.inv-row-active .inv-row-name  { color: var(--ink) !important; font-weight: 700; }
+.inv-row-active .inv-row-index { color: var(--red) !important; }
+
+/* Distance-based dimming set via JS inline opacity/transform */
+
+.inv-row-index {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.5rem;
+    letter-spacing: 0.12em;
+    color: var(--muted2);
+    flex-shrink: 0;
+    width: 22px;
+}
+
+.inv-row-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    letter-spacing: 0.12em;
+    color: var(--ink2);
+    flex: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+}
+
+.inv-row-type {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.42rem;
+    letter-spacing: 0.2em;
+    color: var(--muted2);
+    flex-shrink: 0;
+    text-transform: uppercase;
+}
+
+.inv-row-locked .inv-row-name,
+.inv-row-locked .inv-row-type,
+.inv-row-locked .inv-row-index {
+    color: var(--muted2);
+}
+
+.inv-row-redacted {
+    animation: inv-redact-flicker 5s ease-in-out infinite;
+}
+
+@keyframes inv-redact-flicker {
+    0%, 88%, 100% { opacity: 0.5; }
+    90%  { opacity: 0.15; }
+    92%  { opacity: 0.45; }
+    95%  { opacity: 0.1; }
+    97%  { opacity: 0.4; }
+}
+
+
+/* ── Right panel ─────────────────────────────────────────────── */
+
+.inv-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    padding: 28px 40px;
+    border-left: 1px solid var(--border);
+}
+
+.inv-viewer-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.3em;
+    color: var(--ink);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    align-self: flex-start;
+}
+
+.inv-viewer-sub {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.5rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    align-self: flex-start;
+}
+
+#invCanvas {
+    display: block;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+}
+
+.inv-viewer-hint {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.36rem;
+    letter-spacing: 0.2em;
+    color: var(--muted2);
+    text-transform: uppercase;
+    margin-top: 14px;
+}
+
+
+/* ── Black hole (locked item) ────────────────────────────────── */
+
+.inv-blackhole-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    inset: 0;
+    opacity: 1;
+}
+
+.inv-blackhole-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.42rem;
+    letter-spacing: 0.45em;
+    color: var(--muted);
+    text-transform: uppercase;
+    position: absolute;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    animation: inv-redact-flicker 4s ease-in-out infinite;
+}
+
+
+/* ── Inventory button — left side of globe ───────────────────── */
+
+#inventoryBtn {
+    position: fixed;
+    left: 36px;
+    top: 50%;
+    transform: translateY(-50%) rotate(180deg);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.48rem;
+    letter-spacing: 0.35em;
+    color: var(--muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.4s ease, color 0.15s;
+    z-index: 400;
+    text-transform: uppercase;
+    padding: 8px 0;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+}
+
+#inventoryBtn.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+#inventoryBtn:hover { color: var(--ink); }
+
+
+/* ── Card editor button — right side of globe ────────────────── */
+
+#cardEditorBtn {
+    position: fixed;
+    right: 36px;
+    top: 50%;
+    transform: translateY(-50%) rotate(180deg);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.48rem;
+    letter-spacing: 0.35em;
+    color: var(--muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.4s ease, color 0.15s;
+    z-index: 400;
+    text-transform: uppercase;
+    padding: 8px 0;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+}
+
+#cardEditorBtn.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+#cardEditorBtn:hover { color: var(--ink); }
+
+/* ── Dev sticker button — above the globe, centered ─────────── */
+
+#devStickerBtn {
+    position: fixed;
+    top: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.42rem;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.4s ease, color 0.15s, border-color 0.15s;
+    z-index: 400;
+    text-transform: uppercase;
+    padding: 6px 14px;
+}
+
+#devStickerBtn.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+#devStickerBtn:hover {
+    color: var(--ink);
+    border-color: var(--muted);
+}
+
+/* ── Tabs ─────────────────────────────────────────────────── */
+
+.inv-tabs {
+    display: flex;
+    flex-direction: row;
+    border-bottom: 1px solid var(--border2);
+    flex-shrink: 0;
+}
+
+.inv-tab {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.42rem;
+    letter-spacing: 0.3em;
+    color: var(--muted2);
+    text-transform: uppercase;
+    cursor: pointer;
+    padding: 10px 0;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: -1px;
+}
+
+.inv-tab:hover { color: var(--muted); }
+
+.inv-tab-active {
+    color: var(--ink) !important;
+    border-bottom-color: var(--red) !important;
+}

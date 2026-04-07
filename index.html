@@ -37,6 +37,8 @@
     <link rel="stylesheet" href="css/scan.css">
     <link rel="stylesheet" href="css/login.css">
     <link rel="stylesheet" href="css/arg.css">
+    <link rel="stylesheet" href="css/inventory.css">
+    <link rel="stylesheet" href="css/cardeditor.css">
     <link rel="stylesheet" href="css/radio.css">
 </head>
 <body>
@@ -314,6 +316,21 @@
 
     <button id="argLogout" onmouseenter="SFX.hover()" onclick="Arg.handleLogout()">LOGOUT</button>
 
+    <!-- Inventory — left side of globe, visible when logged in -->
+    <button id="inventoryBtn"
+            onmouseenter="SFX.hover()"
+            onclick="Inventory.open()">INVENTORY</button>
+
+    <!-- Card editor — right side of globe, visible when logged in -->
+    <button id="cardEditorBtn"
+            onmouseenter="SFX.hover()"
+            onclick="CardEditor.open()">EDIT CARD</button>
+
+    <!-- DEV: award all stickers — remove before launch -->
+    <button id="devStickerBtn"
+            onmouseenter="SFX.hover()"
+            onclick="Arg.devAwardStickers()">⬡ GET STICKERS</button>
+
 
     <!-- ─────────────────────────────────────────────────────────
          ARG CHOICE PROMPT
@@ -501,6 +518,8 @@
     <script src="js/scan.js"></script>
     <script src="js/login.js"></script>
     <script src="js/sounds.js"></script>
+    <script src="js/inventory.js"></script>
+    <script src="js/cardeditor.js"></script>
     <script src="js/arg.js"></script>
 
     <!-- Tier 6 — must be last -->

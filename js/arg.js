@@ -229,12 +229,37 @@ const Arg = (() => {
                 logout.classList.add('visible');
             }));
         }
+
+        // Fade inventory button in (left side)
+        const invBtn = document.getElementById('inventoryBtn');
+        if (invBtn) {
+            invBtn.style.removeProperty('display');
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                invBtn.classList.add('visible');
+            }));
+        }
+
+        // Fade card editor button in (right side)
+        const editBtn = document.getElementById('cardEditorBtn');
+        if (editBtn) {
+            editBtn.style.removeProperty('display');
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                editBtn.classList.add('visible');
+            }));
+        }
+
+        // Fade dev sticker button in (above globe)
+        const devStickerBtn = document.getElementById('devStickerBtn');
+        if (devStickerBtn) {
+            devStickerBtn.style.removeProperty('display');
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                devStickerBtn.classList.add('visible');
+            }));
+        }
     }
 
     function handleLogout() {
         SFX.negative();
-        // Short delay so the negative sound has a moment to play
-        // before the page reloads and kills the audio context.
         setTimeout(() => {
             localStorage.removeItem('baw_registered');
             localStorage.removeItem('baw_username');
@@ -393,6 +418,37 @@ const Arg = (() => {
 
 
     /* ════════════════════════════════════════════════════════
+       DEV: AWARD ALL STICKERS
+       Awards all three stickers to the current user.
+       Remove before launch.
+    ════════════════════════════════════════════════════════ */
+
+    async function devAwardStickers() {
+        const btn = document.getElementById('devStickerBtn');
+        if (btn) { btn.disabled = true; btn.textContent = '…'; }
+
+        try {
+            const res  = await fetch(`${CONFIG.apiBase}/dev/award-stickers`, {
+                method:      'POST',
+                credentials: 'include',
+            });
+            const data = await res.json();
+            if (res.ok) {
+                if (btn) btn.textContent = '✓ STICKERS AWARDED';
+            } else {
+                if (btn) btn.textContent = data.error || 'FAILED';
+            }
+        } catch (e) {
+            if (btn) btn.textContent = 'ERROR';
+        }
+
+        setTimeout(() => {
+            if (btn) { btn.disabled = false; btn.textContent = '⬡ GET STICKERS'; }
+        }, 2000);
+    }
+
+
+    /* ════════════════════════════════════════════════════════
        PUBLIC API
     ════════════════════════════════════════════════════════ */
 
@@ -407,6 +463,7 @@ const Arg = (() => {
         register,
         uploadCard,
         downloadCard,
+        devAwardStickers,
     };
 
 })();
