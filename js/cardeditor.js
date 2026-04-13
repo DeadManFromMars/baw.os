@@ -374,7 +374,6 @@ const CardEditor = (() => {
     let _selectedSticker  = null; // slug of active stamp
     let _stampThreeCtx    = null; // Three.js stamp model context
     let _stampAnimFrame   = null;
-    let _ghostVisible     = false;
     let _mouseCardPos     = { x: 0, y: 0 }; // 0-1 fractions over canvas
 
     // ── Load stickers from backend ──
@@ -384,12 +383,16 @@ const CardEditor = (() => {
             const data = await res.json();
             _stickerLayout = data.layout || [];
             _renderStickerTray(data.stickers || []);
-            // Wait for _stampThreeCtx to be ready before drawing — poll with no limit
+            // Poll until _stampThreeCtx is ready (set by _initCardPreview).
+            // Gives up after 5 seconds to avoid polling forever if init fails.
+            let _waitAttempts = 0;
             (function waitAndDraw() {
                 if (_stampThreeCtx) {
                     _redrawCardOverlay();
-                } else {
+                } else if (_waitAttempts++ < 50) {
                     setTimeout(waitAndDraw, 100);
+                } else {
+                    console.warn('[CardEditor] _stampThreeCtx never ready — sticker draw skipped.');
                 }
             })();
         } catch (e) {
@@ -636,7 +639,6 @@ const CardEditor = (() => {
 
         canvas.addEventListener('click', e => {
             if (!_selectedSticker) return;
-            console.log('[stamp] click fired, sticker:', _selectedSticker, 'ctx:', !!_stampThreeCtx);
             const rect = canvas.getBoundingClientRect();
 
             mouse2d.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
@@ -662,7 +664,6 @@ const CardEditor = (() => {
             }
 
             _stickerLayout.push({ slug: _selectedSticker, x_pct, y_pct, scale: 1.0, rotation: 0 });
-            console.log('[stamp] layout now:', _stickerLayout.length, 'stickers, x:', x_pct.toFixed(2), 'y:', y_pct.toFixed(2));
             _addStickerMesh({ slug: _selectedSticker, x_pct, y_pct, scale: 1.0, rotation: 0 });
             _renderLayersPanel();
             _saveStickers(true);
@@ -754,13 +755,11 @@ const CardEditor = (() => {
         ghost.style.left        = `${_mouseCardPos.x * 100}%`;
         ghost.style.top         = `${_mouseCardPos.y * 100}%`;
         ghost.style.backgroundImage = `url(/images/stickers/${_selectedSticker}.png)`;
-        _ghostVisible = true;
     }
 
     function _hideGhost() {
         const ghost = document.getElementById('cedGhost');
         if (ghost) ghost.style.display = 'none';
-        _ghostVisible = false;
     }
 
     // Build a sticker group — flat plane, invisible until texture loads
@@ -832,7 +831,6 @@ const CardEditor = (() => {
         group.position.set((s.x_pct - 0.5) * CARD_W, (0.5 - s.y_pct) * CARD_H, 0.02);
         group.rotation.z = -(s.rotation || 0) * Math.PI / 180;
         card.add(group);
-        console.log('[sticker] group added to card. card.children:', card.children.length, 'group.children:', group.children.length, 'group.position:', group.position.x.toFixed(2), group.position.y.toFixed(2));
     }
 
     // ── Clear all stickers — wipes layout and saves to card ──
@@ -900,11 +898,9 @@ const CardEditor = (() => {
             if (res.ok) {
                 if (!silent) {
                     SFX.positive();
-                    _setStickerMsg('Saved! Downloading card…', 'success');
-                    if (typeof Inventory !== 'undefined') Inventory.invalidateCardCache();
                     _setStickerMsg('Saved! Hit DOWNLOAD to get your card.', 'success');
-                } else {
-                    console.log('[sticker] silent save OK, layout:', _stickerLayout.length);
+                    if (typeof Inventory !== 'undefined') Inventory.invalidateCardCache();
+                }  else {
                     if (typeof Inventory !== 'undefined') Inventory.invalidateCardCache();
                 }
             } else {

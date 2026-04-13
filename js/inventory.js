@@ -87,10 +87,11 @@ const Inventory = (() => {
     let _stickers      = [];
     let _activeTab     = 'items';   // 'items' | 'stickers'
 
-    // Three.js / black-hole viewer
+    // Three.js / viewer state
     let _threeCtx      = null;
     let _animFrameId   = null;
-    let _blackHoleCtx  = null;
+    // Note: only one viewer is ever active at a time — _threeCtx and
+    // _animFrameId are shared between the card viewer and sticker viewer.
     let _cardTexUrl    = null;
 
     // Wheel — all positions in unbounded slot-space
@@ -184,7 +185,7 @@ const Inventory = (() => {
         _wheelTarget     = _selectedIndex;
 
         _applyActiveClass();
-        _selectItem(_selectedIndex, true);
+        _selectItem(_selectedIndex);
         _startWheelLoop();
 
         requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -440,7 +441,7 @@ const Inventory = (() => {
     // Select item → rebuild right panel
     // ─────────────────────────────────────────────────────────
 
-    function _selectItem(index, immediate = false) {
+    function _selectItem(index) {
         _selectedIndex = index;
         _applyActiveClass();
         _teardownViewer();
@@ -504,7 +505,7 @@ const Inventory = (() => {
             _wheelOffset = _selectedIndex;
             _wheelTarget = _selectedIndex;
             _applyActiveClass();
-            _selectItem(_selectedIndex, true);
+            _selectItem(_selectedIndex);
             _startWheelLoop();
         } else {
             _renderStickerList();
@@ -801,7 +802,6 @@ const Inventory = (() => {
         const H = canvas.parentElement.clientHeight || 600;
         canvas.width = W; canvas.height = H;
         const ctx = canvas.getContext('2d');
-        _blackHoleCtx = ctx;
         const cx = W / 2, cy = H / 2;
         let t = 0;
 
@@ -875,7 +875,6 @@ const Inventory = (() => {
     function _teardownViewer() {
         if (_animFrameId !== null) { cancelAnimationFrame(_animFrameId); _animFrameId = null; }
         if (_threeCtx) { _threeCtx.renderer.dispose(); _threeCtx.resizeObs.disconnect(); _threeCtx = null; }
-        _blackHoleCtx = null;
     }
 
     function _teardown() {

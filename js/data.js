@@ -31,6 +31,7 @@ const DataStore = (() => {
     const store = {};
 
     /* ── Internal setter ──
+       Module-private — not exposed in the return value below.
        Using a function (rather than direct assignment) lets us
        add logging, validation, or reactivity later without
        touching every call site. */
@@ -67,6 +68,8 @@ const DataStore = (() => {
             set('country_pop',  d.country_population
                 ? Number(d.country_population).toLocaleString()
                 : 'Unknown');
+            // country_area and country_pop are collected but not currently
+            // shown in SCAN_DEFS or REWIND_DATA — reserved for future rows.
         })
         .catch(() => {
             /* Network failure or API rate limit.

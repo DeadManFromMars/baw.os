@@ -244,7 +244,7 @@
     flex-direction: column;
     justify-content: flex-end;
     padding: 0 0 20px;
-    padding-left: 8vw;  /* indent — keep in sync with CONFIG.scanLinesLeftPadding */
+    padding-left: clamp(80px, 8vw, 140px);  /* indent — keep in sync with CONFIG.scanLinesLeftPadding */
 }
 
 /* Inner container for the rows themselves.
@@ -434,8 +434,8 @@
 .scan-progress {
     position: fixed;
     bottom: 32px;  /* JS reads CONFIG.progressBarBottom and can override this */
-    left: 8vw;     /* aligns with scan-lines-wrap left padding */
-    right: 60vw;   /* stops at the right edge of the left column */
+    left: clamp(80px, 8vw, 140px);     /* matches scan-lines-wrap left padding */
+    right: clamp(700px, 60vw, 1100px); /* stops at the right edge of the left column */
     z-index: 3;
     opacity: 0;
     animation: riseIn 0.6s 1.2s ease forwards;

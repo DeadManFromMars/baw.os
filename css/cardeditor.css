@@ -1,5 +1,27 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    cardeditor.css  —  CARD CUSTOMIZATION EDITOR OVERLAY
+
+   Full-screen overlay for customizing the player's access card.
+   Three-column layout:
+     LEFT   (.ced-avatar-panel)   — profile picture upload + circular crop
+     CENTER (.ced-center-panel)   — 3D card preview + sticker bar + action buttons
+     RIGHT  (.ced-layers-sidebar) — placed sticker layer list
+
+   Contains:
+     - Overlay container (#cardEditorOverlay)
+     - Header bar (.ced-header)
+     - Body layout (.ced-body, panels)
+     - Card preview wrap + ghost sticker overlay
+     - Sticker tray (.ced-sticker-bar, .ced-sticker-tray, .ced-sticker-btn)
+     - Action buttons (.ced-big-btn variants)
+     - Layers sidebar (.ced-layers-sidebar, .ced-layer-row)
+     - Avatar panel labels and crop placeholder
+     - Status messages (.ced-msg)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   OVERLAY CONTAINER
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 #cardEditorOverlay {
@@ -16,6 +38,10 @@
 }
 #cardEditorOverlay.visible { opacity: 1; pointer-events: all; }
 
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   HEADER BAR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 .ced-header {
     display: flex;
     align-items: center;
@@ -28,10 +54,27 @@
 .ced-close-btn { background: transparent; border: none; color: var(--muted); font-family: 'Space Mono', monospace; font-size: 0.7rem; cursor: pointer; padding: 2px 6px; transition: color 0.15s; }
 .ced-close-btn:hover { color: var(--ink); }
 
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   BODY LAYOUT
+   Three-column flex row. LEFT and RIGHT have fixed widths;
+   CENTER takes the remaining space.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 .ced-body { flex: 1; display: flex; flex-direction: row; align-items: stretch; overflow: hidden; min-height: 0; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   LEFT PANEL — AVATAR
+   Profile picture upload with circular crop editor.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 /* LEFT avatar panel */
 .ced-avatar-panel { width: 200px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px 18px; border-right: 1px solid var(--border); overflow-y: auto; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   CENTER PANEL — CARD PREVIEW + STICKER BAR
+   The 3D card preview fills available height. The sticker tray
+   scrolls horizontally below it.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 /* CENTER */
 .ced-center-panel { flex: 1; display: flex; flex-direction: column; align-items: stretch; min-width: 0; overflow: hidden; padding: 16px 20px 12px; gap: 10px; }
@@ -40,6 +83,12 @@
 .ced-card-preview-wrap canvas { display: block; width: 100% !important; height: 100% !important; }
 .ced-ghost { display: none; position: absolute; width: 52px; height: 52px; background-size: contain; background-repeat: no-repeat; background-position: center; transform: translate(-50%, -50%); pointer-events: none; opacity: 0.7; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.3)); }
 .ced-card-preview-wrap.stamp-mode { cursor: none; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   STICKER TRAY
+   Horizontal scrolling row of owned stickers below the card.
+   Active sticker gets a red border + indicator dot.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 /* Sticker bar */
 .ced-sticker-bar { flex-shrink: 0; border-top: 1px solid var(--border); padding: 10px 0; }
@@ -51,6 +100,11 @@
 .ced-sticker-btn.active { border-color: var(--red); background: rgba(232,55,42,0.06); box-shadow: 0 0 0 2px rgba(232,55,42,0.2); }
 .ced-sticker-btn.active::after { content: '●'; position: absolute; bottom: 4px; right: 6px; font-size: 7px; color: var(--red); }
 
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ACTION BUTTONS
+   Bottom row: back, save card, download. Variants control color/flex.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 /* Big buttons */
 .ced-bottom-actions { display: flex; gap: 12px; flex-shrink: 0; }
 .ced-big-btn { padding: 16px 24px; font-family: 'Space Mono', monospace; font-size: 0.6rem; letter-spacing: 0.25em; text-transform: uppercase; cursor: pointer; border-radius: 6px; transition: all 0.15s; border: 1px solid var(--border2); }
@@ -59,6 +113,11 @@
 .ced-big-btn-save { background: var(--ink); color: var(--cream); border-color: var(--ink); flex: 1; }
 .ced-big-btn-save:hover { background: var(--red); border-color: var(--red); }
 .ced-big-btn-save:disabled { opacity: 0.5; cursor: default; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   RIGHT PANEL — LAYERS SIDEBAR
+   Stack of placed sticker thumbnails. Delete button reveals on hover.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 /* RIGHT layers sidebar */
 .ced-layers-sidebar { width: 130px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; padding: 16px 14px; border-left: 1px solid var(--border); overflow: hidden; }
@@ -70,6 +129,10 @@
 .ced-layer-label { display: none; }
 .ced-layer-del { position: absolute; top: 4px; right: 4px; background: rgba(232,55,42,0.85); border: none; color: white; font-size: 0.5rem; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; opacity: 0; transition: opacity 0.15s; }
 .ced-layer-row:hover .ced-layer-del { opacity: 1; }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   AVATAR PANEL — LABELS, CROP AREA, ACTION BUTTONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 /* Avatar panel labels */
 .ced-section-label { font-size: 0.55rem; letter-spacing: 0.35em; color: var(--ink); text-transform: uppercase; align-self: flex-start; }
@@ -84,6 +147,10 @@
 .ced-action-btn:disabled { opacity: 0.4; cursor: default; }
 .ced-action-btn-primary { color: var(--ink); border-bottom-color: var(--ink); }
 .ced-action-btn-primary:hover { color: var(--red); border-bottom-color: var(--red); }
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   STATUS MESSAGES + DOWNLOAD BUTTON
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 .ced-msg { font-size: 0.38rem; letter-spacing: 0.15em; text-transform: uppercase; min-height: 14px; text-align: center; color: var(--muted); }
 .ced-msg-error { color: var(--red); }
 .ced-msg-success { color: var(--sage); }

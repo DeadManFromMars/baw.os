@@ -49,6 +49,9 @@ html, body {
 	color: var(--ink);
 	font-family: 'Vipnagorgialla Rg', sans-serif;
 	overflow: hidden;
+	/* Must match base.css — style.css loads after base.css and would
+	   otherwise override the min-width set there. */
+	min-width: 1280px;
 }
 
 

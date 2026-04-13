@@ -25,7 +25,7 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     const gatePassed = localStorage.getItem('baw_gate_passed');
-    const registered = localStorage.getItem('baw_registered');
+    // Note: 'baw_registered' is checked by arg.js directly — not needed here.
 
     if (!gatePassed) {
         _handleFirstVisit();
@@ -37,12 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 /* ════════════════════════════════════════════════════════════════
-   FIRST VISIT
-   Plays the full CITY sequence. Login form fades in when the
-   camera reaches cruise height (signalled by CITY.onLoginReveal).
-════════════════════════════════════════════════════════════════ */
-
-/* ════════════════════════════════════════════════════════════════
    INIT OVERLAY
    Shown on every visit — black screen with minimal prompt.
    One click satisfies the browser autoplay requirement and
@@ -52,6 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
 function _showInitOverlay(onStart) {
     const overlay = document.createElement('div');
     overlay.id = 'initOverlay';
+    /* Inline styles used here intentionally — this overlay is created before
+       any stylesheet classes are available, and it must display correctly on
+       both first and returning visits with zero dependencies. */
     overlay.style.cssText = [
         'position:fixed', 'inset:0', 'z-index:1000', 'background:#000',
         'display:flex', 'align-items:center', 'justify-content:center',
@@ -87,6 +84,12 @@ function _showInitOverlay(onStart) {
         onStart();
     }, { once: true });
 }
+
+/* ════════════════════════════════════════════════════════════════
+   FIRST VISIT
+   Plays the full CITY sequence. Login form fades in when the
+   camera reaches cruise height (signalled by CITY.onLoginReveal).
+════════════════════════════════════════════════════════════════ */
 
 function _handleFirstVisit() {
     const cityCanvas = document.getElementById('cityCanvas');

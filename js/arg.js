@@ -463,13 +463,13 @@ const Arg = (() => {
         register,
         uploadCard,
         downloadCard,
-        devAwardStickers,
+        devAwardStickers,  // DEV ONLY — remove before launch (also remove #devStickerBtn from HTML)
     };
 
 })();
 
 /* ── Global shims for HTML onclick="" attributes ── */
-function argRegister()         { Arg.register(); }
-function argUploadCard(input)  { Arg.uploadCard(input); }
-function argSwitchToRegister() { Arg.switchToRegister(); }
-function showArgCardPrompt()   { Arg.showArgCardPrompt(); }
+function argRegister()        { Arg.register(); }
+function argUploadCard(input) { Arg.uploadCard(input); }
+// Note: showArgCardPrompt() below shadows Arg.showArgCardPrompt — both point to the same logic.
+function showArgCardPrompt()  { Arg.showArgCardPrompt(); }

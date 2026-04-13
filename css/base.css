@@ -102,6 +102,11 @@ body {
     overflow: hidden;
     background: var(--cream);
     color: var(--ink);
+    /* Prevent the layout from compressing below its designed width.
+       When the viewport (or DevTools panel) shrinks below this,
+       the browser clips rather than reflowing — the experience
+       stays intact and doesn't squish. */
+    min-width: 1280px;
 }
 
 

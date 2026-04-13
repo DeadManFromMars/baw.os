@@ -34,12 +34,16 @@ const CONFIG = Object.freeze({
     /* ── Scan lines ──────────────────────────────────────────
        maxVisible: how many rows stay on screen at once.
        leftPadding: must match .scan-lines-wrap padding-left in scan.css.
+         CSS uses clamp(80px, 8vw, 140px) — JS uses the middle value for
+         the reverse sequence row indent. If you change the CSS clamp,
+         update this too.
        linesHeight: must match .scan-lines-wrap height in scan.css. */
     scan: {
-        maxVisible:    12,
-        leftPadding:   '8vw',
-        linesHeight:   'calc(100vh - 200px)',
-        progressHideDelay: 2000,  // ms after 100% before bar fades
+        maxVisible:          12,
+        leftPadding:         '8vw',
+        linesHeight:         'calc(100vh - 200px)',
+        progressHideDelay:   2000,   // ms after 100% before bar fades
+        conductorThreshold:  0.5,    // fraction of SCAN_DEFS rows that must complete before conductor fires
     },
 
     /* ── Progress bar ────────────────────────────────────────
@@ -62,14 +66,5 @@ const CONFIG = Object.freeze({
        Base URL for the Flask backend. Switch to your production
        URL before deploying. */
     apiBase: 'http://localhost:5000',
-
-    /* ── City canvas (Three.js hex city sequence) ────────────
-       The full intro sequence (wave reveal → swoop → cruise) is
-       handled inside city.js. Login reveal is callback-based via
-       CITY.onLoginReveal — no fixed timer needed here.
-       LOGIN_REVEAL_AT inside city.js controls when login appears. */
-    city: {
-        /* reserved for future city config values */
-    },
 
 });

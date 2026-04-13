@@ -78,7 +78,9 @@ const SCAN_DEFS = [
 ];
 
 /* Extra rows that stream indefinitely after the main defs are done.
-   They loop through this list, generating fake values via Utils.fakeDataValue(). */
+   They loop through this list, generating fake values via Utils.fakeDataValue().
+   This loop never terminates — it runs until dissolveTriggered is set by
+   the conductor sequence, at which point revealNextRow() returns early. */
 const EXTRA_KEYS = [
     'Fault Inheritance', 'Signal Loss', 'Archive Decay', 'Contingency Flag',
     'Null Directive', 'Spectral Index', 'Erosion Rate', 'Phantom Linkage',
@@ -173,7 +175,7 @@ let conductorTriggered = false;  // prevents the conductor from firing twice
 let dissolveTriggered  = false;  // prevents dissolve from firing twice
 let scanPaused         = false;  // set to true during the VHS freeze
 let orphanedLineEl     = null;   // reference to the route_depth DOM row (for hand animation)
-let conductorReady     = false;  // set by session.js once login is confirmed
+let _scanStarted       = false;  // set by Scan.start() once login confirms; gates conductor trigger
 
 
 /* ════════════════════════════════════════════════════════════════
@@ -257,7 +259,9 @@ function revealNextRow() {
        the active class fires the transition. */
     Utils.nextFrames().then(() => line.classList.add('active'));
 
-    /* Wait for the real value (or time out after 4s), then populate. */
+    /* Wait for the real value (or time out after 4s), then populate.
+       hardMax ensures fast rows (def.wait = 4–5ms) don't wait forever
+       if a DataStore field fails to arrive (e.g. geo fetch timeout). */
     const startTime = Date.now();
     const hardMax   = Math.max(def.wait, 4000);
 
@@ -284,13 +288,14 @@ function revealNextRow() {
             orphanedLineEl = line;
         }
 
-        /* Track real row completions and fire the conductor at 50%. */
+        /* Track real row completions and fire the conductor once the
+           threshold fraction of rows is done (see CONFIG.scan.conductorThreshold). */
         if (!isExtra) {
             completedRows++;
             updateProgress(completedRows);
 
-            if (!conductorTriggered && conductorReady
-                && completedRows >= Math.floor(TOTAL_DEFS * 0.5)) {
+            if (!conductorTriggered && _scanStarted
+                && completedRows >= Math.floor(TOTAL_DEFS * CONFIG.scan.conductorThreshold)) {
                 conductorTriggered = true;
                 setTimeout(runConductorSequence, 2300);
             }
@@ -807,7 +812,7 @@ async function triggerDissolve() {
 const Scan = {
     /* Begin streaming scan rows. Must be called after login. */
     start() {
-        conductorReady = true;
+        _scanStarted = true;
         setTimeout(revealNextRow, 800);
     },
 };
