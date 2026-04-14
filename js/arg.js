@@ -256,6 +256,14 @@ const Arg = (() => {
                 devStickerBtn.classList.add('visible');
             }));
         }
+
+        // Fade signal viewer button in (bottom centre)
+        const signalBtn = document.getElementById('signalBtn');
+        if (signalBtn) {
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                signalBtn.classList.add('visible');
+            }));
+        }
     }
 
     function handleLogout() {

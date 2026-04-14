@@ -254,7 +254,8 @@
             /* ── Once all pin lines are done: start music + show choice ── */
             if (!musicStarted && pins.length > 0 && pins.every(p => p.progress >= 1)) {
                 musicStarted = true;
-                Radio.start();
+                // Fire event — Radio listens and starts when ready
+                document.dispatchEvent(new CustomEvent('globe:pins-complete'));
                 if (window.showArgChoice) window.showArgChoice();
             }
 

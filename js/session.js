@@ -1,36 +1,55 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    session.js  —  SESSION ORCHESTRATION
 
-   Entry point. Runs on DOMContentLoaded. Reads localStorage to
-   determine what state the visitor is in, then routes them.
+   Entry point. Runs on DOMContentLoaded.
+   Calls /auth/me to determine the player's actual server-side
+   session state — never trusts localStorage for auth decisions.
 
-   THREE VISIT STATES:
-     1. First visit      — gatePassed is null
-        → CITY.start() plays the full sequence (wave → swoop → cruise)
-        → When camera nears cruise, login form fades in
-        → Login success → secured flash → scan phase
+   THREE STATES:
+     1. Not authenticated  — /auth/me returns 401
+        → Show the full city intro + login form (first visit)
+        OR skip city but still show login (returning visit hint)
 
-     2. Returning, unregistered  — gatePassed set, registered null
-        → Skip intro, city runs in background at z-index 18
-        → Go straight to registration
+     2. Authenticated, no card upload yet
+        → Skip intro, go straight to ARG choice (register / upload card)
 
-     3. Returning, registered    — both set
-        → Skip intro, city in background
-        → Go straight to card upload
+     3. Authenticated, session active
+        → Skip intro, go straight to the globe / main experience
+
+   localStorage is only used for UI hints (skip the city animation
+   on returning visits). It is never used to grant access to anything.
 
    DEPENDENCIES: must load last — config, utils, city, login, arg
    must all be ready.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
 
-    const gatePassed = localStorage.getItem('baw_gate_passed');
-    // Note: 'baw_registered' is checked by arg.js directly — not needed here.
+    // Check actual server-side session state
+    let sessionUser = null;
+    try {
+        const res = await fetch(`${CONFIG.apiBase}/auth/me`, {
+            credentials: 'include',
+        });
+        if (res.ok) {
+            sessionUser = await res.json();
+        }
+    } catch (_) {
+        // Network error — treat as unauthenticated
+    }
 
-    if (!gatePassed) {
-        _handleFirstVisit();
+    if (sessionUser) {
+        // Valid session — notify modules that a player is authenticated
+        document.dispatchEvent(new CustomEvent('player:authenticated'));
+        _handleAuthenticatedSession(sessionUser);
     } else {
-        _handleReturningVisit();
+        // No valid session — must go through login
+        const hasSeenIntro = localStorage.getItem('baw_seen_intro');
+        if (hasSeenIntro) {
+            _handleReturningUnauthenticated();
+        } else {
+            _handleFirstVisit();
+        }
     }
 
 });
@@ -38,17 +57,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* ════════════════════════════════════════════════════════════════
    INIT OVERLAY
-   Shown on every visit — black screen with minimal prompt.
-   One click satisfies the browser autoplay requirement and
-   kicks off whatever callback is passed in.
+   Satisfies browser autoplay policy. Always shown.
 ════════════════════════════════════════════════════════════════ */
 
 function _showInitOverlay(onStart) {
     const overlay = document.createElement('div');
     overlay.id = 'initOverlay';
-    /* Inline styles used here intentionally — this overlay is created before
-       any stylesheet classes are available, and it must display correctly on
-       both first and returning visits with zero dependencies. */
     overlay.style.cssText = [
         'position:fixed', 'inset:0', 'z-index:1000', 'background:#000',
         'display:flex', 'align-items:center', 'justify-content:center',
@@ -85,10 +99,10 @@ function _showInitOverlay(onStart) {
     }, { once: true });
 }
 
+
 /* ════════════════════════════════════════════════════════════════
-   FIRST VISIT
-   Plays the full CITY sequence. Login form fades in when the
-   camera reaches cruise height (signalled by CITY.onLoginReveal).
+   FIRST VISIT — no session, never seen the intro
+   Full city sequence plays, then login form fades in.
 ════════════════════════════════════════════════════════════════ */
 
 function _handleFirstVisit() {
@@ -108,55 +122,74 @@ function _handleFirstVisit() {
 
     cityCanvas.style.display = 'block';
 
-    _showInitOverlay(() => CITY.start());
+    _showInitOverlay(() => {
+        localStorage.setItem('baw_seen_intro', 'true');
+        CITY.start();
+    });
 }
 
 
 /* ════════════════════════════════════════════════════════════════
-   RETURNING VISIT
-   Skips intro. City runs quietly in the background.
-   Jump straight to the ARG flow.
+   RETURNING UNAUTHENTICATED — no session, has seen the intro
+   Skip city animation, show login directly.
 ════════════════════════════════════════════════════════════════ */
 
-function _handleReturningVisit() {
-    // Returning visitors have already passed the gate — skip city and login entirely.
-    // Click to init → globe is already visible → show choice prompt.
+function _handleReturningUnauthenticated() {
+    const cityCanvas = document.getElementById('cityCanvas');
+    const loginEl    = document.getElementById('loginPhase');
+
+    // Hide city — not needed
+    if (cityCanvas) cityCanvas.style.display = 'none';
+
     _showInitOverlay(() => {
-        document.body.classList.add('accents-ready');
+        loginEl.style.transition    = 'opacity 1.2s ease';
+        loginEl.style.opacity       = '1';
+        loginEl.style.pointerEvents = 'all';
+        document.getElementById('password')?.focus();
+    });
+}
 
-        // Hide city canvas — not needed on returning visits
-        const cityCanvas = document.getElementById('cityCanvas');
-        if (cityCanvas) cityCanvas.style.display = 'none';
 
-        // Hide login — they've already authenticated
-        const loginEl = document.getElementById('loginPhase');
-        if (loginEl) {
-            loginEl.style.opacity       = '0';
-            loginEl.style.pointerEvents = 'none';
-        }
+/* ════════════════════════════════════════════════════════════════
+   AUTHENTICATED SESSION — valid /auth/me response
+   Skip everything, go straight to the main experience.
+════════════════════════════════════════════════════════════════ */
 
-        // Show scan phase header (wordmark) only — hide data columns
-        const scanPhase = document.getElementById('scanPhase');
-        if (scanPhase) {
-            scanPhase.style.display = 'flex';
-            scanPhase.style.opacity = '1';
-        }
-        const scanLeft  = document.querySelector('.scan-left');
-        const scanRight = document.querySelector('.scan-right');
-        if (scanLeft)  scanLeft.style.display  = 'none';
-        if (scanRight) scanRight.style.display = 'none';
+function _handleAuthenticatedSession(user) {
+    document.body.classList.add('accents-ready');
 
-        // Move globe and header to post-scan position
-        if (window.startGlobeMove) {
-            window.startGlobeMove(CONFIG.globe.centerX, CONFIG.globe.centerY);
-        }
-        const header = document.querySelector('.scan-header');
-        if (header) {
-            header.style.left = '50%';
-            header.style.top  = CONFIG.globe.postScanY + '%';
-        }
+    // Hide city and login — not needed
+    const cityCanvas = document.getElementById('cityCanvas');
+    if (cityCanvas) cityCanvas.style.display = 'none';
 
-        // Show the choice prompt — register or offer token
+    const loginEl = document.getElementById('loginPhase');
+    if (loginEl) {
+        loginEl.style.opacity       = '0';
+        loginEl.style.pointerEvents = 'none';
+    }
+
+    // Show scan phase header (wordmark) only
+    const scanPhase = document.getElementById('scanPhase');
+    if (scanPhase) {
+        scanPhase.style.display = 'flex';
+        scanPhase.style.opacity = '1';
+    }
+    const scanLeft  = document.querySelector('.scan-left');
+    const scanRight = document.querySelector('.scan-right');
+    if (scanLeft)  scanLeft.style.display  = 'none';
+    if (scanRight) scanRight.style.display = 'none';
+
+    // Move globe and header to post-scan position
+    if (window.startGlobeMove) {
+        window.startGlobeMove(CONFIG.globe.centerX, CONFIG.globe.centerY);
+    }
+    const header = document.querySelector('.scan-header');
+    if (header) {
+        header.style.left = '50%';
+        header.style.top  = CONFIG.globe.postScanY + '%';
+    }
+
+    _showInitOverlay(() => {
         setTimeout(() => Arg.showArgChoice(), 400);
     });
 }

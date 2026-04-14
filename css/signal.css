@@ -1,0 +1,351 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   signal.css  —  SIGNAL VIEWER OVERLAY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+#signalOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 650;
+    display: flex;
+    flex-direction: column;
+    background: rgba(245, 242, 236, 0.88);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+    font-family: 'Space Mono', monospace;
+}
+
+#signalOverlay.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* ── Header ───────────────────────────────────────────────────── */
+
+.sig-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 36px;
+    height: 52px;
+    border-bottom: 1px solid var(--border2);
+    flex-shrink: 0;
+}
+
+.sig-header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.sig-label {
+    font-size: 0.52rem;
+    letter-spacing: 0.45em;
+    color: var(--muted);
+    text-transform: uppercase;
+}
+
+.sig-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--red);
+
+    flex-shrink: 0;
+}
+
+
+
+.sig-status {
+    font-size: 0.45rem;
+    letter-spacing: 0.3em;
+    color: var(--muted2);
+    text-transform: uppercase;
+    transition: color 0.3s;
+}
+
+.sig-status.active { color: var(--ink); }
+
+.sig-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    transition: color 0.15s;
+    line-height: 1;
+}
+
+.sig-close-btn:hover { color: var(--ink); }
+
+/* ── Body ─────────────────────────────────────────────────────── */
+
+.sig-body {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    min-height: 0;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────── */
+
+.sig-sidebar {
+    width: 200px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border2);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--muted2) transparent;
+}
+
+.sig-section {
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.sig-section-label {
+    font-size: 0.38rem;
+    letter-spacing: 0.35em;
+    color: var(--muted);
+    text-transform: uppercase;
+}
+
+.sig-range-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sig-range {
+    flex: 1;
+    height: 2px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(26, 26, 24, 0.12);
+    border-radius: 1px;
+    outline: none;
+    cursor: pointer;
+}
+
+.sig-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--ink);
+    cursor: pointer;
+}
+
+.sig-range::-moz-range-thumb {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--ink);
+    border: none; cursor: pointer;
+}
+
+.sig-range-val {
+    font-size: 0.36rem;
+    letter-spacing: 0.08em;
+    color: var(--muted2);
+    width: 36px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.sig-colormap-options {
+    display: flex;
+    gap: 5px;
+}
+
+.sig-cm-btn {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 2px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.34rem;
+    letter-spacing: 0.18em;
+    color: var(--muted2);
+    cursor: pointer;
+    padding: 5px 0;
+    text-transform: uppercase;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.sig-cm-btn:hover  { color: var(--muted); border-color: var(--muted); }
+.sig-cm-btn.active { color: var(--ink); border-color: var(--ink); background: rgba(26,26,24,0.05); }
+
+.sig-btn {
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 2px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.38rem;
+    letter-spacing: 0.22em;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 7px 12px;
+    text-transform: uppercase;
+    transition: color 0.15s, border-color 0.15s;
+    text-align: left;
+    width: 100%;
+}
+
+.sig-btn:hover  { color: var(--ink); border-color: var(--muted); }
+.sig-btn.active { color: var(--ink); border-color: var(--ink); }
+
+.sig-meta {
+    margin-top: auto;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.sig-meta-row {
+    display: flex;
+    justify-content: space-between;
+}
+
+.sig-meta-label {
+    font-size: 0.36rem;
+    letter-spacing: 0.2em;
+    color: var(--muted2);
+    text-transform: uppercase;
+}
+
+.sig-meta-val {
+    font-size: 0.36rem;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+}
+
+/* ── Canvas wrap ──────────────────────────────────────────────── */
+
+.sig-canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: var(--cream);
+}
+
+#sigCanvas {
+    position: absolute;
+    top: 0; left: 0;
+    display: block;
+}
+
+.sig-idle {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+}
+
+.sig-idle.hidden { opacity: 0; }
+
+.sig-idle-text {
+    font-size: 0.52rem;
+    letter-spacing: 0.35em;
+    color: var(--muted2);
+    text-transform: uppercase;
+}
+
+.sig-idle-sub {
+    font-size: 0.38rem;
+    letter-spacing: 0.22em;
+    color: rgba(26, 26, 24, 0.2);
+    text-transform: uppercase;
+}
+
+.sig-freq-axis {
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 52px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 6px 8px;
+    border-left: 1px solid var(--border);
+    pointer-events: none;
+}
+
+.sig-freq-label {
+    font-size: 0.32rem;
+    letter-spacing: 0.1em;
+    color: var(--muted2);
+    text-align: right;
+    line-height: 1;
+}
+
+.sig-cursor {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 1px;
+    background: rgba(232, 55, 42, 0.5);
+    pointer-events: none;
+    display: none;
+}
+
+/* ── Footer ───────────────────────────────────────────────────── */
+
+.sig-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 36px 0 220px;
+    height: 38px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.sig-footer-note {
+    font-size: 0.36rem;
+    letter-spacing: 0.16em;
+    color: var(--muted2);
+    text-transform: uppercase;
+}
+
+.sig-footer-time {
+    font-size: 0.4rem;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Signal button — bottom centre of globe screen ────────────── */
+
+#signalBtn {
+    position: fixed;
+    bottom: 36px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.48rem;
+    letter-spacing: 0.35em;
+    color: var(--muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.4s ease, color 0.15s;
+    z-index: 400;
+    text-transform: uppercase;
+    padding: 8px 0;
+}
+
+#signalBtn.visible { opacity: 1; pointer-events: all; }
+#signalBtn:hover   { color: var(--ink); }

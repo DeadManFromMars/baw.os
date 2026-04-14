@@ -1,0 +1,382 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   playlist.css  —  MIXTAPE MANAGER OVERLAY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+#mixtapeOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 700;
+    display: flex;
+    flex-direction: column;
+    background: rgba(245, 242, 236, 0.94);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+    font-family: 'Space Mono', monospace;
+}
+#mixtapeOverlay.visible { opacity: 1; pointer-events: all; }
+
+/* ── Header ───────────────────────────────────────────────────── */
+
+.mix-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 32px 14px;
+    border-bottom: 1px solid var(--border2);
+    flex-shrink: 0;
+}
+.mix-header-left { display: flex; flex-direction: column; gap: 4px; }
+.mix-header-title { font-size: 0.52rem; letter-spacing: 0.48em; color: var(--ink); text-transform: uppercase; }
+.mix-header-sub   { font-size: 0.36rem; letter-spacing: 0.25em; color: var(--muted); text-transform: uppercase; }
+.mix-close-btn {
+    background: transparent; border: none; color: var(--muted);
+    font-family: 'Space Mono', monospace; font-size: 0.7rem;
+    cursor: pointer; padding: 2px 6px; transition: color 0.15s; line-height: 1;
+}
+.mix-close-btn:hover { color: var(--ink); }
+
+/* ── Body ─────────────────────────────────────────────────────── */
+
+.mix-body {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    min-height: 0;
+}
+
+.mix-col {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+.mix-col-library { flex: 1; min-width: 0; }
+.mix-col-record  { width: 340px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.mix-col-queue   { width: 360px; flex-shrink: 0; }
+
+.mix-divider { width: 1px; background: var(--border2); flex-shrink: 0; }
+
+/* ── Column head ──────────────────────────────────────────────── */
+
+.mix-col-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 24px 10px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.mix-col-label { font-size: 0.42rem; letter-spacing: 0.35em; color: var(--muted); text-transform: uppercase; }
+.mix-col-count { font-size: 0.36rem; letter-spacing: 0.15em; color: var(--muted2); margin-right: auto; }
+
+/* ── Sort ──────────────────────────────────────────────────────  */
+
+.mix-sort-group { display: flex; align-items: center; gap: 5px; margin-left: auto; }
+.mix-sort-label { font-size: 0.34rem; letter-spacing: 0.22em; color: var(--muted2); text-transform: uppercase; }
+.mix-sort-btn {
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 2px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.32rem;
+    letter-spacing: 0.16em;
+    color: var(--muted2);
+    cursor: pointer;
+    padding: 3px 7px;
+    text-transform: uppercase;
+    transition: color 0.15s, border-color 0.15s;
+}
+.mix-sort-btn:hover  { color: var(--muted); border-color: var(--muted); }
+.mix-sort-btn.active { color: var(--ink); border-color: var(--ink); }
+
+/* ── Wheel ──────────────────────────────────────────────────────  */
+
+.mix-wheel-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%);
+}
+.mix-wheel-selector {
+    position: absolute;
+    top: 50%; left: 0; right: 0;
+    height: 64px;
+    transform: translateY(-50%);
+    border-top: 1px solid rgba(26,26,24,0.12);
+    border-bottom: 1px solid rgba(26,26,24,0.12);
+    pointer-events: none;
+    z-index: 2;
+}
+.mix-wheel { position: absolute; inset: 0; z-index: 1; }
+
+/* ── Track row (wheel) ──────────────────────────────────────────  */
+
+.mix-track-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 24px;
+    height: 64px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    position: absolute;
+    left: 0; right: 0;
+    transform-origin: left center;
+    will-change: transform, opacity, top;
+    transition: border-left-color 0.15s;
+}
+.mix-track-row.on-tape     { border-left-color: var(--red); }
+.mix-track-row.now-playing .mix-track-title { color: var(--red); font-weight: 700; }
+.mix-track-row-active .mix-track-title  { color: var(--ink) !important; }
+.mix-track-row-active .mix-track-index  { color: var(--red); }
+.mix-track-row-active { border-left-color: var(--red) !important; }
+
+.mix-track-index {
+    font-size: 0.44rem; letter-spacing: 0.12em;
+    color: var(--muted2); flex-shrink: 0; width: 22px; text-align: right;
+}
+.mix-track-info {
+    flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0;
+}
+.mix-track-title {
+    font-size: 0.92rem; letter-spacing: 0.08em;
+    color: var(--ink2); text-transform: uppercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-weight: 700; transition: color 0.15s;
+}
+.mix-track-artist {
+    font-size: 0.46rem; letter-spacing: 0.18em;
+    color: var(--muted); text-transform: uppercase;
+}
+/* on-tape dot indicator */
+.mix-on-tape-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--red); flex-shrink: 0;
+    opacity: 0; transition: opacity 0.2s;
+}
+.mix-on-tape-dot.visible { opacity: 1; }
+
+/* ── Divider rows ──────────────────────────────────────────────  */
+
+.mix-divider-row {
+    display: flex;
+    align-items: center;
+    padding: 0 16px 0 20px;
+    pointer-events: none;
+    transform-origin: left center;
+    position: absolute; left: 0; right: 0;
+}
+.mix-div-tab {
+    background: var(--ink); color: var(--cream);
+    font-family: 'Space Mono', monospace;
+    font-size: 9px; letter-spacing: 0.28em;
+    text-transform: uppercase; padding: 5px 12px;
+    border-radius: 2px; flex-shrink: 0; white-space: nowrap;
+}
+.mix-div-line { flex: 1; height: 1px; background: rgba(26,26,24,0.16); margin-left: 10px; }
+
+/* ── Vinyl section ─────────────────────────────────────────────  */
+
+.mix-record-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid var(--border2);
+    flex-shrink: 0;
+    background: rgba(245, 242, 236, 0.6);
+}
+.mix-record-info {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.mix-record-title {
+    font-size: 0.92rem; letter-spacing: 0.08em;
+    color: var(--ink); font-weight: 700;
+    text-transform: uppercase;
+    white-space: nowrap; max-width: 320px;
+    overflow: hidden; text-overflow: ellipsis;
+}
+.mix-record-artist {
+    font-size: 0.42rem; letter-spacing: 0.22em;
+    color: var(--muted); text-transform: uppercase;
+}
+.mix-sleeve-wrap {
+    position: relative; width: 200px; height: 200px; flex-shrink: 0;
+}
+.mix-sleeve {
+    position: absolute; inset: 0; border-radius: 3px;
+    background: var(--ink); overflow: hidden; z-index: 1;
+}
+.mix-sleeve-art {
+    width: 100%; height: 100%;
+    background-size: cover; background-position: center;
+    opacity: 0; transition: opacity 0.4s ease;
+}
+.mix-sleeve-art.loaded { opacity: 1; }
+.mix-vinyl {
+    position: absolute; right: -42px; top: 50%;
+    transform: translateY(-50%);
+    width: 178px; height: 178px; border-radius: 50%;
+    background: radial-gradient(circle at center,
+        #1a1a18 0%,#1a1a18 20%,
+        #2a2a28 21%,#2a2a28 22%,
+        #1a1a18 23%,#1a1a18 40%,
+        #252523 41%,#252523 42%,
+        #1a1a18 43%,#1a1a18 60%,
+        #252523 61%,#252523 62%,
+        #1a1a18 63%);
+    z-index: 0;
+}
+.mix-vinyl.spinning { animation: vinylSpin 2s linear infinite; }
+@keyframes vinylSpin {
+    from { transform: translateY(-50%) rotate(0deg); }
+    to   { transform: translateY(-50%) rotate(360deg); }
+}
+
+/* ── Queue list ───────────────────────────────────────────────  */
+
+.mix-queue-list {
+    flex: 1; overflow-y: auto; overflow-x: hidden;
+    scrollbar-width: thin; scrollbar-color: var(--muted2) transparent;
+}
+.mix-queue-list::-webkit-scrollbar       { width: 2px; }
+.mix-queue-list::-webkit-scrollbar-track { background: transparent; }
+.mix-queue-list::-webkit-scrollbar-thumb { background: var(--muted2); border-radius: 1px; }
+
+.mix-queue-empty {
+    font-size: 0.42rem; letter-spacing: 0.28em;
+    color: var(--muted2); padding: 40px 24px;
+    text-transform: uppercase; text-align: center; line-height: 2;
+}
+.mix-queue-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 20px 0 14px; height: 56px;
+    border-left: 3px solid transparent;
+    transition: background 0.1s; cursor: pointer;
+}
+.mix-queue-row:hover { background: rgba(26,26,24,0.04); }
+.mix-queue-row.now-playing { border-left-color: var(--red); }
+.mix-queue-row.now-playing .mix-queue-title { color: var(--red); font-weight: 700; }
+
+.mix-queue-drag {
+    cursor: grab; color: var(--muted2); font-size: 0.6rem;
+    flex-shrink: 0; line-height: 1; padding: 4px 2px;
+    letter-spacing: -0.1em; user-select: none;
+}
+.mix-queue-drag:active { cursor: grabbing; }
+.mix-queue-pos {
+    font-size: 0.4rem; letter-spacing: 0.1em;
+    color: var(--muted2); flex-shrink: 0; width: 18px; text-align: right;
+}
+.mix-queue-info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mix-queue-title {
+    font-size: 0.72rem; letter-spacing: 0.08em;
+    color: var(--ink2); text-transform: uppercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-weight: 600; transition: color 0.15s;
+}
+.mix-queue-artist {
+    font-size: 0.36rem; letter-spacing: 0.18em;
+    color: var(--muted); text-transform: uppercase;
+}
+.mix-queue-remove {
+    background: transparent; border: none;
+    font-family: 'Space Mono', monospace; font-size: 0.6rem;
+    color: var(--muted2); cursor: pointer; flex-shrink: 0;
+    opacity: 0; transition: opacity 0.15s, color 0.15s;
+    padding: 2px 4px; line-height: 1;
+}
+.mix-queue-row:hover .mix-queue-remove { opacity: 1; }
+.mix-queue-remove:hover { color: var(--red); }
+
+.mix-queue-row.drag-over-top    { border-top: 2px solid var(--red); }
+.mix-queue-row.drag-over-bottom { border-bottom: 2px solid var(--red); }
+
+/* ── Shuffle / Clear ───────────────────────────────────────────  */
+
+.mix-shuffle-btn {
+    background: transparent; border: 1px solid var(--border2); border-radius: 2px;
+    font-family: 'Space Mono', monospace; font-size: 0.36rem; letter-spacing: 0.22em;
+    color: var(--muted); cursor: pointer; padding: 5px 12px; text-transform: uppercase;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.mix-shuffle-btn:hover  { color: var(--ink); border-color: var(--muted); }
+.mix-shuffle-btn.active { color: var(--ink); border-color: var(--ink); background: rgba(26,26,24,0.06); }
+
+.mix-clear-btn {
+    background: transparent; border: none;
+    font-family: 'Space Mono', monospace; font-size: 0.36rem; letter-spacing: 0.22em;
+    color: var(--muted2); cursor: pointer; padding: 5px 8px; text-transform: uppercase;
+    transition: color 0.15s;
+}
+.mix-clear-btn:hover { color: var(--red); }
+
+/* ── Footer ───────────────────────────────────────────────────── */
+
+.mix-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px; border-top: 1px solid var(--border2); flex-shrink: 0; gap: 16px;
+}
+.mix-msg {
+    font-size: 0.36rem; letter-spacing: 0.18em; color: var(--muted);
+    text-transform: uppercase; flex: 1; min-height: 12px;
+}
+.mix-msg.success { color: var(--sage); }
+.mix-msg.error   { color: var(--red); }
+.mix-save-btn {
+    background: var(--ink); border: none; border-radius: 2px;
+    font-family: 'Space Mono', monospace; font-size: 0.38rem; letter-spacing: 0.28em;
+    color: var(--cream); cursor: pointer; padding: 9px 22px; text-transform: uppercase;
+    transition: background 0.15s, opacity 0.15s; flex-shrink: 0;
+}
+.mix-save-btn:hover    { background: var(--ink2); }
+.mix-save-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Playback controls in record section ─────────────────────── */
+
+.mix-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.mix-ctrl-btn {
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 50%;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    flex-shrink: 0;
+}
+
+.mix-ctrl-btn:hover {
+    color: var(--ink);
+    border-color: var(--muted);
+}
+
+.mix-ctrl-play {
+    width: 48px;
+    height: 48px;
+    font-size: 14px;
+    border-color: var(--ink);
+    color: var(--ink);
+}
+
+.mix-ctrl-play:hover {
+    background: var(--ink);
+    color: var(--cream);
+}

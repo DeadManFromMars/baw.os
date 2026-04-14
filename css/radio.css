@@ -17,7 +17,7 @@
                  └─ .radio-times       (current / duration)
             └─ .radio-controls    (prev, play/pause, next)
             └─ .radio-volume-wrap (VOL label + range slider)
-            └─ .radio-playlist-hint
+            └─ .radio-playlist-hint  (→ opens Mixtape overlay)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 
@@ -132,7 +132,7 @@
 }
 
 .radio-artist {
-    font-size: 0.5rem;
+    font-size: 0.65rem;
     letter-spacing: 0.2em;
     color: var(--muted);
     text-transform: uppercase;
@@ -173,7 +173,7 @@
     display: flex;
     justify-content: space-between;
     font-family: 'Space Mono', monospace;
-    font-size: 0.42rem;
+    font-size: 0.6rem;
     color: var(--muted);
     letter-spacing: 0.05em;
 }
@@ -234,7 +234,7 @@
 }
 
 .radio-vol-label {
-    font-size: 0.4rem;
+    font-size: 0.6rem;
     letter-spacing: 0.2em;
     color: var(--muted);
     text-transform: uppercase;
@@ -276,13 +276,14 @@
 
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   PLAYLIST HINT
-   The "Playlist manager — coming soon" footer.
-   Cursor pointer hints it'll eventually be clickable.
+   MIXTAPE BUTTON
+   Replaces the old "Playlist manager — coming soon" hint.
+   Opens the Mixtape overlay when clicked.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 .radio-playlist-hint {
-    font-size: 0.38rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
     letter-spacing: 0.15em;
     color: var(--muted2);
     text-transform: uppercase;
@@ -291,8 +292,25 @@
     padding-top: 8px;
     cursor: pointer;
     transition: color 0.2s;
+    position: relative;
+}
+
+.radio-playlist-hint::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0%;
+    height: 1px;
+    background: var(--red);
+    transition: width 0.2s ease;
 }
 
 .radio-playlist-hint:hover {
-    color: var(--muted);
+    color: var(--ink);
+}
+
+.radio-playlist-hint:hover::after {
+    width: 60%;
 }

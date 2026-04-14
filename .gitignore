@@ -1,0 +1,29 @@
+# Database — contains all player data, never commit this
+database/
+
+# Generated card images and avatars
+static/cards/
+static/avatars/
+
+# Config — contains your admin password and secret keys
+config.py
+
+# Environment secrets — NEVER commit this
+.env
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment if you create one later
+venv/
+env/
+
+# VS Code / editor folders
+.vscode/
+.vs/
+
+# Windows junk
+Thumbs.db
+desktop.ini
