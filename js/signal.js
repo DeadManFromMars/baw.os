@@ -2,17 +2,28 @@
    signal.js — SIGNAL VIEWER overlay
 
    A scrolling spectrogram of whatever the radio (<audio id="bgMusic">)
-   is playing: one 1px column per frame, low frequencies at the bottom.
-   The radio widget is lifted above the overlay so it stays usable.
+   is playing. The radio widget is lifted above the overlay so it
+   stays usable.
+
+   The picture is the same on every machine, so images can be hidden
+   in audio (see baw.os-backend/tools/spectrogram-encoder.html, which
+   must use the same F_MIN / F_MAX / COLS_PER_SEC / FFT_SIZE):
+     vertical    log frequency, F_MIN (bottom) → F_MAX (top), in Hz,
+                 whatever the sound card's sample rate
+     horizontal  COLS_PER_SEC one-pixel columns per second, whatever
+                 the screen's refresh rate
 
    Signal.open() / Signal.close()      arg.js (data-action="signal")
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const Signal = (() => {
 
-    const FFT_SIZE    = 4096;     // higher = finer frequency detail
-    const USABLE_FRAC = 0.6;      // top 40% of the spectrum is near-inaudible and shows as noise
-    const MIN_AMP     = 6;        // quieter than this draws as background
+    const FFT_SIZE     = 4096;    // higher = finer frequency detail
+    const F_MIN        = 30;      // Hz at the bottom edge
+    const F_MAX        = 16000;   // Hz at the top edge (MP3s usually cut off just above this)
+    const COLS_PER_SEC = 60;
+    const AXIS_TICKS   = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
+    const MIN_AMP      = 6;       // quieter than this draws as background
     const CREAM       = [245, 242, 236];
     const COLORMAPS   = { ink: [26, 26, 24], red: [232, 55, 42], sage: [122, 154, 138] };
     const RADIO_Z     = '660';    // above this overlay (650), below the mixtape (700)
@@ -26,7 +37,9 @@ const Signal = (() => {
     let raf = null, resizeObs = null;
     let writeX = 0, colCount = 0, frozen = false, gain = 2.5;
     let lut = null;               // amplitude 0–255 → RGB, pre-blended over cream
+    let binLo = null, binHi = null;   // per pixel row: the FFT bin range it covers (see mapRows)
     let lastPlaying = null, lastTime = '';
+    let lastFrame = null, pendingCols = 0;
 
 
     /* ── OPEN / CLOSE ─────────────────────────────────────── */
@@ -58,17 +71,15 @@ const Signal = (() => {
     /* ── AUDIO ────────────────────────────────────────────── */
 
     function initAudio() {
+        const { ctx, bus } = Radio.audioGraph();     // the radio's Web Audio route (music.js)
         if (!audioCtx) {
-            audioCtx = new AudioContext();
+            audioCtx = ctx;
             analyser = audioCtx.createAnalyser();
             analyser.fftSize = FFT_SIZE;
             analyser.smoothingTimeConstant = 0;
-            // From now on the radio plays through this graph: element → analyser → speakers
-            audioCtx.createMediaElementSource(audioEl).connect(analyser);
-            analyser.connect(audioCtx.destination);
+            bus.connect(analyser);                   // listens to everything the radio plays, scratches included
             freqData = new Uint8Array(analyser.frequencyBinCount);
         }
-        if (audioCtx.state === 'suspended') audioCtx.resume();
     }
 
 
@@ -114,6 +125,8 @@ const Signal = (() => {
                     <div class="sig-meta">
                         <div class="sig-meta-row"><span class="sig-meta-label">FFT SIZE</span>
                             <span class="sig-meta-val">${FFT_SIZE.toLocaleString()}</span></div>
+                        <div class="sig-meta-row"><span class="sig-meta-label">SCALE</span>
+                            <span class="sig-meta-val">LOG</span></div>
                         <div class="sig-meta-row"><span class="sig-meta-label">SAMPLE RATE</span>
                             <span class="sig-meta-val">${audioCtx.sampleRate.toLocaleString()} Hz</span></div>
                         <div class="sig-meta-row"><span class="sig-meta-label">COLUMNS</span>
@@ -142,6 +155,7 @@ const Signal = (() => {
         overlay.querySelectorAll('[data-el]').forEach(el => { els[el.dataset.el] = el; });
         ctx = els.canvas.getContext('2d');
         writeX = 0; colCount = 0; frozen = false; lastPlaying = null; lastTime = '';
+        lastFrame = null; pendingCols = 0;
 
         els.close.addEventListener('click', close);
         overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
@@ -165,13 +179,27 @@ const Signal = (() => {
         requestAnimationFrame(() => { overlay.classList.add('visible'); overlay.focus(); });
     }
 
-    // Axis labels, top to bottom, for the usable part of the spectrum
+    // Height of a frequency as a fraction of the plot, 0 = bottom (log scale)
+    const freqToFrac = hz => Math.log(hz / F_MIN) / Math.log(F_MAX / F_MIN);
+
     function freqLabels() {
-        const maxHz = (audioCtx.sampleRate / 2) * USABLE_FRAC;
-        return [1, 0.75, 0.5, 0.25, 0].map(f => {
-            const hz = maxHz * f;
-            return `<div class="sig-freq-label">${hz >= 1000 ? (hz / 1000).toFixed(1) + 'k' : Math.round(hz)}</div>`;
-        }).join('');
+        return AXIS_TICKS.map(hz =>
+            `<div class="sig-freq-label" style="top:${((1 - freqToFrac(hz)) * 100).toFixed(2)}%">` +
+            `${hz >= 1000 ? hz / 1000 + 'k' : hz}</div>`).join('');
+    }
+
+    // For each pixel row, the span of FFT bins it covers. Low rows are
+    // narrower than one bin (interpolated); high rows cover several
+    // bins (the loudest wins, so no tone can fall between rows).
+    function mapRows(H) {
+        const binHz = audioCtx.sampleRate / FFT_SIZE;
+        const hzAt  = frac => F_MIN * Math.pow(F_MAX / F_MIN, frac);
+        binLo = new Float32Array(H);
+        binHi = new Float32Array(H);
+        for (let y = 0; y < H; y++) {
+            binLo[y] = hzAt(1 - (y + 1) / H) / binHz;   // row y spans from its bottom edge…
+            binHi[y] = hzAt(1 - y / H) / binHz;         // …to its top edge
+        }
     }
 
     function setColormap(name) {
@@ -199,6 +227,7 @@ const Signal = (() => {
         if (old) ctx.drawImage(old, 0, 0, W, H);
 
         column = ctx.createImageData(1, H);
+        mapRows(H);
         writeX = 0;
     }
 
@@ -219,8 +248,10 @@ const Signal = (() => {
 
     /* ── DRAW LOOP ────────────────────────────────────────── */
 
-    function loop() {
+    function loop(now) {
         raf = requestAnimationFrame(loop);
+        const dt = lastFrame === null ? 0 : (now - lastFrame) / 1000;
+        lastFrame = now;
 
         const playing = !audioEl.paused;
         if (playing !== lastPlaying) {
@@ -232,27 +263,42 @@ const Signal = (() => {
         const time = Utils.formatTime(audioEl.currentTime);
         if (time !== lastTime) els.time.textContent = lastTime = time;
 
-        if (frozen || !playing || !column) return;
-        drawColumn();
+        if (frozen || !playing || !column) { pendingCols = 0; return; }
+
+        // COLS_PER_SEC columns per second, whatever the frame rate. Capped
+        // so a stalled frame doesn't smear one reading across the plot.
+        pendingCols = Math.min(pendingCols + dt * COLS_PER_SEC, 4);
+        if (pendingCols < 1) return;
+        fillColumn();
+        while (pendingCols >= 1) { writeColumn(); pendingCols--; }
     }
 
-    function drawColumn() {
+    // Turn the current FFT reading into one column of pixels
+    function fillColumn() {
         analyser.getByteFrequencyData(freqData);
-        const H = column.height, px = column.data;
-        const usable = Math.floor(freqData.length * USABLE_FRAC);
+        const H = column.height, px = column.data, last = freqData.length - 1;
 
         for (let y = 0; y < H; y++) {
-            const bin = Math.floor((1 - y / H) * usable);          // bottom = low frequencies
-            const amp = Math.min(255, freqData[bin] * gain) | 0;
-            const o = y * 4, l = amp * 3;
+            const lo = binLo[y], hi = binHi[y];
+            let v;
+            if (hi - lo < 1) {                       // narrower than a bin: interpolate
+                const i = Math.min(lo | 0, last - 1), t = lo - i;
+                v = freqData[i] * (1 - t) + freqData[i + 1] * t;
+            } else {                                 // several bins: take the loudest
+                v = 0;
+                for (let i = Math.round(lo), end = Math.min(Math.round(hi), last); i <= end; i++)
+                    if (freqData[i] > v) v = freqData[i];
+            }
+            const l = (Math.min(255, v * gain) | 0) * 3, o = y * 4;
             px[o] = lut[l]; px[o + 1] = lut[l + 1]; px[o + 2] = lut[l + 2]; px[o + 3] = 255;
         }
-        ctx.putImageData(column, writeX, 0);
+    }
 
+    function writeColumn() {
+        ctx.putImageData(column, writeX, 0);
         writeX = (writeX + 1) % els.canvas.width;
         els.cursor.style.left    = writeX + 'px';
         els.cursor.style.display = 'block';
-
         if (++colCount % 20 === 0) els.columns.textContent = colCount.toLocaleString();
     }
 

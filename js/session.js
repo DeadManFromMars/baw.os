@@ -96,10 +96,12 @@
         document.body.classList.add('accents-ready');
         $('cityCanvas').style.display = 'none';
         Object.assign($('loginPhase').style, { opacity: '0', pointerEvents: 'none' });
-        Object.assign($('scanPhase').style, { display: 'flex', opacity: '1' });
+        Object.assign($('scanPhase').style, { display: 'block', opacity: '1' });
         document.querySelector('.scan-left').style.display  = 'none';
         document.querySelector('.scan-right').style.display = 'none';
 
+        window.globeShowNow();
+        window.globeSetDraggable(true);
         window.startGlobeMove(CONFIG.globe.centerX, CONFIG.globe.centerY);
         const header = document.querySelector('.scan-header');
         header.style.left = '50%';

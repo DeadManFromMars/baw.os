@@ -1,5 +1,5 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   city.js — HEX CITY intro (Three.js r128), first visit only
+   city.js — HEX CITY intro (Three.js via three-loader.js), first visit only
 
    Phases:  pre → wave → hold → swoop → cruise
      pre     black screen, bird's-eye camera
@@ -116,7 +116,7 @@ const CITY = (() => {
 
     let floorGeo, pilGeo, scorchGeo;
     let mFloor, mPil, mShard, mScorch;
-    const bgA = new THREE.Color(BG_BLACK), bgB = new THREE.Color(BG_CREAM), bgNow = new THREE.Color();
+    let bgA, bgB, bgNow;          // THREE.Colors, made in start() (THREE loads as a module, after this file)
 
     let music = null, musicFade = null;
 
@@ -572,6 +572,7 @@ const CITY = (() => {
         start() {
             if (renderer) return;
             const canvas = document.getElementById('cityCanvas');
+            bgA = new THREE.Color(BG_BLACK); bgB = new THREE.Color(BG_CREAM); bgNow = new THREE.Color();
 
             renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
             renderer.setPixelRatio(Math.min(devicePixelRatio, 2));

@@ -10,12 +10,12 @@ const CONFIG = Object.freeze({
        become the public API address (e.g. https://api.bawsome.online). */
     apiBase: location.port === '5000' ? '' : 'http://localhost:5000',
 
-    /* Globe position in viewport %. initialX/Y must match
-       .scan-header left/top in scan.css. */
+    /* Globe position in viewport %. It starts where it ends up, so the
+       scan dissolves into the welcome screen without anything jumping. */
     globe: {
-        initialX:     32,     // scan phase: beside the data rows
+        initialX:     50,
         initialY:     50,
-        centerX:      50,     // after the scan dissolves
+        centerX:      50,
         centerY:      50,
         postScanY:    12,     // wordmark's final top %
         size:         0.35,   // × wordmark width
@@ -24,12 +24,7 @@ const CONFIG = Object.freeze({
     },
 
     scan: {
-        maxVisible:         12,      // data rows on screen at once
-        leftPadding:        '8vw',   // must match .scan-lines-wrap padding-left in scan.css
-        progressHideDelay:  2000,    // ms after 100% before the bar fades
+        maxVisible:         14,      // data rows kept in the panel (older ones fade out at the top)
         conductorThreshold: 0.5,     // fraction of rows done before the scripted sequence starts
     },
-
-    /* Where the hand starts drawing the typewriter box (% of viewport) */
-    drawnBox: { leftPct: 62, topPct: 18 },
 });

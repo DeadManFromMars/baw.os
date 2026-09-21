@@ -14,7 +14,7 @@
     position: fixed;
     bottom: 32px;
     right: 32px;
-    width: 280px;
+    width: 300px;
     z-index: 200;
     opacity: 0;
     pointer-events: none;
@@ -59,8 +59,97 @@
     padding: 14px 18px 16px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
 }
+
+/* ── Now playing: CD + title/artist ── */
+.radio-now  { display: flex; align-items: center; gap: 14px; }
+.radio-meta { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+
+.radio-kicker {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--red);
+}
+
+/* ── A compact disc (the radio widget's and the mixtape manager's) ──
+     .cd          silver with a rainbow sheen, a clear hub and a hole through
+       .cd-spin   what turns: the printed label (cover art) + print
+   Like a real disc, the rainbow and the glints come from the light, so
+   they stay put while the print turns under them. Sizes are relative. */
+.cd {
+    position: relative;
+    border-radius: 50%;
+    /* the clear plastic hub around the hole: a milky ring with a stacking ridge */
+    background: radial-gradient(circle closest-side,
+        rgba(255, 255, 255, 0.5) 0 20%, rgba(255, 255, 255, 0.75) 21%,
+        rgba(26, 26, 24, 0.14) 22%, transparent 23%);
+    -webkit-mask-image: radial-gradient(circle closest-side, transparent 12.5%, #000 13.2%);
+            mask-image: radial-gradient(circle closest-side, transparent 12.5%, #000 13.2%);
+}
+.cd::before,                            /* the mirror: silver, rainbow bands, a clear rim */
+.cd::after {                            /* glints on top */
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    pointer-events: none;
+}
+/* A mirror: the room's light and dark reflected in sweeps round the disc
+   (chrome contrast, not flat grey), with the rainbow only a tint laid into
+   the reflection (soft-light) along two opposite fans, strongest where the
+   mirror is bright — where a real disc's diffraction shows. */
+.cd::before {
+    background:
+        conic-gradient(from 30deg,
+            hsl(0 0% 50% / 0) 0deg,
+            hsl(320 100% 60%) 14deg, hsl(260 100% 62%) 24deg, hsl(200 100% 55%) 34deg,
+            hsl(150 100% 45%) 44deg, hsl(55 100% 55%) 54deg, hsl(15 100% 58%) 64deg,
+            hsl(0 0% 50% / 0) 80deg 180deg,
+            hsl(320 100% 60%) 194deg, hsl(260 100% 62%) 204deg, hsl(200 100% 55%) 214deg,
+            hsl(150 100% 45%) 224deg, hsl(55 100% 55%) 234deg, hsl(15 100% 58%) 244deg,
+            hsl(0 0% 50% / 0) 260deg),
+        radial-gradient(circle closest-side, transparent 88%, rgba(255, 255, 255, 0.25) 91% 96%, transparent 97%),
+        conic-gradient(from 5deg,
+            #f4f6f8, #ffffff 5%, #aab0b7 13%, #6f767e 19%, #c9ced4 26%, #ffffff 33%, #e6e9ec 40%,
+            #8c939b 48%, #dfe3e7 55%, #ffffff 62%, #b8bec5 70%, #737a82 77%, #d4d8dd 85%, #ffffff 92%, #f4f6f8);
+    background-blend-mode: soft-light, normal, normal;
+    -webkit-mask-image: radial-gradient(circle closest-side, transparent 22.5%, #000 23.2% 97.5%, rgba(0, 0, 0, 0.4) 98.5%);
+            mask-image: radial-gradient(circle closest-side, transparent 22.5%, #000 23.2% 97.5%, rgba(0, 0, 0, 0.4) 98.5%);
+}
+.cd::after {                             /* two sharp glints across the disc, print and all */
+    z-index: 1;
+    background:
+        conic-gradient(from 118deg, transparent 0 6deg, rgba(255, 255, 255, 0.85) 10deg, transparent 14deg 186deg,
+                                    rgba(255, 255, 255, 0.6) 190deg, transparent 194deg),
+        linear-gradient(135deg, rgba(255, 255, 255, 0.28), transparent 40% 65%, rgba(255, 255, 255, 0.12));
+    box-shadow: inset 0 0 0 1px rgba(26, 26, 24, 0.12);
+    -webkit-mask-image: radial-gradient(circle closest-side, transparent 22.5%, #000 23.2%);
+            mask-image: radial-gradient(circle closest-side, transparent 22.5%, #000 23.2%);
+}
+.cd-spin { position: absolute; inset: 0; }
+.cd-label {                             /* the printed label, with the hub left clear */
+    position: absolute;
+    inset: 20%;
+    border-radius: 50%;
+    background: var(--ink) center / cover no-repeat;
+    box-shadow: 0 0 0 1px rgba(26, 26, 24, 0.15);
+    -webkit-mask-image: radial-gradient(circle closest-side, transparent 37.5%, #000 38.5%);
+            mask-image: radial-gradient(circle closest-side, transparent 37.5%, #000 38.5%);
+}
+
+/* The radio widget's disc turns while music plays (music.js puts .playing on the widget) */
+.radio-disc {
+    flex-shrink: 0;
+    width: 64px;
+    height: 64px;
+    filter: drop-shadow(0 2px 4px rgba(26, 26, 24, 0.2));
+}
+.radio-disc .cd-spin { animation: discSpin 3.2s linear infinite paused; }
+#radioWidget.playing .radio-disc .cd-spin { animation-play-state: running; }
+@keyframes discSpin { to { transform: rotate(360deg); } }
 
 /* Title scrolls only when too long (JS adds .fits otherwise) */
 .radio-marquee-wrap { overflow: hidden; }
@@ -81,11 +170,13 @@
 }
 
 .radio-artist {
-    margin-top: -6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 0.68rem;
     letter-spacing: 0.15em;
     text-transform: uppercase;
-    color: #55554d;
+    color: var(--text2);
 }
 
 /* Progress — click to seek */
@@ -106,17 +197,13 @@
     justify-content: space-between;
     margin-top: 4px;
     font-family: 'Space Mono', monospace;
-    font-size: 0.65rem;
-    color: #55554d;
+    font-size: 0.68rem;
+    color: var(--text2);
 }
 
-/* Prev / play / next */
-.radio-controls {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-}
+/* Prev / play / next on the left, volume on the right */
+.radio-deck     { display: flex; align-items: center; gap: 16px; }
+.radio-controls { display: flex; align-items: center; gap: 8px; }
 .radio-btn {
     width: 34px;
     height: 34px;
@@ -145,14 +232,18 @@
 .radio-play:hover { background: var(--ink2); }
 
 /* Volume */
-.radio-volume-wrap { display: flex; align-items: center; gap: 8px; }
+.radio-volume-wrap { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
 .radio-vol-label {
-    font-size: 0.65rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
     letter-spacing: 0.15em;
-    color: #55554d;
+    text-transform: uppercase;
+    color: var(--text2);
 }
 .radio-volume {
     flex: 1;
+    min-width: 0;          /* range inputs won't shrink below ~130px otherwise */
+    width: 100%;
     height: 4px;
     appearance: none;
     -webkit-appearance: none;
@@ -173,7 +264,7 @@
     font-size: 0.68rem;
     letter-spacing: 0.15em;
     text-transform: uppercase;
-    color: #55554d;
+    color: var(--text2);
     cursor: pointer;
     transition: color 0.2s;
 }
@@ -187,7 +278,6 @@
 
 #mixtapeOverlay {
     --mix-track-h: 64px;       /* sync with C.TRACK_H in music.js */
-    --mix-text-2:  #55554d;    /* readable secondary text on cream */
 
     position: fixed;
     inset: 0;
@@ -223,44 +313,58 @@
     letter-spacing: 0.3em;
     text-transform: uppercase;
 }
-.mix-sub     { font-size: 0.72rem; color: var(--mix-text-2); }
+.mix-sub     { font-size: 0.72rem; color: var(--text2); }
 .mix-unsaved { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--red); }
 .mix-close-btn {
     margin-left: auto;
     align-self: center;
-    width: 36px;
-    height: 36px;
-    border: 1px solid transparent;
-    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border: 1px solid var(--border2);
+    border-radius: 4px;
     background: transparent;
     font-family: inherit;
-    font-size: 1rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
     color: var(--ink);
     cursor: pointer;
+    transition: border-color 0.15s;
 }
-.mix-close-btn:hover { border-color: var(--border2); }
+.mix-close-btn:hover { border-color: var(--ink); }
 
-/* ── Columns ── */
+/* ── Columns ──
+   Library takes what's left; the record and the mixtape grow with the
+   window. Very wide windows keep it all in a centred band. */
 
-.mix-body { flex: 1; display: flex; min-height: 0; }
+.mix-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    width: 100%;
+    max-width: 1680px;
+    margin: 0 auto;
+}
 .mix-col  { display: flex; flex-direction: column; min-height: 0; }
-.mix-col-library { flex: 1; min-width: 0; }
+.mix-col-library { flex: 1 1 0; min-width: 0; }
 .mix-col-record  {
-    width: 320px;
-    flex-shrink: 0;
+    flex: 0 0 clamp(380px, 30vw, 560px);
     align-items: center;
     justify-content: center;
-    gap: 16px;
-    padding: 24px;
+    gap: 22px;
+    padding: 32px 24px;
     border-left: 1px solid var(--border2);
     border-right: 1px solid var(--border2);
 }
-.mix-col-queue { width: 380px; flex-shrink: 0; }
+.mix-col-queue { flex: 0 0 clamp(320px, 24vw, 440px); min-width: 0; }
 
 .mix-col-head {
     display: flex;
+    flex-wrap: wrap;                     /* narrow columns: buttons drop to a second line, not off the edge */
     align-items: center;
-    gap: 12px;
+    gap: 8px 12px;
     padding: 12px 20px 10px 24px;
     border-bottom: 1px solid var(--border2);
     flex-shrink: 0;
@@ -273,14 +377,14 @@
     letter-spacing: 0.2em;
     text-transform: uppercase;
 }
-.mix-col-count { margin-right: auto; font-size: 0.72rem; color: var(--mix-text-2); }
+.mix-col-count { margin-right: auto; white-space: nowrap; font-size: 0.72rem; color: var(--text2); }
 
 .mix-hint {
     margin: 0;
     padding: 8px 24px;
     border-top: 1px solid var(--border2);
     font-size: 0.68rem;
-    color: var(--mix-text-2);
+    color: var(--text2);
     flex-shrink: 0;
 }
 .mix-empty {
@@ -288,7 +392,7 @@
     padding: 36px 24px;
     font-size: 0.75rem;
     line-height: 1.6;
-    color: var(--mix-text-2);
+    color: var(--text2);
     text-align: center;
     list-style: none;
 }
@@ -305,7 +409,7 @@
     letter-spacing: 0.1em;
     text-transform: uppercase;
     white-space: nowrap;
-    color: var(--mix-text-2);
+    color: var(--text2);
     cursor: pointer;
     transition: color 0.15s, border-color 0.15s;
 }
@@ -316,7 +420,7 @@
 .mix-text-btn:disabled { opacity: 0.35; cursor: default; }
 
 .mix-sort { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-.mix-sort-label { font-size: 0.68rem; color: var(--mix-text-2); }
+.mix-sort-label { font-size: 0.68rem; color: var(--text2); }
 
 /* ── Library wheel ──
    Rows are absolutely positioned by music.js every frame, so no CSS
@@ -363,7 +467,7 @@
 .mix-track-row-active { border-left-color: var(--red); }
 .mix-track-row-active .mix-track-index { color: var(--red); }
 
-.mix-track-index { width: 24px; flex-shrink: 0; text-align: right; font-size: 0.72rem; color: var(--mix-text-2); }
+.mix-track-index { width: 24px; flex-shrink: 0; text-align: right; font-size: 0.72rem; color: var(--text2); }
 .mix-track-info  { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .mix-track-title {
     font-size: 0.92rem;
@@ -376,7 +480,7 @@
     text-overflow: ellipsis;
 }
 .mix-track-row-active .mix-track-title { color: var(--ink); }
-.mix-track-artist { font-size: 0.72rem; color: var(--mix-text-2); }
+.mix-track-artist { font-size: 0.72rem; color: var(--text2); }
 .now-playing .mix-track-title,
 .now-playing .mix-queue-title { color: var(--red); }
 
@@ -387,7 +491,7 @@
     padding: 2px 8px;
     border: 1px solid var(--ink);
     border-radius: 3px;
-    font-size: 0.62rem;
+    font-size: 0.68rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
 }
@@ -409,55 +513,146 @@
 
 /* ── Selected record ── */
 
-.mix-record-info   { text-align: center; max-width: 100%; }
+/* Long titles wrap (up to 3 lines) instead of being cut off */
+.mix-record-info   { width: 100%; max-width: 440px; text-align: center; }
 .mix-record-title  {
-    margin: 0 0 4px;
-    font-size: 0.92rem;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+    margin: 0 0 6px;
+    font-size: 1.05rem;
     font-weight: 700;
+    line-height: 1.3;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    text-wrap: balance;
+    overflow-wrap: anywhere;
 }
-.mix-record-artist { margin: 0; font-size: 0.75rem; color: var(--mix-text-2); }
+.mix-record-artist { margin: 0; font-size: 0.78rem; color: var(--text2); }
 
-/* Sleeve with the vinyl peeking out to the right */
-.mix-sleeve-wrap { position: relative; width: 190px; height: 190px; margin-right: 40px; }
-.mix-sleeve {
+/* The CD in its jewel case. Clicking the lid toggles .open (music.js, THE
+   CD): the lid cracks open on its hinge, then the disc pops out to the
+   right. Taking .open off reverses it — disc first, then the lid; the
+   total (0.32 s) is CD.CLOSE_MS. */
+.mix-cd-stage {
+    --case: clamp(190px, 16vw, 320px);
+    position: relative;
+    flex-shrink: 0;
+    width: var(--case);                  /* shut: just the case, centred */
+    height: var(--case);
+    transition: width 0.3s ease 0.1s;
+    perspective: calc(var(--case) * 4);
+    perspective-origin: calc(var(--case) * 0.5) 50%;
+}
+
+.mix-cd-stage.open {                     /* open: the case slides over to make room for the disc */
+    width: calc(var(--case) * 1.62);
+    transition: width 0.4s cubic-bezier(0.3, 1.2, 0.5, 1);
+}
+
+.mix-case-tray {                         /* the back: black tray + hinge */
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--case);
+    height: var(--case);
+    border-radius: 4px;
+    background: #1d1d1b;
+    box-shadow: 0 14px 30px rgba(26, 26, 24, 0.25), 0 2px 6px rgba(26, 26, 24, 0.18);
+}
+.mix-case-tray::before {                 /* the hinge down the left */
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 6%;
+    border-radius: 4px 0 0 4px;
+    background:
+        repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.12) 0 1px, transparent 1px 4px),
+        linear-gradient(90deg, #2b2b29, #454541 55%, #222220);
+}
+
+.mix-case-lid {                          /* clear lid holding the booklet, hinged on its left edge */
+    position: absolute;
+    top: 0;
+    left: calc(var(--case) * 0.06);
+    z-index: 3;
+    width: calc(var(--case) * 0.94);
+    height: var(--case);
+    padding: 0;
+    border: none;
+    border-radius: 2px 4px 4px 2px;
+    background: transparent;
+    cursor: pointer;
+    transform-origin: left center;
+    transform-style: preserve-3d;
+    transition: transform 0.2s ease-in 0.12s;                            /* shuts after the disc is in */
+}
+.mix-cd-stage.open .mix-case-lid {
+    transform: rotateY(-38deg);
+    transition: transform 0.34s cubic-bezier(0.3, 1.45, 0.5, 1);         /* snaps open */
+}
+.mix-case-lid::before {                  /* the lid's clear edge, seen once it tilts towards you */
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: calc(var(--case) * 0.025);
+    height: 100%;
+    transform-origin: right center;
+    transform: rotateY(-90deg);          /* stands back from the face, towards the tray */
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.7), rgba(210, 214, 218, 0.55) 50%, rgba(255, 255, 255, 0.7));
+}
+.mix-case-art {                          /* the booklet */
+    position: absolute;
+    inset: 2.5%;
+    background: center / cover no-repeat;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.mix-case-art.loaded { opacity: 1; }
+.mix-case-lid::after {                   /* the plastic: bevelled edge + glare, which slides as the lid tilts */
+    content: '';
     position: absolute;
     inset: 0;
-    z-index: 1;
-    border-radius: 3px;
-    background: var(--ink);
-    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(118deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.08) 13%,
+                                transparent 20% 36%, rgba(255, 255, 255, 0.1) 50%, transparent 64%)
+                0 0 / 200% 100%;
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.45),
+        inset 0 0 0 3px rgba(26, 26, 24, 0.2),
+        inset 0 0 0 4px rgba(255, 255, 255, 0.12);
+    transition: background-position 0.2s ease-in 0.12s, filter 0.2s ease-in 0.12s;
 }
-.mix-sleeve-art {
-    width: 100%;
-    height: 100%;
-    background-size: cover;
-    background-position: center;
-    opacity: 0;
-    transition: opacity 0.4s ease;
+.mix-cd-stage.open .mix-case-lid::after {
+    background-position: 60% 0;
+    filter: brightness(1.4);
+    transition: background-position 0.34s ease-out, filter 0.34s ease-out;
 }
-.mix-sleeve-art.loaded { opacity: 1; }
-.mix-vinyl {
+
+.mix-cd-slot {                           /* in the tray, under the lid, until it pops out */
     position: absolute;
-    right: -42px;
-    top: 50%;
-    width: 170px;
-    height: 170px;
-    border-radius: 50%;
-    transform: translateY(-50%);
-    background: radial-gradient(circle,          /* grooves */
-        #1a1a18 20%, #2a2a28 21% 22%, #1a1a18 23% 40%,
-        #252523 41% 42%, #1a1a18 43% 60%, #252523 61% 62%, #1a1a18 63%);
+    top: calc(var(--case) * 0.05);
+    left: calc(var(--case) * 0.05);
+    z-index: 2;
+    width: calc(var(--case) * 0.9);
+    height: calc(var(--case) * 0.9);
+    filter: drop-shadow(0 2px 3px rgba(26, 26, 24, 0.2));
+    transition: transform 0.18s ease-in;
 }
-.mix-vinyl.spinning { animation: vinylSpin 2s linear infinite; }
-@keyframes vinylSpin {
-    from { transform: translateY(-50%) rotate(0deg); }
-    to   { transform: translateY(-50%) rotate(360deg); }
+.mix-cd-stage.open .mix-cd-slot {
+    transform: translate(72%, -2%);
+    filter: drop-shadow(0 8px 14px rgba(26, 26, 24, 0.28));
+    transition: transform 0.5s cubic-bezier(0.34, 1.5, 0.6, 1) 0.14s;         /* pops, after the lid */
+    cursor: grab;
+    touch-action: none;
 }
+.mix-cd-slot.held { cursor: grabbing; }
+.mix-cd-slot .cd { width: 100%; height: 100%; }
 
 /* ‹ preview › — browse the library and listen to the selected track */
 .mix-browse {
@@ -477,7 +672,7 @@
     font-family: inherit;
     font-size: 1.5rem;
     line-height: 1;
-    color: var(--mix-text-2);
+    color: var(--text2);
     cursor: pointer;
     transition: color 0.15s, background 0.15s;
 }
@@ -550,7 +745,7 @@
 .mix-queue-row.drop-above { border-top-color: var(--red); }
 .mix-queue-row.drop-below { border-bottom-color: var(--red); }
 
-.mix-queue-grip { cursor: grab; color: var(--mix-text-2); font-size: 0.8rem; user-select: none; }
+.mix-queue-grip { cursor: grab; color: var(--text2); font-size: 0.8rem; user-select: none; }
 .mix-queue-play {
     flex: 1;
     min-width: 0;
@@ -565,7 +760,7 @@
     color: inherit;
     cursor: pointer;
 }
-.mix-queue-pos  { width: 22px; flex-shrink: 0; text-align: right; font-size: 0.68rem; color: var(--mix-text-2); }
+.mix-queue-pos  { width: 22px; flex-shrink: 0; text-align: right; font-size: 0.68rem; color: var(--text2); }
 .mix-queue-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .mix-queue-title {
     font-size: 0.78rem;
@@ -577,7 +772,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.mix-queue-artist { font-size: 0.68rem; color: var(--mix-text-2); }
+.mix-queue-artist { font-size: 0.68rem; color: var(--text2); }
 .mix-queue-remove {
     width: 32px;
     height: 32px;
@@ -587,7 +782,7 @@
     border-radius: 50%;
     background: transparent;
     font-size: 0.75rem;
-    color: var(--mix-text-2);
+    color: var(--text2);
     cursor: pointer;
 }
 .mix-queue-remove:hover { background: var(--red); color: #fff; }
@@ -602,7 +797,7 @@
     border-top: 1px solid var(--border2);
     flex-shrink: 0;
 }
-.mix-msg { flex: 1; margin: 0; min-height: 1.2em; font-size: 0.72rem; color: var(--mix-text-2); }
+.mix-msg { flex: 1; margin: 0; min-height: 1.2em; font-size: 0.72rem; color: var(--text2); }
 .mix-msg-success { color: #3f6b57; }
 .mix-msg-error   { color: #c42a1f; }
 .mix-save-btn {
@@ -628,11 +823,11 @@
     .mix-body { flex-direction: column; overflow-y: auto; }
     .mix-col-library { min-height: 50vh; }
     .mix-col-record,
-    .mix-col-queue { width: auto; border: none; border-top: 1px solid var(--border2); }
+    .mix-col-queue { flex: none; border: none; border-top: 1px solid var(--border2); }
     .mix-col-queue { min-height: 50vh; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    #mixtapeOverlay, #radioWidget { transition: none; }
-    .radio-marquee, .mix-vinyl.spinning { animation: none; }
+    #mixtapeOverlay, #radioWidget, .mix-cd-stage, .mix-cd-slot, .mix-case-lid { transition: none !important; }
+    .radio-marquee, .radio-disc .cd-spin { animation: none; }
 }

@@ -5,33 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BAWSOME ONLINE</title>
 
-    <!--
-    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    FONTS
-    Space Grotesk + Space Mono loaded from Google Fonts.
-    The custom brand fonts (Vipnagorgialla, DeadPostman) are
-    loaded via @font-face in base.css from the /fonts/ folder.
-    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    -->
-    <link
-        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap"
-        rel="stylesheet"
-    >
+    <!-- Space Mono (readouts). The brand fonts load from /fonts/ in base.css. -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 
-    <!--
-    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    CSS LOAD ORDER
-    Order matters. Each file depends on variables and resets
-    declared in the files above it.
-
-      base.css        — reset, :root variables, shared keyframes
-      background.css  — dot canvas, haze, globe, geo lines, corners
-      scan.css        — scan phase layout + all subcomponents
-      login.css       — login input, secured flash, hex canvas
-      arg.css         — registration + card upload prompts
-      radio.css       — draggable music player widget
-    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    -->
+    <!-- base.css first (fonts, colour tokens); scan.css before arg.css (the prompts
+         reuse its --scan-* layout). One file per part of the site otherwise. -->
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/background.css">
     <link rel="stylesheet" href="css/scan.css">
@@ -54,10 +32,17 @@
     <div id="radioWidget" role="region" aria-label="Music player">
         <div id="radioDragHandle" title="Drag to move"></div>
         <div class="radio-inner">
-            <div class="radio-marquee-wrap">
-                <div class="radio-marquee" id="radioTitle"></div>
+            <div class="radio-now">
+                <!-- CD: spins while playing, cover art as the centre label -->
+                <div class="cd radio-disc" aria-hidden="true"><div class="cd-spin"><div class="cd-label" id="radioArt"></div></div></div>
+                <div class="radio-meta">
+                    <div class="radio-kicker">Now playing</div>
+                    <div class="radio-marquee-wrap">
+                        <div class="radio-marquee" id="radioTitle"></div>
+                    </div>
+                    <div class="radio-artist" id="radioArtist"></div>
+                </div>
             </div>
-            <div class="radio-artist" id="radioArtist"></div>
             <div>
                 <div class="radio-progress-bar" id="radioProgress" title="Click to seek">
                     <div class="radio-progress-fill" id="radioFill"></div>
@@ -67,15 +52,17 @@
                     <span id="radioDuration">0:00</span>
                 </div>
             </div>
-            <div class="radio-controls">
-                <button type="button" class="radio-btn" data-radio="prev" aria-label="Previous track">&#9664;&#9664;</button>
-                <button type="button" class="radio-btn radio-play" data-radio="play" id="radioPlayBtn" aria-label="Play">&#9654;</button>
-                <button type="button" class="radio-btn" data-radio="next" aria-label="Next track">&#9654;&#9654;</button>
+            <div class="radio-deck">
+                <div class="radio-controls">
+                    <button type="button" class="radio-btn" data-radio="prev" aria-label="Previous track">&#9664;&#9664;</button>
+                    <button type="button" class="radio-btn radio-play" data-radio="play" id="radioPlayBtn" aria-label="Play">&#9654;</button>
+                    <button type="button" class="radio-btn" data-radio="next" aria-label="Next track">&#9654;&#9654;</button>
+                </div>
+                <label class="radio-volume-wrap">
+                    <span class="radio-vol-label">Vol</span>
+                    <input type="range" class="radio-volume" id="radioVolume" min="0" max="100" value="30">
+                </label>
             </div>
-            <label class="radio-volume-wrap">
-                <span class="radio-vol-label">VOL</span>
-                <input type="range" class="radio-volume" id="radioVolume" min="0" max="100" value="30">
-            </label>
             <button type="button" class="radio-mixtape-btn" data-radio="mixtape">Mixtape manager</button>
         </div>
     </div>
@@ -85,13 +72,8 @@
 
 
     <!-- ─────────────────────────────────────────────────────────
-         BACKGROUND LAYERS
-         z-index 0–5. All purely decorative.
-         Dot canvas is drawn by globe.js.
-         Haze is CSS-only animation.
-         VHS overlay activates during the conductor freeze.
-         Geo lines and corner accents are CSS-animated SVGs.
-         Scroll lines drift across the screen via CSS.
+         BACKGROUND — decorative only (background.css). The dots are
+         drawn by globe.js; the VHS overlay dims the scan's freeze.
     ───────────────────────────────────────────────────────────── -->
     <canvas id="dotCanvas"></canvas>
     <div class="haze"></div>
@@ -135,12 +117,7 @@
     <div class="scroll-line sl-5"></div>
 
 
-    <!-- ─────────────────────────────────────────────────────────
-         TERMINAL BAR
-         Slides up from below the viewport during the conductor
-         sequence. Hidden off-screen (bottom:-110px) until
-         scan.js adds .visible.
-    ───────────────────────────────────────────────────────────── -->
+    <!-- TERMINAL BAR — slides up during the scan's scripted part (scan.js adds .visible) -->
     <div id="termBar">
         <span class="term-prompt">root@bsi-node-7 ~$</span>
         <span class="term-line" id="termLine">
@@ -149,107 +126,67 @@
     </div>
 
 
-    <!-- ─────────────────────────────────────────────────────────
-         HAND IMAGES
-         Two hand PNGs moved by JS via style.left/top.
-         #handImg      — draws the typewriter box (approaches from right)
-         #handImgFlipped — fixes the orphan row (approaches from left)
-         mix-blend-mode:multiply in CSS makes the white bg invisible.
-    ───────────────────────────────────────────────────────────── -->
+    <!-- HANDS (scan.js): #handImg draws the message box, #handImgFlipped fixes the orphaned row -->
     <img id="handImg"        src="Images/hand.png" alt="">
     <img id="handImgFlipped" src="Images/hand.png" alt="">
 
 
-    <!-- ─────────────────────────────────────────────────────────
-         GLOBE
-         Canvas drawn by globe.js. SVG overlay holds the pin lines
-         and box anchors — they're SVG elements, not canvas draws,
-         so they can be individually animated without redrawing.
-    ───────────────────────────────────────────────────────────── -->
+    <!-- GLOBE (globe.js): dots on the canvas, pin lines + boxes in the SVG -->
     <canvas id="globeCanvas"></canvas>
-    <svg
-        id="globeOverlay"
-        style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:10;overflow:visible;"
-    ></svg>
+    <svg id="globeOverlay"></svg>
 
 
     <!-- ─────────────────────────────────────────────────────────
          SCAN PHASE
          Hidden initially (display:none). Login.js reveals it
-         after the secured flash plays.
-         Left column: scrolling data rows + progress bar.
-         Right column: hand-drawn typewriter box.
+         after the secured flash plays. Laid out around the final
+         welcome screen: wordmark top centre, globe centre, and two
+         matching panels either side (sizes in scan.css).
+           .scan-left   data readout + progress bar
+           .scan-right  empty frame the hand draws #drawnBox into
     ───────────────────────────────────────────────────────────── -->
-    <div id="scanPhase" style="display:none;">
+    <div id="scanPhase">
 
         <div class="scan-header">
-            <div class="scan-wordmark">
-                BAWSOME ONLINE
-            </div>
+            <div class="scan-wordmark">BAWSOME ONLINE</div>
             <div class="scan-tagline">Initializing Secure Session</div>
         </div>
 
-        <div class="scan-left">
+        <section class="scan-panel scan-left" aria-label="Scan">
+            <div class="scan-panel-head">
+                <span>Subject scan</span>
+                <span id="progressPct">0%</span>
+            </div>
             <div class="scan-lines-wrap" id="scanLinesWrap">
                 <div class="scan-lines" id="scanLines"></div>
             </div>
             <div class="scan-progress">
-                <div class="progress-track">
-                    <div class="progress-fill" id="progressFill"></div>
-                </div>
-                <div class="progress-meta">
-                    <span id="progressLabel">Collecting data</span>
-                    <span id="progressPct">0%</span>
-                </div>
+                <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+                <span id="progressLabel">Collecting data</span>
             </div>
-        </div>
+        </section>
 
-        <div class="scan-right" id="scanRight">
-            <div id="drawnBox">
-                <div class="drawn-box-inner">
-                    <div class="tw-text"  id="twText1"></div>
-                    <div class="tw-text2" id="twText2"></div>
-                    <div class="tw-text3" id="twText3"></div>
-                </div>
-            </div>
+        <div class="scan-panel scan-right" id="scanRight"></div>
+
+        <div id="drawnBox">
+            <div class="tw-text" id="twText1"></div>
+            <div class="tw-text" id="twText2"></div>
+            <div class="tw-text tw-text-last" id="twText3"></div>
         </div>
 
     </div>
 
 
-    <!-- hexCanvas removed — intro sequence now runs inside #cityCanvas via Three.js -->
-
-
-    <!-- ─────────────────────────────────────────────────────────
-         SECURED FLASH
-         Plays once after correct login. The word "SECURED" flickers
-         in with expanding SVG ripple rectangles, then flickers out.
-         Controlled entirely by login.js playSecuredFlash().
-    ───────────────────────────────────────────────────────────── -->
+    <!-- SECURED FLASH — after the right passphrase (login.js) -->
     <div id="securedFlash">
         <div id="securedWord">SECURED</div>
-        <svg
-            id="securedRipples"
-            style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;"
-        ></svg>
+        <svg id="securedRipples"></svg>
     </div>
 
+    <!-- HEX CITY — first-visit intro (city.js); session.js shows it, it hides after login -->
+    <canvas id="cityCanvas"></canvas>
 
-    <!-- ─────────────────────────────────────────────────────────
-         HEX CITY CANVAS
-         3D perspective flythrough rendered by city.js.
-         Plays behind the login screen and continues in the background.
-         display:none here — session.js sets display:block when needed.
-         z-index set dynamically (500 during intro swoop, 18 after).
-    ───────────────────────────────────────────────────────────── -->
-    <canvas id="cityCanvas" style="position:fixed;inset:0;width:100%;height:100%;z-index:18;display:none;"></canvas>
-
-
-    <!-- ─────────────────────────────────────────────────────────
-         LOGIN PHASE
-         A bare passphrase input floating over the hex city.
-         No card, no box — just the input. City renders through.
-    ───────────────────────────────────────────────────────────── -->
+    <!-- LOGIN — the passphrase, floating over the city (login.css) -->
     <div id="loginPhase">
 
         <div class="lp-hud-tl">
@@ -287,7 +224,7 @@
     <button id="argLogout"     data-sfx="hover" data-action="logout">LOGOUT</button>
     <button id="inventoryBtn"  data-sfx="hover" data-action="inventory">INVENTORY</button>
     <button id="cardEditorBtn" data-sfx="hover" data-action="card-editor">EDIT CARD</button>
-    <!-- DEV: gives you every sticker (backend DEBUG only) — remove before launch -->
+    <!-- DEV: gives you every sticker. Shown only on localhost (arg.js); the backend allows it in DEBUG only. -->
     <button id="devStickerBtn" data-sfx="hover" data-action="dev-stickers">⬡ GET STICKERS</button>
 
 
@@ -343,7 +280,7 @@
          Clicking it opens the hidden file input.
          The "—" ghost button resets to registration if needed.
     ───────────────────────────────────────────────────────────── -->
-    <div id="argCardPrompt" class="arg-right-prompt">
+    <div id="argCardPrompt">
         <div class="arg-minimal-inner">
             <div class="arg-card-slot" data-sfx="hover" data-action="pick-card" title="insert card">
                 <!-- Decorative card diagram — mirrors the actual BAWSOME card template.
@@ -352,7 +289,7 @@
                 <svg class="arg-card-diagram" viewBox="0 0 56 86" xmlns="http://www.w3.org/2000/svg">
                   <!-- Card body -->
                   <rect x="1" y="1" width="54" height="84" rx="5" ry="5"
-                        fill="#aaff00" stroke="var(--ink)" stroke-width="1" stroke-opacity="0.35"/>
+                        fill="#aaff00" fill-opacity="0.45" stroke="var(--ink)" stroke-width="1" stroke-opacity="0.35"/>
 
                   <!-- Subtle grid on lime area (left of stripe) -->
                   <line x1="0"  y1="14" x2="56" y2="14" stroke="var(--ink)" stroke-width="0.3" stroke-opacity="0.08"/>
@@ -421,61 +358,42 @@
 
 
     <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-         JAVASCRIPT LOAD ORDER
-
-         Order is critical — each module depends on the ones above it.
-
-         Tier 1: Constants (no deps)
-           config.js   — all magic numbers, single source of truth
-
-         Tier 2: Pure utilities (dep: config.js)
-           utils.js    — pure functions, zero DOM, zero side effects
-
-         Tier 3: Data collection (dep: utils.js)
-           data.js     — fingerprint + session data, populates DataStore
-
-         Tier 4: Independent visual modules (dep: config.js, utils.js)
-           city.js     — hex city 3D renderer (CITY module)
-           music.js    — playback, radio widget, mixtape manager
-           globe.js    — spinning globe + pin lines + background dots
-
-         Tier 5: Gameplay modules (dep: everything above)
-           scan.js     — scan rows + conductor sequence (Scan module)
-           login.js    — login form + secured flash (Login module)
-           arg.js      — ARG backend + registration (Arg module)
-
-         Tier 6: Orchestration (dep: all gameplay modules)
-           session.js  — reads localStorage, routes to correct flow
-
+         SCRIPTS — config + utils first, session.js last (it starts
+         everything). The ones in between only talk to each other at
+         run time, so their order doesn't matter.
+           config.js      shared settings (API address, globe, scan)
+           utils.js       small shared helpers + the 3D card model
+           data.js        what the scan "finds" about the visitor
+           three-loader   3D library as window.THREE (a module, so it runs
+                          after these — see js/three-loader.js)
+           city.js        hex city intro        music.js    radio + mixtape
+           globe.js       globe, pins, dots     sounds.js   UI sounds
+           scan.js        the scan sequence     login.js    passphrase + SECURED
+           inventory.js   inventory overlay     cardeditor.js  card editor
+           arg.js         register / card login / welcome / button actions
+           signal.js      signal viewer
+           session.js     decides where a visitor starts
          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-
-    <!-- Tier 1 -->
     <script src="js/config.js"></script>
-
-    <!-- Tier 2 -->
     <script src="js/utils.js"></script>
-
-    <!-- Tier 3 -->
     <script src="js/data.js"></script>
-
-    <!-- Tier 4 — order within this tier doesn't matter -->
-    <!-- Three.js must load before city.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script type="importmap">
+        { "imports": {
+            "three":         "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        } }
+    </script>
+    <script type="module" src="js/three-loader.js"></script>
     <script src="js/city.js"></script>
     <script src="js/music.js"></script>
     <script src="js/globe.js"></script>
-
-    <!-- Tier 5 — order within this tier doesn't matter -->
+    <script src="js/sounds.js"></script>
     <script src="js/scan.js"></script>
     <script src="js/login.js"></script>
-    <script src="js/sounds.js"></script>
     <script src="js/inventory.js"></script>
     <script src="js/cardeditor.js"></script>
     <script src="js/arg.js"></script>
-
     <script src="js/signal.js"></script>
-
-    <!-- Tier 6 — must be last -->
     <script src="js/session.js"></script>
 
 </body>

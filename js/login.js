@@ -65,17 +65,21 @@ const Login = (() => {
         });
     }
 
-    /* Fade the scan phase in; its columns follow, then rows start streaming */
+    /* The log-on: blank screen → globe grows in (globe.js) → as it settles
+       the wordmark rises above it → the data panel fades in → rows stream */
     async function revealScanPhase() {
         const scanPhase = document.getElementById('scanPhase');
-        const columns   = ['.scan-lines-wrap', '.scan-progress', '.scan-right'].map(s => document.querySelector(s));
+        const panel     = document.querySelector('.scan-left');
 
-        Object.assign(scanPhase.style, { display: 'flex', opacity: '0', transition: 'opacity 2s ease' });
-        columns.forEach(el => { el.style.opacity = '0'; });
-        requestAnimationFrame(() => { scanPhase.style.opacity = '1'; });
+        await Utils.sleep(600);                 // a beat of empty screen
+        await window.globeLogOn();              // resolves as the globe starts settling
+        document.body.classList.add('accents-ready');   // page frame fades in (background.css)
 
-        await Utils.sleep(3000);
-        columns.forEach(el => { el.style.transition = 'opacity 1.5s ease'; el.style.opacity = '1'; });
+        panel.style.opacity = '0';
+        Object.assign(scanPhase.style, { display: 'block', opacity: '1' });   // wordmark has its own rise-in (scan.css)
+
+        await Utils.sleep(1700);
+        Object.assign(panel.style, { transition: 'opacity 1.2s ease', opacity: '1' });
         Scan.start();
     }
 

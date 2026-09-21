@@ -18,11 +18,15 @@
 
    CONTROLS  (act on the picked sticker, or the selected placed one)
      Click sticker in tray   pick it as a stamp (click again to drop)
+     Drag sticker from tray  place it where you let go
      Click card              stamp it          Enter  (card focused)
+     Drag empty space        turn the card — stickers go on whichever
+                             face is towards you
      Scroll  /  + −          resize
      Q / E                   rotate            Shift = fine steps
      Arrow keys              move              Shift = bigger steps
-     Click / drag placed     select / move it
+     Click / drag placed     select / move it — past an edge it folds
+                             round, and on over to the other face
      Delete / Backspace      remove selected
      Ctrl+Z                  undo              Ctrl+S  save
      Esc                     drop stamp → deselect → close
@@ -33,7 +37,7 @@
      the editor repeatedly doesn't leak memory or slow the page.
 
    DEPENDENCIES:
-     config.js, utils.js, sounds.js, Three.js (r128),
+     config.js, utils.js (the plastic card model), sounds.js, Three.js (three-loader.js),
      inventory.js (card cache reset), arg.js (card download)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
@@ -43,12 +47,10 @@ const CardEditor = (() => {
        CONSTANTS
     ════════════════════════════════════════════════════════ */
 
-    // Card + sticker geometry — must match card_gen.py so the
-    // preview lines up with the PNG the backend draws.
-    const CARD_W        = Utils.CARD_DIMS.w;
-    const CARD_H        = Utils.CARD_DIMS.h;
-    const STICKER_BASE  = 0.09;   // sticker width at scale 1, as a fraction of card width
-    const STICKER_Z     = 0.02;   // stickers float just above the card face
+    // Card size (utils.js). Sticker size, placement and the fold round the
+    // edges live in Utils.makeSticker / settleSticker, matching card_gen.py.
+    const CARD_W        = Utils.CARD.w;
+    const CARD_H        = Utils.CARD.h;
 
     // Editing limits — mirrored in save_sticker_layout() in routes.py
     const STICKER_LIMITS = { minScale: 0.3, maxScale: 5.0, maxCount: 50 };
@@ -87,7 +89,7 @@ const CardEditor = (() => {
     // The "stamp tool" — the sticker picked from the tray, waiting to be placed.
     // Its scale/rotation carry over between stamps so repeated stamps match.
     const _tool = {
-        slug: null, scale: 1, rotation: 0, x_pct: 0.5, y_pct: 0.5,
+        slug: null, scale: 1, rotation: 0, face: 'front', x_pct: 0.5, y_pct: 0.5,
         pointerOver: false,     // mouse is over the card
         canvasFocused: false,   // keyboard focus is on the card
     };
@@ -196,7 +198,7 @@ const CardEditor = (() => {
         _selected = -1;
         _confirmingClose = false;
         _saving = false;
-        Object.assign(_tool,   { slug: null, x_pct: 0.5, y_pct: 0.5, pointerOver: false, canvasFocused: false });
+        Object.assign(_tool,   { slug: null, face: 'front', x_pct: 0.5, y_pct: 0.5, pointerOver: false, canvasFocused: false });
         Object.assign(_avatar, { file: null, img: null, x: 0, y: 0, scale: 1, dirty: false });
     }
 
@@ -247,6 +249,8 @@ const CardEditor = (() => {
 
                     <ul class="ced-help" id="cedHelp">
                         <li><kbd>Click</kbd> stamp</li>
+                        <li><kbd>Drag</kbd> sticker onto card</li>
+                        <li><kbd>Drag</kbd> empty space to turn</li>
                         <li><kbd>Scroll</kbd> <kbd>+</kbd><kbd>−</kbd> size</li>
                         <li><kbd>Q</kbd><kbd>E</kbd> rotate</li>
                         <li><kbd>←↑↓→</kbd> move</li>
@@ -306,8 +310,12 @@ const CardEditor = (() => {
             e.target.value = '';   // allow re-picking the same file
         });
 
-        // ── Delegated clicks: tray + layers ──
+        // ── Delegated clicks: tray + layers; tray stickers can also be dragged onto the card ──
         _on(_el('cedStickerTray'), 'click', _onTrayClick);
+        _on(_el('cedStickerTray'), 'pointerdown', _onTrayPointerDown);
+        _on(_el('cedStickerTray'), 'dragstart', e => e.preventDefault());   // no native image drag
+        _on(window, 'pointermove', _onWindowPointerMove);
+        _on(window, 'pointerup', _onWindowPointerUp);
         _on(_el('cedLayersPanel'), 'click', _onLayersClick);
 
         // ── Keyboard ──
@@ -361,20 +369,19 @@ const CardEditor = (() => {
         _refreshUI();
     }
 
-    // Load one sticker's texture + material. Resolves even on failure
-    // (material stays null and that sticker is simply not drawn).
+    // Load one sticker's texture. Resolves even on failure
+    // (texture stays null and that sticker is simply not drawn).
     function _loadStickerAsset(slug) {
         if (_assets.has(slug)) return _assets.get(slug).ready;
 
-        const asset = { material: null, aspect: 1, ready: null };
+        const asset = { texture: null, aspect: 1, ready: null };
         asset.ready = new Promise(resolve => {
             new THREE.TextureLoader().load(
                 Utils.stickerSrc(slug),
                 tex => {
+                    tex.colorSpace = THREE.SRGBColorSpace;
+                    asset.texture  = tex;
                     asset.aspect   = tex.image.height / tex.image.width;
-                    asset.material = new THREE.MeshBasicMaterial({
-                        map: tex, transparent: true, alphaTest: 0.01, depthWrite: false,
-                    });
                     resolve(asset);
                 },
                 undefined,
@@ -396,14 +403,8 @@ const CardEditor = (() => {
             new THREE.TextureLoader().load(url, tex => {
                 URL.revokeObjectURL(url);
                 if (!_alive(session) || !_three) { tex.dispose(); return; }
-                tex.flipY      = false;
                 tex.anisotropy = _three.renderer.capabilities.getMaxAnisotropy();
-
-                const face = _three.faceMat;
-                face.map?.dispose();
-                face.map = tex;
-                face.color.set(0xffffff);
-                face.needsUpdate = true;
+                _three.cardModel.setFace(tex);      // replaces (and frees) the previous one
                 _invalidate();
             });
         } catch (err) {
@@ -433,46 +434,32 @@ const CardEditor = (() => {
         renderer.setSize(W, H, false);     // false = leave canvas CSS size to the stylesheet
         renderer.setClearColor(0x000000, 0);
 
-        scene.add(new THREE.AmbientLight(0xffffff, 0.85));
-        const keyLight = new THREE.DirectionalLight(0xffffff, 0.9);
-        keyLight.position.set(1.5, 2.5, 3);
-        scene.add(keyLight);
+        // Lighting + the live globe seen through the plastic (utils.js).
+        // The stamp model reflects the same studio.
+        const stage = Utils.setUpCardStage(scene, renderer, camera, canvas);
 
-        // ── Card ──
-        const faceMat = new THREE.MeshBasicMaterial({ color: 0xaaff00 });   // lime until the texture arrives
-        const edgeMat = new THREE.MeshStandardMaterial({ color: 0x1a1a18, roughness: 0.55, metalness: 0.1 });
-        const card    = new THREE.Mesh(Utils.makeCardGeometry(), [faceMat, edgeMat]);
+        // ── Card: the plastic model from utils.js; its print arrives with /card/base ──
+        const cardModel = Utils.makeCard();
+        const card      = cardModel.group;
         scene.add(card);
 
-        // Invisible plane over the card face — pointer rays hit this to get card coordinates
-        const hitPlane = new THREE.Mesh(
-            new THREE.PlaneGeometry(CARD_W, CARD_H),
-            new THREE.MeshBasicMaterial({ visible: false })
-        );
-        hitPlane.position.z = STICKER_Z;
-        card.add(hitPlane);
-
-        // Placed stickers live in this group; child index === _layout index
+        // Placed stickers' meshes live in this group; `stickers[i]` is the model for _layout[i]
         const stickerRoot = new THREE.Group();
         card.add(stickerRoot);
 
-        // One unit plane shared by every sticker (each mesh scales it)
-        const plane = new THREE.PlaneGeometry(1, 1);
-
-        // Red outline drawn around the selected sticker
-        const outline = new THREE.LineLoop(
-            new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(-0.56, -0.56, 0), new THREE.Vector3(0.56, -0.56, 0),
-                new THREE.Vector3(0.56, 0.56, 0),   new THREE.Vector3(-0.56, 0.56, 0),
-            ]),
-            new THREE.LineBasicMaterial({ color: 0xe8372a, depthTest: false })
-        );
+        // Red outline round the selected sticker (follows its folds; rebuilt as it changes)
+        const outline = new THREE.LineLoop(new THREE.BufferGeometry(),
+            new THREE.LineBasicMaterial({ color: 0xe8372a, depthTest: false, toneMapped: false }));
         outline.renderOrder = 1000;
+        outline.visible = false;
+        outline.frustumCulled = false;
+        card.add(outline);
 
         _three = {
-            canvas, wrap, scene, camera, renderer, card, faceMat, hitPlane,
-            stickerRoot, plane, outline,
-            ghost: null,                          // translucent preview of the stamp tool
+            canvas, wrap, scene, camera, renderer, stage, card, cardModel,
+            stickerRoot, stickers: [], outline,
+            facePlane: new THREE.Plane(),
+            ghost: null,                          // translucent preview of the stamp tool (a sticker model)
             stamp: _makeStampModel(scene),
             raycaster: new THREE.Raycaster(),
             ndc: new THREE.Vector2(),
@@ -541,6 +528,44 @@ const CardEditor = (() => {
         return { group, tip, rest, land };
     }
 
+    // Which face of the card is towards the camera right now
+    function _facingFace() {
+        const t = _three;
+        return Math.cos(t.rotX) * Math.cos(t.rotY) >= 0 ? 'front' : 'back';
+    }
+
+    // The nearest turn to `rotY` that shows `face` square-on (front = even × π, back = odd × π)
+    function _squareOn(rotY, face) {
+        let k = Math.round(rotY / Math.PI);
+        if ((Math.abs(k) % 2 === 1) !== (face === 'back')) k += rotY / Math.PI > k ? 1 : -1;
+        return k * Math.PI;
+    }
+
+    // Point the raycaster along the pointer
+    function _aimRay(e) {
+        const { canvas, camera, raycaster, ndc } = _three;
+        const rect = canvas.getBoundingClientRect();
+        ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, ((e.clientY - rect.top) / rect.height) * -2 + 1);
+        raycaster.setFromCamera(ndc, camera);
+    }
+
+    // Pointer → coordinates on `face`'s plane (face coordinates, NOT limited to the
+    // card — past an edge is how stickers get dragged round it), or null
+    function _pointerOnFace(e, face) {
+        const { card, facePlane, raycaster } = _three;
+        _aimRay(e);
+        card.updateMatrixWorld();
+        const sign   = face === 'back' ? -1 : 1;
+        const normal = new THREE.Vector3(0, 0, sign).transformDirection(card.matrixWorld);
+        const point  = new THREE.Vector3(0, 0, sign * Utils.cardFrontZ()).applyMatrix4(card.matrixWorld);
+        facePlane.setFromNormalAndCoplanarPoint(normal, point);
+        const hit = raycaster.ray.intersectPlane(facePlane, new THREE.Vector3());
+        return hit ? Utils.faceCoords(face, card.worldToLocal(hit)) : null;
+    }
+
+    // Is a face-coordinate point on the card?
+    const _onCard = p => p && Math.abs(p.x) <= CARD_W / 2 && Math.abs(p.y) <= CARD_H / 2;
+
     // Ask the render loop to draw the next frame
     function _invalidate() {
         if (_three) _three.needsRender = true;
@@ -558,10 +583,15 @@ const CardEditor = (() => {
         t.lastTime = now;
         const k = dt * 60;
 
-        // Card faces straight on while stamping or editing a sticker
-        const facing = _tool.slug || _selected >= 0;
-        const goalX  = facing ? 0 : t.targetRotX;
-        const goalY  = facing ? 0 : t.targetRotY;
+        // While stamping or editing, the card turns square-on to the face being
+        // worked on — the one you're looking at, or the selected sticker's own
+        // face. Not mid-drag: a sticker dragged round an edge mustn't spin the card.
+        if ((_tool.slug || _selected >= 0) && t.drag?.kind !== 'move') {
+            const want = !_tool.slug && _layout[_selected] ? (_layout[_selected].face || 'front') : _facingFace();
+            t.targetRotX = 0;
+            t.targetRotY = _squareOn(t.targetRotY, want);
+        }
+        const goalX = t.targetRotX, goalY = t.targetRotY;
         const ease   = 1 - Math.pow(0.88, k);
         const turning = Math.abs(goalX - t.rotX) > 1e-4 || Math.abs(goalY - t.rotY) > 1e-4;
         if (turning) {
@@ -574,6 +604,7 @@ const CardEditor = (() => {
         const animating = _stepStampAnimation(k) | _stepBounces(k);
 
         if (turning || animating || t.needsRender) {
+            t.stage.update();              // latest globe frame, for the plastic to show
             t.renderer.render(t.scene, t.camera);
             t.needsRender = false;
         }
@@ -593,12 +624,10 @@ const CardEditor = (() => {
             if (Array.isArray(obj.material)) obj.material.forEach(disposeMaterial);
             else if (obj.material) disposeMaterial(obj.material);
         });
-        t.outline.geometry.dispose();
-        t.outline.material.dispose();
-        t.plane.dispose();
+        t.stage.dispose();
 
-        // Sticker textures that weren't on the card at close time
-        _assets.forEach(a => a.material && disposeMaterial(a.material));
+        // Sticker textures (shared by every sticker of that kind)
+        _assets.forEach(a => a.texture?.dispose());
         _assets.clear();
 
         t.renderer.dispose();
@@ -610,85 +639,72 @@ const CardEditor = (() => {
        STICKER MESHES
     ════════════════════════════════════════════════════════ */
 
-    // Position/rotate/size a sticker mesh (or the ghost) from a layout entry
-    function _applyTransform(mesh, s) {
-        const w = STICKER_BASE * CARD_W * s.scale;
-        const h = w * (_assets.get(s.slug)?.aspect ?? 1);
-        mesh.position.set((s.x_pct - 0.5) * CARD_W, (0.5 - s.y_pct) * CARD_H, STICKER_Z);
-        mesh.rotation.z = -s.rotation * Math.PI / 180;   // positive rotation = clockwise, like the backend
-        mesh.scale.set(w, h, 1);
-        mesh.userData.baseScale = { w, h };
+    // Each sticker is a model from Utils.makeSticker: its printed side, plus
+    // itself seen through the plastic from the other side, both folding over
+    // the card's edges. `layer` keeps later stickers on top.
+
+    // Rebuild every sticker model from _layout (textures are shared per kind)
+    function _syncStickerMeshes() {
+        if (!_three) return;
+        const t = _three;
+        t.stickers.forEach(m => m?.dispose());
+        t.stickerRoot.clear();
+        t.stickers = _layout.map((s, i) => {
+            const asset = _assets.get(s.slug);
+            if (!asset?.texture) return null;               // image failed: nothing to draw
+            const m = Utils.makeSticker(asset.texture, asset.aspect);
+            m.direct.userData.index = i;                    // for picking
+            m.direct.renderOrder = 10 + i;
+            m.set(s, i);
+            t.stickerRoot.add(m.direct, m.through);
+            return m;
+        });
+        _syncSelectionOutline();
         _invalidate();
     }
 
-    // Rebuild all sticker meshes from _layout. Cheap: textures,
-    // materials and geometry are shared, only Mesh objects are new.
-    function _syncStickerMeshes() {
-        if (!_three) return;
-        const root = _three.stickerRoot;
-        root.clear();
-
-        _layout.forEach((s, i) => {
-            const material = _assets.get(s.slug)?.material;
-            // Placeholder keeps child indexes lined up with _layout if an image failed
-            const obj = material ? new THREE.Mesh(_three.plane, material) : new THREE.Object3D();
-            obj.renderOrder = 10 + i;     // later layers draw on top
-            _applyTransform(obj, s);
-            root.add(obj);
-        });
-        _syncSelectionOutline();
-    }
-
     function _updateStickerMesh(index) {
-        const mesh = _three?.stickerRoot.children[index];
-        if (mesh) _applyTransform(mesh, _layout[index]);
+        _three?.stickers[index]?.set(_layout[index], index);
+        if (index === _selected) _syncSelectionOutline();
+        _invalidate();
     }
 
     function _syncSelectionOutline() {
         if (!_three) return;
-        const { outline, stickerRoot } = _three;
-        outline.parent?.remove(outline);
-        const mesh = stickerRoot.children[_selected];
-        if (mesh) mesh.add(outline);    // child of the mesh, so it scales + rotates with it
+        const { outline, stickers } = _three;
+        const model = stickers[_selected];
+        outline.visible = !!model;
+        if (model) {
+            outline.geometry.dispose();
+            outline.geometry = new THREE.BufferGeometry().setFromPoints(model.outline(_layout[_selected]));
+        }
         _invalidate();
     }
 
-    // Topmost placed sticker under card point (x, y), or -1.
-    // Rotates the point into each sticker's own frame and checks its box.
-    function _stickerAt(x, y) {
-        for (let i = _layout.length - 1; i >= 0; i--) {
-            const s      = _layout[i];
-            const halfW  = Math.max(STICKER_BASE * CARD_W * s.scale / 2, 0.03);
-            const halfH  = Math.max(halfW * (_assets.get(s.slug)?.aspect ?? 1), 0.03);
-            const dx     = (x - s.x_pct) * CARD_W;
-            const dy     = (s.y_pct - y) * CARD_H;
-            const r      = s.rotation * Math.PI / 180;
-            const localX = dx * Math.cos(r) - dy * Math.sin(r);
-            const localY = dx * Math.sin(r) + dy * Math.cos(r);
-            if (Math.abs(localX) <= halfW && Math.abs(localY) <= halfH) return i;
-        }
-        return -1;
+    // Topmost placed sticker under the pointer (any face, folded parts too), or -1
+    function _stickerAtPointer(e) {
+        const t = _three;
+        _aimRay(e);
+        const hits = t.raycaster.intersectObjects(t.stickers.filter(Boolean).map(m => m.direct), false);
+        return hits.length ? Math.max(...hits.filter(h => h.distance - hits[0].distance < 0.003)
+                                             .map(h => h.object.userData.index)) : -1;
     }
 
     // Pop a freshly stamped sticker in with a little spring
     function _bounceIn(index) {
-        const mesh = _three?.stickerRoot.children[index];
-        if (mesh && !REDUCED_MOTION) _three.bounces.push({ mesh, t: 0 });
+        if (_three && !REDUCED_MOTION) _three.bounces.push({ index, t: 0 });
     }
 
     function _stepBounces(k) {
         const t = _three;
         if (!t.bounces.length) return false;
         t.bounces = t.bounces.filter(b => {
-            const { w, h } = b.mesh.userData.baseScale;
+            const model = t.stickers[b.index], s = _layout[b.index];
+            if (!model || !s) return false;
             b.t += 0.07 * k;
-            if (b.t >= 1.5 || !b.mesh.parent) {        // done, or replaced by a rebuild
-                b.mesh.scale.set(w, h, 1);
-                return false;
-            }
-            const f = Math.max(0.01, 1 + 0.6 * Math.exp(-b.t * 5) * Math.cos(b.t * 14));
-            b.mesh.scale.set(w * f, h * f, 1);
-            return true;
+            const done = b.t >= 1.5;
+            model.set(s, b.index, done ? 1 : Math.max(0.01, 1 + 0.6 * Math.exp(-b.t * 5) * Math.cos(b.t * 14)));
+            return !done;
         });
         return true;
     }
@@ -710,19 +726,19 @@ const CardEditor = (() => {
         });
         _three.wrap.classList.toggle('stamp-mode', !!slug);
 
-        // Swap the ghost preview mesh
+        // Swap the ghost preview (a see-through sticker model, printed side only)
         if (_three.ghost) {
-            _three.ghost.material.dispose();       // cloned material; the texture is shared
-            _three.card.remove(_three.ghost);
+            _three.card.remove(_three.ghost.direct);
+            _three.ghost.dispose();
             _three.ghost = null;
         }
-        const material = slug && _assets.get(slug)?.material;
-        if (material) {
-            const ghostMat = material.clone();
-            ghostMat.opacity = 0.55;
-            _three.ghost = new THREE.Mesh(_three.plane, ghostMat);
-            _three.ghost.renderOrder = 999;
-            _three.card.add(_three.ghost);
+        const asset = slug && _assets.get(slug);
+        if (asset?.texture) {
+            const ghost = Utils.makeSticker(asset.texture, asset.aspect);
+            ghost.direct.material.opacity = 0.55;
+            ghost.direct.renderOrder = 999;
+            _three.card.add(ghost.direct);
+            _three.ghost = ghost;
         }
 
         _updateGhost();
@@ -741,8 +757,8 @@ const CardEditor = (() => {
         const show = !!_tool.slug && (_tool.pointerOver || _tool.canvasFocused);
 
         if (t.ghost) {
-            t.ghost.visible = show;
-            _applyTransform(t.ghost, _tool);
+            t.ghost.direct.visible = show;
+            t.ghost.set(_tool, 60);                 // layer 60: above every placed sticker
         }
 
         if (!t.stampAnim) {
@@ -769,7 +785,7 @@ const CardEditor = (() => {
 
         _pushHistory();
         const s = {
-            slug: _tool.slug,
+            slug: _tool.slug, face: _tool.face,
             x_pct: _clamp(x, 0, 1), y_pct: _clamp(y, 0, 1),
             scale: _tool.scale, rotation: _tool.rotation,
         };
@@ -872,14 +888,21 @@ const CardEditor = (() => {
 
         // Rapid repeats (scroll, held keys) merge into one undo step
         if (target !== _tool) _pushHistory(`${action}:${_selected}`);
+        const wasFace = target.face;
 
         if (action === 'scale') {
             target.scale = _clamp(target.scale * amount, STICKER_LIMITS.minScale, STICKER_LIMITS.maxScale);
         } else if (action === 'rotate') {
             target.rotation = ((target.rotation + amount) % 360 + 360) % 360;
         } else if (action === 'move') {
-            target.x_pct = _clamp(target.x_pct + amount.dx, 0, 1);
-            target.y_pct = _clamp(target.y_pct + amount.dy, 0, 1);
+            if (target === _tool) {
+                target.x_pct = _clamp(target.x_pct + amount.dx, 0, 1);
+                target.y_pct = _clamp(target.y_pct + amount.dy, 0, 1);
+            } else {
+                // A placed sticker can be walked off an edge and round onto the other face
+                Object.assign(target, Utils.settleSticker(
+                    { ...target, x_pct: target.x_pct + amount.dx, y_pct: target.y_pct + amount.dy }, true));
+            }
         }
 
         if (target === _tool) {
@@ -887,7 +910,7 @@ const CardEditor = (() => {
             _refreshAdjustBar();
         } else {
             _updateStickerMesh(_selected);
-            _onLayoutChanged({ layers: false });
+            _onLayoutChanged({ layers: target.face !== wasFace });
         }
         return true;
     }
@@ -982,7 +1005,7 @@ const CardEditor = (() => {
         if (!label) return;
         const target = _target();
 
-        const detail = s => `${Math.round(s.scale * 100)}% · ${Math.round(s.rotation)}°`;
+        const detail = s => `${Math.round(s.scale * 100)}% · ${Math.round(s.rotation)}° · ${s.face === 'back' ? 'back' : 'front'}`;
         if (_tool.slug) {
             label.textContent = `Stamping ${_nameOf(_tool.slug)} · ${detail(_tool)}`;
         } else if (_selected >= 0) {
@@ -1013,7 +1036,7 @@ const CardEditor = (() => {
             <li class="ced-layer-row${sel ? ' selected' : ''}">
                 <button type="button" class="ced-layer-pick" data-index="${i}" aria-pressed="${sel}">
                     <img class="ced-layer-thumb" src="${Utils.esc(Utils.stickerSrc(s.slug))}" alt="">
-                    <span class="ced-layer-name">${i + 1}. ${name}</span>
+                    <span class="ced-layer-name">${i + 1}. ${name}${s.face === 'back' ? ' · back' : ''}</span>
                 </button>
                 <button type="button" class="ced-layer-del" data-index="${i}" data-action="remove"
                         aria-label="Remove ${name}, layer ${i + 1}">✕</button>
@@ -1028,7 +1051,39 @@ const CardEditor = (() => {
        INPUT — CLICKS
     ════════════════════════════════════════════════════════ */
 
+    // Drag a sticker from the tray straight onto the card (whichever face is
+    // towards you). A press that doesn't move is a normal click (below).
+    let _trayDrag = null;                    // { slug, x, y, dragging }
+    let _swallowTrayClick = false;
+
+    function _onTrayPointerDown(e) {
+        const btn = e.target.closest('.ced-sticker-btn');
+        if (btn && e.button === 0) _trayDrag = { slug: btn.dataset.slug, x: e.clientX, y: e.clientY, dragging: false };
+    }
+
+    function _onWindowPointerMove(e) {
+        const d = _trayDrag;
+        if (!d || !_three) return;
+        if (!d.dragging) {
+            if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6) return;
+            d.dragging = true;
+            if (_tool.slug !== d.slug) _setTool(d.slug);
+        }
+        _aimTool(e);                         // ghost + stamp follow the pointer over the card
+    }
+
+    function _onWindowPointerUp(e) {
+        const d = _trayDrag;
+        _trayDrag = null;
+        if (!d?.dragging || !_three) return;
+        _swallowTrayClick = true;            // a drag isn't a click
+        setTimeout(() => { _swallowTrayClick = false; }, 0);
+        if (_aimTool(e)) _stampAt(_tool.x_pct, _tool.y_pct);
+        _setTool(null);
+    }
+
     function _onTrayClick(e) {
+        if (_swallowTrayClick) return;
         const btn = e.target.closest('.ced-sticker-btn');
         if (!btn) return;
         const slug = btn.dataset.slug;
@@ -1062,19 +1117,22 @@ const CardEditor = (() => {
        INPUT — CARD CANVAS (pointer events cover mouse + touch + pen)
     ════════════════════════════════════════════════════════ */
 
-    // Pointer event → card coordinates { x, y } in 0–1 (top-left origin), or null if off the card
+    // Pointer → the stamp spot on the face towards the camera:
+    // { face, x_pct, y_pct } (0–1, top-left origin), or null if off the card
     function _pointerToCard(e) {
-        const { canvas, camera, raycaster, ndc, hitPlane } = _three;
-        const rect = canvas.getBoundingClientRect();
-        ndc.set(
-            ((e.clientX - rect.left) / rect.width)  *  2 - 1,
-            ((e.clientY - rect.top)  / rect.height) * -2 + 1
-        );
-        raycaster.setFromCamera(ndc, camera);
-        const hit = raycaster.intersectObject(hitPlane, false)[0];
-        if (!hit) return null;
-        const local = hitPlane.worldToLocal(hit.point);
-        return { x: local.x / CARD_W + 0.5, y: 0.5 - local.y / CARD_H };
+        const r = _three.canvas.getBoundingClientRect();
+        if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return null;
+        const face = _facingFace(), p = _pointerOnFace(e, face);
+        return _onCard(p) ? { face, ...Utils.faceToPct(p.x, p.y) } : null;
+    }
+
+    // Move the stamp tool to the pointer (ghost + hovering stamp follow)
+    function _aimTool(e) {
+        const p = _pointerToCard(e);
+        _tool.pointerOver = !!p;
+        if (p) Object.assign(_tool, p);
+        _updateGhost();
+        return p;
     }
 
     function _bindCanvasInput() {
@@ -1084,24 +1142,28 @@ const CardEditor = (() => {
         _on(canvas, 'pointerdown', e => {
             if (e.button !== 0) return;
             canvas.focus({ preventScroll: true });
-            const p = _pointerToCard(e);
 
-            // Stamp mode: click places the sticker
+            // Stamp mode: click places the sticker on the face you're looking at
             if (_tool.slug) {
-                if (p) _stampAt(p.x, p.y);
+                if (_aimTool(e)) _stampAt(_tool.x_pct, _tool.y_pct);
                 return;
             }
 
             canvas.setPointerCapture(e.pointerId);
-            const hit = p ? _stickerAt(p.x, p.y) : -1;
+            const hit = _stickerAtPointer(e);
 
             if (hit >= 0) {
-                // Grab a placed sticker — keep the offset so it doesn't jump to the cursor
+                // Grab a placed sticker. The drag works on the plane of the face you're
+                // looking at, unbounded, so it can be pulled past an edge and round.
+                // If you grabbed a folded-over part, the sticker's centre is first
+                // unfolded into this face's coordinates.
                 _select(hit);
-                const s = _layout[hit];
+                const s = _layout[hit], face = _facingFace(), p = _pointerOnFace(e, face);
+                const c = s.face === face ? { ...Utils.pctToFace(s), rotation: s.rotation }
+                                          : Utils.unfoldSticker(s, p.x, p.y);
                 t.drag = {
-                    kind: 'move', index: hit, moved: false,
-                    offX: s.x_pct - p.x, offY: s.y_pct - p.y,
+                    kind: 'move', index: hit, moved: false, face, rotation: c.rotation,
+                    offX: c.x - p.x, offY: c.y - p.y,
                     snapshot: JSON.stringify(_layout),
                 };
                 canvas.style.cursor = 'grabbing';
@@ -1123,31 +1185,29 @@ const CardEditor = (() => {
                 return;
             }
 
-            const p = _pointerToCard(e);
-
             if (drag?.kind === 'move') {
+                const p = _pointerOnFace(e, drag.face);
                 if (!p) return;
                 if (!drag.moved) {                 // first real movement → one undo step
                     _pushHistory(null, drag.snapshot);
                     drag.moved = true;
                 }
-                const s = _layout[drag.index];
-                s.x_pct = _clamp(p.x + drag.offX, 0, 1);
-                s.y_pct = _clamp(p.y + drag.offY, 0, 1);
+                // Where the centre would be on the drag face, then settled onto the card
+                // (past an edge → round onto the other face)
+                const s = _layout[drag.index], wasFace = s.face;
+                Object.assign(s, Utils.settleSticker({
+                    ...s, face: drag.face, rotation: drag.rotation,
+                    ...Utils.faceToPct(p.x + drag.offX, p.y + drag.offY),
+                }));
                 _updateStickerMesh(drag.index);
-                _onLayoutChanged({ layers: false });
+                _onLayoutChanged({ layers: s.face !== wasFace });   // the layer list shows the face
                 return;
             }
 
-            if (_tool.slug) {
-                _tool.pointerOver = !!p;
-                if (p) { _tool.x_pct = p.x; _tool.y_pct = p.y; }
-                _updateGhost();
-                return;
-            }
+            if (_tool.slug) { _aimTool(e); return; }
 
             // Hover feedback: grab cursor over placed stickers
-            canvas.style.cursor = p && _stickerAt(p.x, p.y) >= 0 ? 'grab' : '';
+            canvas.style.cursor = _stickerAtPointer(e) >= 0 ? 'grab' : '';
         });
 
         const endDrag = () => {

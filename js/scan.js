@@ -9,8 +9,11 @@
                   connects → hand draws a box → typed messages →
                   VHS freeze → rewind → hand fixes the "orphaned" row
                   → "Try again..." → dissolve.
-   3. DISSOLVE    scan fades, globe + wordmark move to centre, the
-                  register / offer-token choice appears (arg.js).
+   3. DISSOLVE    the side panels fade (wordmark + globe are already
+                  in place), the register / offer-token choice
+                  appears (arg.js).
+
+   Layout (panels, box frame, terminal) lives in scan.css.
 
    Scan.start() is called by login.js once the passphrase is right.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -104,7 +107,22 @@ const Scan = (() => {
     const REWIND_SPEEDS = [1.0, 0.88, 0.74, 0.61, 0.49, 0.38, 0.28, 0.20, 0.13, 0.08, 0.04, 0.01, 0.00];
 
     const HAND_TIP = { x: 36, y: 76 };     // px from the hand image's corner to its fingertip
-    const EXTRA_ROW = { wait: 6, pause: 200 };
+    const REAL_ROWS = 9;                   // the first 9 ROWS are the visitor's real data — shown at a steady pace
+
+    /* Timing once the fake rows start: faster, and uneven so it never
+       ticks like a metronome. Extra rows keep accelerating until the
+       freeze, in bursts with the odd stutter. Returns [wait, pause] in ms. */
+    function rhythm(index, row) {
+        const jitter = (lo, hi) => lo + Math.random() * (hi - lo);
+        if (index < REAL_ROWS) return [row.wait, row.pause];
+        if (row) return [row.wait * jitter(0.25, 0.8), row.pause * jitter(0.2, 1.1)];
+
+        const base = Math.max(14, 45 * Math.pow(0.95, index - ROWS.length));   // 45ms → 14ms
+        const roll = Math.random();
+        if (roll < 0.18) return [0, jitter(0, 6)];                              // burst
+        if (roll < 0.24) return [0, base * 4 + jitter(40, 140)];                // stutter
+        return [0, base * jitter(0.3, 1.5)];
+    }
 
 
     /* ════════════════════════════════════════════════════════
@@ -129,52 +147,56 @@ const Scan = (() => {
         $('progressFill').style.width  = pct + '%';
         $('progressPct').textContent   = pct + '%';
         $('progressLabel').textContent = PROGRESS_LABELS[Math.min(completedRows, PROGRESS_LABELS.length - 1)];
-        if (pct === 100) {
-            setTimeout(() => { document.querySelector('.scan-progress').style.opacity = '0'; }, CONFIG.scan.progressHideDelay);
-        }
+    }
+
+    // One data row: label, value (starts as `pending` text), ✕
+    function makeRow(key, value, classes = '') {
+        const line = document.createElement('div');
+        line.className = 'scan-line ' + classes;
+        line.innerHTML = '<div class="scan-line-key"></div><div class="scan-line-val"></div><div class="scan-line-check">✕</div>';
+        line.children[0].textContent = key;
+        line.children[1].textContent = value;
+        return { line, valEl: line.children[1] };
+    }
+
+    function addRow(line) {
+        const container = $('scanLines');
+        container.appendChild(line);
+        while (container.children.length > CONFIG.scan.maxVisible) container.firstChild.remove();
     }
 
     function revealNextRow() {
         if (stopped) return;
 
         const extra = rowIndex >= ROWS.length;
-        const row   = extra
-            ? { key: EXTRA_KEYS[(rowIndex - ROWS.length) % EXTRA_KEYS.length], ...EXTRA_ROW }
-            : ROWS[rowIndex];
+        const row   = extra ? { key: EXTRA_KEYS[(rowIndex - ROWS.length) % EXTRA_KEYS.length] } : ROWS[rowIndex];
+        const [wait, pause] = rhythm(rowIndex, extra ? null : row);
         rowIndex++;
 
-        const line = document.createElement('div');
-        line.className = `scan-line ${row.xl ? 's-xl' : 's0'}`;
-        line.innerHTML = `<div class="scan-line-key"></div>
-                          <div class="scan-line-val pending"></div>
-                          <div class="scan-line-check">✕</div>`;
-        line.firstElementChild.textContent = row.key;
-        const valEl = line.children[1];
-        valEl.innerHTML = extra ? '...' : '<span class="ellipsis"><span></span><span></span><span></span></span>';
-
-        const container = $('scanLines');
-        container.appendChild(line);
-        while (container.children.length > CONFIG.scan.maxVisible) container.firstChild.remove();
+        const classes = [row.xl && 's-xl', pause < 60 && 'quick'].filter(Boolean).join(' ');
+        const { line, valEl } = makeRow(row.key, extra ? Utils.fakeDataValue() : 'scanning…', classes);
+        addRow(line);
         Utils.nextFrames().then(() => line.classList.add('active'));   // slide in
 
         // Wait for the value (network values may still be loading) — but
         // never longer than 4s, so a failed lookup can't stall the scan.
         const started = Date.now();
-        const giveUp  = Math.max(row.wait, 4000);
+        const giveUp  = Math.max(wait, 4000);
+        if (!extra) valEl.classList.add('pending');
 
         (function tryPopulate() {
             if (stopped) return;
-            const value   = extra ? Utils.fakeDataValue() : data(row.id);
+            const value   = extra ? valEl.textContent : data(row.id);
             const elapsed = Date.now() - started;
-            if (!extra && !((value !== undefined && elapsed >= row.wait) || elapsed >= giveUp)) {
-                setTimeout(tryPopulate, 40);
+            if (!extra && !((value !== undefined && elapsed >= wait) || elapsed >= giveUp)) {
+                setTimeout(tryPopulate, Math.min(40, Math.max(4, wait - elapsed)));
                 return;
             }
 
             valEl.textContent = value ?? '—';
             valEl.classList.remove('pending');
             line.classList.add('done');
-            if (row.id === 'route_depth') line.classList.add('orphaned');
+            if (row.id === 'route_depth') line.classList.add('is-orphan');
 
             if (!extra) {
                 completedRows++;
@@ -184,7 +206,7 @@ const Scan = (() => {
                     setTimeout(runConductor, 2300);
                 }
             }
-            setTimeout(revealNextRow, row.pause);
+            setTimeout(revealNextRow, pause);
         })();
     }
 
@@ -239,19 +261,18 @@ const Scan = (() => {
        HAND ANIMATIONS
     ════════════════════════════════════════════════════════ */
 
-    // Right hand slides in and drags the typewriter box open
+    // Right hand slides in and drags the box open, corner to corner of .scan-right
     async function handDrawsBox() {
         const hand = $('handImg');
         const box  = $('drawnBox');
-        const x0 = innerWidth * CONFIG.drawnBox.leftPct / 100, y0 = innerHeight * CONFIG.drawnBox.topPct / 100;
-        const x1 = innerWidth * 0.97,                          y1 = innerHeight * 0.72;
+        const { left: x0, top: y0, right: x1, bottom: y1 } = $('scanRight').getBoundingClientRect();
         const offRight = innerWidth + 20;
 
         Object.assign(box.style,  { position: 'fixed', left: x0 + 'px', top: y0 + 'px', width: '0px', height: '0px', opacity: '0', zIndex: '50' });
         Object.assign(hand.style, { position: 'fixed', left: offRight + 'px', top: (y0 - HAND_TIP.y) + 'px', opacity: '0', transition: 'opacity 0.5s ease', zIndex: '201' });
 
         await Utils.sleep(300);
-        hand.style.opacity = '0.9';
+        hand.style.opacity = '1';
         await Utils.animateXY(hand, offRight, y0 - HAND_TIP.y, x0 - HAND_TIP.x, y0 - HAND_TIP.y, 950, Utils.easing.easeOutCubic);
         await Utils.sleep(200);
 
@@ -275,16 +296,16 @@ const Scan = (() => {
         hand.style.opacity = '0';
     }
 
-    // Left hand slides in, deletes "orphaned", types "resolved"
+    // Left hand slides in, points at the value, deletes "orphaned", types "resolved"
     async function handFixesRow(row, valEl) {
         const hand = $('handImgFlipped');
-        const rect = row.getBoundingClientRect();
-        const x = rect.left + 120 - HAND_TIP.x;
+        const rect = valEl.getBoundingClientRect();
+        const x = rect.left + 24 - HAND_TIP.x;
         const y = rect.top + rect.height / 2 - HAND_TIP.y;
 
         Object.assign(hand.style, { position: 'fixed', left: '-180px', top: y + 'px', opacity: '0', transition: 'opacity 0.4s ease', zIndex: '201' });
         await Utils.sleep(200);
-        hand.style.opacity = '0.85';
+        hand.style.opacity = '1';
         await Utils.animateXY(hand, -180, y, x, y, 900, Utils.easing.easeOutCubic);
         await Utils.sleep(700);
 
@@ -309,36 +330,21 @@ const Scan = (() => {
        orphaned row. Resolves with { row, valEl } for that row.
     ════════════════════════════════════════════════════════ */
 
+    // Same look as a scan row; rows brighten as the rewind slows down
     function rewindRow(key, value, progress, orphan = false) {
-        const row = document.createElement('div');
-        row.className = 'rewind-row' + (orphan ? ' is-orphan' : '');
-        row.innerHTML = '<span class="rewind-key"></span><span class="rewind-val"></span>';
-        const [keyEl, valEl] = row.children;
-        keyEl.textContent = key;
-        valEl.textContent = value;
-
-        // Rows grow + brighten as the rewind progresses; the orphan is fixed-size
-        keyEl.style.fontSize = (orphan ? 0.68 : 0.24 + progress * 0.32) + 'rem';
-        valEl.style.fontSize = (orphan ? 1.35 : 0.3 + progress * 1.1) + 'rem';
-        row.style.opacity     = orphan ? 1 : 0.15 + progress * 0.85;
-        row.style.paddingLeft = orphan ? CONFIG.scan.leftPadding : `calc(${CONFIG.scan.leftPadding} + ${Math.random() * 8}vw)`;
-        return { row, valEl };
+        const { line, valEl } = makeRow(key, value, 'active done' + (orphan ? ' is-orphan' : ''));
+        if (!orphan) line.style.opacity = (0.25 + progress * 0.75).toFixed(2);
+        return { row: line, valEl };
     }
 
     async function runRewind() {
-        const container = $('scanLines');
-        $('scanLinesWrap').classList.add('rewinding');
-        container.replaceChildren();
+        $('scanLines').replaceChildren();
 
         let lastSpeed = 0;
         for (let i = 0; i < REWIND_ROWS.length; i++) {
             const [key, id] = REWIND_ROWS[i];
             const progress  = i / REWIND_ROWS.length;
-            let value = data(id) || '—';
-            if (id === 'ua') value = value.slice(0, 30) + '...';
-
-            container.appendChild(rewindRow(key, value, progress).row);
-            while (container.children.length > 18) container.firstChild.remove();
+            addRow(rewindRow(key, data(id) || '—', progress).row);   // long values end in "…" (CSS)
 
             const speedIdx = Math.floor(progress * REWIND_SPEEDS.length);
             if (speedIdx > lastSpeed) {
@@ -346,17 +352,18 @@ const Scan = (() => {
                 terminalShowSpeed(REWIND_SPEEDS[Math.min(speedIdx, REWIND_SPEEDS.length - 1)].toFixed(2) + 'x');
             }
             $('progressFill').style.width  = Math.round(100 - progress * 55) + '%';
+            $('progressPct').textContent   = Math.round(100 - progress * 55) + '%';
             $('progressLabel').textContent = 'REVERSING';
 
             await Utils.sleep(25 + Math.pow(progress, 3) * 975);     // slows down exponentially
         }
 
-        while (container.children.length > 7) container.firstChild.remove();
         const orphan = rewindRow('route_depth', 'orphaned', 1, true);
-        container.appendChild(orphan.row);
+        addRow(orphan.row);
         terminalShowSpeed('0.00x');
         $('progressLabel').textContent = 'HALTED';
         $('progressFill').style.width  = '45%';
+        $('progressPct').textContent   = '45%';
         await Utils.sleep(800);
         return orphan;
     }
@@ -384,7 +391,6 @@ const Scan = (() => {
         // Messages in the drawn box
         await Utils.sleep(1500);
         await typewrite($('twText1'), 'I know why you are here.', 82);
-        $('twText1').insertAdjacentHTML('beforeend', '<br><br>');
         await Utils.sleep(900);
         await typewrite($('twText2'), 'Let me help you. You seem lost.', 75);
 
@@ -401,7 +407,6 @@ const Scan = (() => {
         const orphan = await runRewind();
         await Utils.sleep(600);
 
-        orphan.row.scrollIntoView({ behavior: 'smooth', block: 'center' });
         $('vhsOverlay').classList.remove('active');
         $('scanPhase').classList.remove('vhs');
         await Utils.sleep(600);
@@ -409,9 +414,10 @@ const Scan = (() => {
         // Fix it
         await terminalType('session.set(route_depth, "resolved")', 'patching entry point...', 65);
         await Utils.sleep(1200);
-        orphan.row.scrollIntoView({ block: 'center' });
         await handFixesRow(orphan.row, orphan.valEl);
         $('progressFill').classList.add('green');
+        $('progressFill').style.width  = '100%';
+        $('progressPct').textContent   = '100%';
         $('progressLabel').textContent = 'RESOLVED';
 
         await terminalType('session.resume()', 'route_depth resolved — access pathway open', 65);
@@ -419,10 +425,7 @@ const Scan = (() => {
 
         // "Try again..." with slow dots
         const t3 = $('twText3');
-        t3.insertAdjacentHTML('beforeend', '<br>');
-        await Utils.sleep(600);
-        t3.insertAdjacentHTML('beforeend', '<br>');
-        await Utils.sleep(500);
+        await Utils.sleep(1100);
         const cursor = await typewrite(t3, 'Try again', 110, true);
         for (const ms of [400, 500, 600]) {
             await Utils.sleep(ms);
@@ -438,6 +441,8 @@ const Scan = (() => {
 
     /* ════════════════════════════════════════════════════════
        3. DISSOLVE → register / offer-token choice
+       The wordmark and globe are already where the welcome screen
+       wants them, so only the panels fade away.
     ════════════════════════════════════════════════════════ */
 
     async function dissolve() {
@@ -445,24 +450,19 @@ const Scan = (() => {
         await Utils.sleep(600);
         $('termBar').classList.remove('visible');
 
-        for (const el of document.querySelectorAll('.scan-left, .scan-right, #drawnBox')) {
-            el.style.transition = 'opacity 2s ease';
+        for (const el of document.querySelectorAll('.scan-left, #drawnBox')) {
+            el.style.transition = 'opacity 1.6s ease';
             el.style.opacity    = '0';
         }
-
-        await Utils.sleep(500);
-        const header = document.querySelector('.scan-header');
-        header.style.left = '50%';
-        header.style.top  = '50%';
-        window.startGlobeMove(CONFIG.globe.centerX, CONFIG.globe.centerY);
-
-        await Utils.sleep(2600);
-        header.style.top = CONFIG.globe.postScanY + '%';
-
-        await Utils.sleep(2400);
+        await Utils.sleep(2000);
+        window.globeSetDraggable(true);         // the scan's over — the globe can be spun now
         Arg.showArgChoice();
     }
 
+
+    // "Initializing secure session" is done once the globe's pins + boxes are drawn
+    document.addEventListener('globe:pins-complete',
+        () => document.querySelector('.scan-tagline').classList.add('gone'), { once: true });
 
     return {
         start() { setTimeout(revealNextRow, 800); },

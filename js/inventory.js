@@ -28,21 +28,22 @@
      Double-click — reset the view
 
    HOW THE WHEEL WORKS:
-     _wheelOffset is a floating-point position in unbounded slot-space.
-     _wheelTarget is always an integer in the same space.
+     _wheelOffset is a floating-point position in unbounded slot-space;
+     it springs toward _wheelTarget in the same space.
      Each row's top = centreY - ROW_HEIGHT/2 + dist*ROW_HEIGHT,
      where dist is the shortest-path wrap from _wheelOffset to that row.
      The selector box (CSS top:50% translateY(-50%)) permanently marks
      the centreY anchor — it is never touched by JS.
 
-     Scroll fires at most one step per cooldown window so the spring
-     never stacks and rows never drift off centre.
+     Scrolling moves _wheelTarget continuously (PX_PER_ROW), the nearest
+     row is selected as it goes, and it snaps to a whole row once the
+     scrolling stops (SNAP_DELAY_MS) — so rows always land centred.
 
      Each row has its own _pullState[i] (0..1) animated independently.
      Active row targets 1 (pulled right), all others target 0 (flush).
 
    DEPENDENCIES:
-     Three.js r128 (CDN, loaded in index.html)
+     Three.js (js/three-loader.js), utils.js makeCard() for the plastic card
      config.js, utils.js (card geometry, sticker paths), sounds.js
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
@@ -70,7 +71,7 @@ const Inventory = (() => {
         FALLOFF_POWER:  1.6,
 
         // Wheel spring: fraction of remaining distance closed per frame (at 60fps).
-        WHEEL_SPRING:   0.14,
+        WHEEL_SPRING:   0.2,
 
         // Pull spring: how fast the active item slides out / snaps back (same units).
         PULL_SPRING:    0.11,
@@ -78,8 +79,11 @@ const Inventory = (() => {
         // How far the active item slides right (px). The "book pull" distance.
         PULL_PX:        28,
 
-        // Scroll cooldown (ms). Prevents multiple steps per physical detent.
-        SCROLL_COOLDOWN_MS: 120,
+        // Scroll distance per row: 100 = one mouse-wheel notch. Trackpads glide through fractions.
+        PX_PER_ROW:     100,
+
+        // Once scrolling stops for this long (ms), the wheel snaps to the nearest row.
+        SNAP_DELAY_MS:  140,
 
         // Right-panel update debounce (ms) after a wheel step.
         VIEWER_DEBOUNCE_MS: 120,
@@ -108,6 +112,7 @@ const Inventory = (() => {
 
     let _items     = [];           // wheel rows (owned + locked + padding)
     let _stickers  = [];           // owned stickers
+    let _cardLayout = [];          // stickers placed on the card (front + back), from /stickers
     let _activeTab = 'items';      // 'items' | 'stickers'
 
     // Wheel — all positions in unbounded slot-space
@@ -119,8 +124,7 @@ const Inventory = (() => {
     let _wheelLastTime  = null;
     let _wheelHeight    = 0;       // cached by a ResizeObserver — no layout reads per frame
 
-    let _scrollCooldown = false;   // scroll ratchet
-    let _scrollTimer    = null;
+    let _scrollTimer    = null;    // snap-to-row after scrolling stops
     let _viewerDebounce = null;
 
     let _stickerIndex   = 0;       // selected row in the stickers tab
@@ -188,7 +192,6 @@ const Inventory = (() => {
         if (_wheelRafId !== null) { cancelAnimationFrame(_wheelRafId); _wheelRafId = null; }
         clearTimeout(_viewerDebounce);
         clearTimeout(_scrollTimer);
-        _scrollCooldown = false;
 
         const overlay = _el('inventoryOverlay');
         if (overlay) {
@@ -290,8 +293,10 @@ const Inventory = (() => {
                 fetch(`${CONFIG.apiBase}/inventory`, { credentials: 'include' }),
                 fetch(`${CONFIG.apiBase}/stickers`,  { credentials: 'include' }),
             ]);
-            items    = invRes.ok     ? (await invRes.json()).items         || [] : [];
-            stickers = stickerRes.ok ? (await stickerRes.json()).stickers  || [] : [];
+            items    = invRes.ok ? (await invRes.json()).items || [] : [];
+            const st = stickerRes.ok ? await stickerRes.json() : {};
+            stickers   = st.stickers || [];
+            _cardLayout = st.layout  || [];         // placed stickers, drawn live on the 3D card
         } catch (err) {
             console.error('[Inventory] fetch failed:', err);
         }
@@ -323,7 +328,8 @@ const Inventory = (() => {
         if (_cardBlobUrl) return Promise.resolve(_cardBlobUrl);
         if (!_cardBlobPromise) {
             const gen = _cardGeneration;
-            _cardBlobPromise = fetch(`${CONFIG.apiBase}/card/image?t=${Date.now()}`, { credentials: 'include' })
+            // The card WITHOUT stickers: they're drawn live (both faces, wrapping round edges)
+            _cardBlobPromise = fetch(`${CONFIG.apiBase}/card/base?t=${Date.now()}`, { credentials: 'include' })
                 .then(r => (r.ok ? r.blob() : null))
                 .then(blob => {
                     if (!blob || gen !== _cardGeneration) return null;   // card changed meanwhile
@@ -483,21 +489,25 @@ const Inventory = (() => {
        ITEMS WHEEL — NAVIGATION
     ════════════════════════════════════════════════════════ */
 
-    // Step ±1 slot. Ratchet guard: ignored until the spring has nearly
-    // caught up, so rapid events can't stack and drift rows off centre.
+    // Arrow keys: step ±1 slot from the nearest row (held keys just keep going)
     function _stepWheel(delta) {
-        const n = _items.length;
-        if (!n || _activeTab !== 'items') return;
-        if (Math.abs(_wheelOffset - _wheelTarget) > 0.25) return;
+        if (!_items.length || _activeTab !== 'items') return;
+        _wheelTarget = Math.round(_wheelTarget) + delta;
+        _followTarget();
+    }
 
-        _wheelTarget  += delta;
-        _selectedIndex = ((_wheelTarget % n) + n) % n;
-        _applyActiveClass();
+    // _wheelTarget moved: select whichever row is nearest it and animate there.
+    // The viewer is debounced so fast scrolling doesn't swap it on every row.
+    function _followTarget() {
+        const n   = _items.length;
+        const idx = ((Math.round(_wheelTarget) % n) + n) % n;
+        if (idx !== _selectedIndex) {
+            _selectedIndex = idx;
+            _applyActiveClass();
+            clearTimeout(_viewerDebounce);
+            _viewerDebounce = setTimeout(() => _selectItem(_selectedIndex), WHEEL_CONFIG.VIEWER_DEBOUNCE_MS);
+        }
         _startWheelLoop();
-
-        // Debounced so fast scrolling doesn't swap the viewer on every step
-        clearTimeout(_viewerDebounce);
-        _viewerDebounce = setTimeout(() => _selectItem(_selectedIndex), WHEEL_CONFIG.VIEWER_DEBOUNCE_MS);
     }
 
     // Jump straight to a slot (row click), taking the shortest wrap path
@@ -629,23 +639,24 @@ const Inventory = (() => {
         if (_wheelRafId === null) SFX.hover();
     }
 
-    // Items tab: one scroll event = one step, then locked for SCROLL_COOLDOWN_MS.
+    // Items tab: the wheel follows the scroll continuously (no per-event
+    // steps to fight), then snaps to the nearest row once scrolling stops.
     // Stickers tab: the list scrolls normally.
     function _onWheelScroll(e) {
-        if (_activeTab !== 'items') return;
+        if (_activeTab !== 'items' || !_items.length) return;
         e.preventDefault();
-        if (_scrollCooldown) return;
 
         let dy = e.deltaY;
-        if (e.deltaMode === 1) dy *= WHEEL_CONFIG.ROW_HEIGHT;
-        if (e.deltaMode === 2) dy *= _wheelHeight || 400;
-        if (Math.abs(dy) < 1) return;
+        if (e.deltaMode === 1) dy *= 33;                        // lines → px
+        if (e.deltaMode === 2) dy *= _wheelHeight || 400;       // pages → px
+        _wheelTarget += _clamp(dy / WHEEL_CONFIG.PX_PER_ROW, -3, 3);
+        _followTarget();
 
-        _stepWheel(dy > 0 ? 1 : -1);
-
-        _scrollCooldown = true;
         clearTimeout(_scrollTimer);
-        _scrollTimer = setTimeout(() => { _scrollCooldown = false; }, WHEEL_CONFIG.SCROLL_COOLDOWN_MS);
+        _scrollTimer = setTimeout(() => {
+            _wheelTarget = Math.round(_wheelTarget);
+            _startWheelLoop();
+        }, WHEEL_CONFIG.SNAP_DELAY_MS);
     }
 
     function _onKeydown(e) {
@@ -696,7 +707,7 @@ const Inventory = (() => {
         const v = _ensureViewer();
         if (!v) return;
         _setView('card');
-        v.card.visible        = true;
+        v.card.group.visible  = true;
         v.stickerMesh.visible = false;
 
         // Load the card texture once per viewer
@@ -706,14 +717,28 @@ const Inventory = (() => {
                 if (!url || _viewer !== v) return;
                 new THREE.TextureLoader().load(url, tex => {
                     if (_viewer !== v) { tex.dispose(); return; }
-                    tex.flipY      = false;
                     tex.anisotropy = v.renderer.capabilities.getMaxAnisotropy();
-                    v.faceMat.map  = tex;
-                    v.faceMat.needsUpdate = true;
+                    v.card.setFace(tex);
                 }, undefined, err => console.warn('[Inventory] Card texture failed:', err));
             });
+            _placeCardStickers(v);
         }
         _startViewerLoop();
+    }
+
+    // The placed stickers, drawn live on the card exactly as in the card editor
+    // (either face, folding round edges — Utils.makeSticker)
+    function _placeCardStickers(v) {
+        _cardLayout.forEach((s, i) => {
+            _loadStickerTexture(v, s.slug).then(asset => {
+                if (!asset || _viewer !== v) return;
+                const model = Utils.makeSticker(asset.tex, asset.aspect);
+                model.direct.renderOrder = 10 + i;
+                model.set(s, i);
+                v.card.group.add(model.direct, model.through);
+                v.cardStickers.push(model);
+            });
+        });
     }
 
     function _showSticker(sticker) {
@@ -722,13 +747,13 @@ const Inventory = (() => {
         const v = _ensureViewer();
         if (!v) return;
         _setView('sticker');
-        v.card.visible        = false;
+        v.card.group.visible  = false;
         v.stickerMesh.visible = false;      // shown once its texture is ready
         v.currentSlug         = sticker.slug;
 
         _loadStickerTexture(v, sticker.slug).then(asset => {
             // Ignore if the viewer closed or another sticker was picked meanwhile
-            if (!asset || _viewer !== v || v.currentSlug !== sticker.slug || v.card.visible) return;
+            if (!asset || _viewer !== v || v.currentSlug !== sticker.slug || v.card.group.visible) return;
             v.stickerMesh.material.map = asset.tex;
             v.stickerMesh.material.needsUpdate = true;
             v.stickerMesh.scale.set(1, asset.aspect, 1);
@@ -762,31 +787,26 @@ const Inventory = (() => {
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setClearColor(0x000000, 0);
 
-        // Three-point lighting
-        scene.add(new THREE.AmbientLight(0xffffff, 0.85));
-        const key  = new THREE.DirectionalLight(0xffffff, 0.9); key.position.set(1.5, 2.5, 3);
-        const fill = new THREE.DirectionalLight(0xffffff, 0.4); fill.position.set(-2, -1, 1.5);
-        const rim  = new THREE.DirectionalLight(0xffffff, 0.2); rim.position.set(0, 0, -3);
-        scene.add(key, fill, rim);
+        // Lighting + the live globe seen through the plastic (utils.js)
+        const stage = Utils.setUpCardStage(scene, renderer, camera, canvas);
 
-        // Card model (face texture arrives later)
-        const faceMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const edgeMat = new THREE.MeshStandardMaterial({ color: 0x1a1a18, roughness: 0.55, metalness: 0.1 });
-        const card    = new THREE.Mesh(Utils.makeCardGeometry(), [faceMat, edgeMat]);
+        // Plastic card (utils.js); the face texture arrives later
+        const card = Utils.makeCard();
 
         // Sticker model — a unit plane scaled to the image's aspect
         const stickerMesh = new THREE.Mesh(
             new THREE.PlaneGeometry(1, 1),
-            new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide, alphaTest: 0.01 })
+            new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, toneMapped: false })
         );
 
         const pivot = new THREE.Group();
-        pivot.add(card, stickerMesh);
+        pivot.add(card.group, stickerMesh);
         scene.add(pivot);
 
         _viewer = {
-            canvas, scene, camera, renderer, pivot, card, faceMat, stickerMesh,
+            canvas, scene, camera, renderer, stage, pivot, card, stickerMesh,
             stickerTextures: new Map(),     // slug → Promise<{ tex, aspect }>
+            cardStickers: [],               // sticker models on the card (Utils.makeSticker)
             cardTexRequested: false,
             currentSlug: null,
             view: VIEWS.card,
@@ -827,7 +847,10 @@ const Inventory = (() => {
             v.stickerTextures.set(slug, new Promise(resolve => {
                 new THREE.TextureLoader().load(
                     Utils.stickerSrc(slug),
-                    tex => resolve({ tex, aspect: tex.image.height / tex.image.width }),
+                    tex => {
+                        tex.colorSpace = THREE.SRGBColorSpace;
+                        resolve({ tex, aspect: tex.image.height / tex.image.width });
+                    },
                     undefined,
                     () => resolve(null)
                 );
@@ -925,6 +948,7 @@ const Inventory = (() => {
         v.pivot.rotation.set(v.rotX, v.rotY, 0);
         v.camera.position.z = v.zoom;
 
+        v.stage.update();                  // latest globe frame, for the plastic to show
         v.renderer.render(v.scene, v.camera);
     }
 
@@ -936,8 +960,9 @@ const Inventory = (() => {
         cancelAnimationFrame(v.frameId);
         v.resizeObs.disconnect();
 
-        v.card.geometry.dispose();
-        v.card.material.forEach(m => { m.map?.dispose(); m.dispose(); });
+        v.cardStickers.forEach(m => m.dispose());     // before the card: they're in its group
+        v.card.dispose();
+        v.stage.dispose();
         v.stickerMesh.geometry.dispose();
         v.stickerMesh.material.dispose();
         v.stickerTextures.forEach(p => p.then(asset => asset?.tex.dispose()));

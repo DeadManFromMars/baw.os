@@ -1,72 +1,27 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   base.css
-   Foundation layer. Load this first.
-
-   Contains:
-     - Custom font declarations
-     - CSS reset (box-sizing, margin, padding normalization)
-     - Design token variables (:root)
-     - html / body baseline rules
-     - Shared keyframe animations used across multiple modules
-     - Shared utility classes (e.g. .msg status states)
-
-   Do NOT put component-specific rules here.
-   If a rule only applies to one section (login, scan, radio…),
-   it belongs in that section's own file.
+   base.css — load first: fonts, reset, colour tokens, page
+   baseline, shared keyframes, the "click to begin" screen.
+   Anything used by only one part of the site lives in its own file.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-
-/* ── Custom Fonts ──────────────────────────────────────────────
-   Loaded from local files so the site works offline and avoids
-   any Google Fonts fingerprinting.
-   font-display: swap means the fallback renders immediately while
-   the font file loads — no invisible text (FOIT).
-────────────────────────────────────────────────────────────── */
-
+/* Brand fonts (local). Space Mono comes from Google Fonts (index.html). */
 @font-face {
     font-family: 'Vipnagorgialla Rg';
     src: url('../fonts/Vipnagorgialla/Vipnagorgialla_Rg.otf') format('opentype');
     font-display: swap;
 }
-
 @font-face {
     font-family: 'DeadPostman';
     src: url('../fonts/DeadPostmanRespawned/DeadPostmanRespawned.ttf') format('truetype');
     font-display: swap;
 }
 
-
-/* ── Box Model Reset ───────────────────────────────────────────
-   border-box makes width/height include padding and border,
-   which is almost always what you want. Applying it universally
-   via the * selector (including pseudo-elements) is the modern
-   best-practice reset. margin/padding zeroed so we control
-   spacing deliberately rather than fighting browser defaults.
-────────────────────────────────────────────────────────────── */
-
-*,
-*::before,
-*::after {
+*, *::before, *::after {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
-
-    /* Default every element to the brand font.
-       Individual components override this where needed
-       (e.g. Space Mono for monospace readouts). */
-    font-family: 'Vipnagorgialla Rg', sans-serif;
+    font-family: 'Vipnagorgialla Rg', sans-serif;   /* brand default; readouts use Space Mono */
 }
-
-
-/* ── Design Tokens ─────────────────────────────────────────────
-   All magic numbers live here as named variables. This is the
-   single source of truth for the colour palette and common
-   values. To retheme the whole site, only this block changes.
-
-   Naming convention:
-     --<name>          primary value
-     --<name>2         secondary / muted variant
-────────────────────────────────────────────────────────────── */
 
 :root {
     /* Neutrals */
@@ -74,90 +29,47 @@
     --white:    #fdfcfa;
     --ink:      #1a1a18;
     --ink2:     #3a3a35;
-    --muted:    #8a8a80;
-    --muted2:   #c8c8c0;
+    --text2:    #55554d;    /* secondary text that must stay readable (~7:1 on cream) */
+    --muted:    #8a8a80;    /* ~3:1 — hints, placeholders, large text only */
+    --muted2:   #c8c8c0;    /* ~1.5:1 — lines and disabled states, never text */
     --sage:     #7a9a8a;
 
-    /* Accent */
+    /* Accents */
     --red:      #e8372a;
-    --red2:     rgba(232, 55, 42, 0.1);    /* soft red for backgrounds/shadows */
+    --red2:     rgba(232, 55, 42, 0.1);    /* soft red backgrounds */
     --green:    #00c853;
 
-    /* Borders */
-    --border:   rgba(26, 26, 24, 0.08);    /* very subtle — used for dividers */
-    --border2:  rgba(26, 26, 24, 0.14);    /* slightly stronger — used for inputs */
+    /* Lines */
+    --border:   rgba(26, 26, 24, 0.08);    /* dividers */
+    --border2:  rgba(26, 26, 24, 0.14);    /* inputs, panel edges */
 }
 
-
-/* ── Document Baseline ─────────────────────────────────────────
-   overflow:hidden on both html and body locks the viewport —
-   this site is a fullscreen experience with no scrolling.
-   All scrollable content lives inside fixed/absolute containers.
-────────────────────────────────────────────────────────────── */
-
-html,
-body {
-    height: 100%;
+/* A full-screen experience: nothing scrolls at page level —
+   scrolling areas live inside fixed containers. */
+html, body {
     width: 100%;
+    height: 100%;
     overflow: hidden;
     background: var(--cream);
     color: var(--ink);
-    /* Prevent the layout from compressing below its designed width.
-       When the viewport (or DevTools panel) shrinks below this,
-       the browser clips rather than reflowing — the experience
-       stays intact and doesn't squish. */
-    min-width: 1280px;
 }
 
 
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   SHARED KEYFRAME ANIMATIONS
-   These are used in two or more CSS modules.
-   Module-specific animations live in their own files.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/* ── Shared keyframes ── */
 
-/* Fade + rise — used for wordmark, tagline, progress bar */
-@keyframes riseIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+@keyframes riseIn {                 /* fade + rise: wordmark, tagline */
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Generic blink — used for terminal cursor and login prompt char */
-@keyframes blink {
+@keyframes blink {                  /* text cursors */
     0%, 100% { opacity: 1; }
-    50%       { opacity: 0; }
+    50%      { opacity: 0; }
 }
 
 
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   UTILITY: STATUS MESSAGE
-   Reused by the login form and ARG prompts.
-   JS sets .error / .success / .info class names directly.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-.msg {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.6rem;
-    letter-spacing: 0.08em;
-    min-height: 1rem;
-    font-weight: 500;
-}
-
-.msg.error   { color: var(--red); }
-.msg.success { color: var(--sage); }
-.msg.info    { color: var(--muted); }
-
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   "CLICK TO BEGIN" SCREEN (session.js)
-   Shown on every load — browsers block audio until a click.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/* ── "Initialise sequence — click anywhere" (session.js) ──
+   Shown on every load: browsers block audio until the first click. */
 
 #initOverlay {
     position: fixed;
@@ -170,12 +82,12 @@ body {
     gap: 0.9em;
     background: #000;
     color: #fff;
-    font-family: 'Courier New', Courier, monospace;
     text-transform: uppercase;
     cursor: pointer;
     user-select: none;
     transition: opacity 0.6s ease;
 }
 #initOverlay.gone { opacity: 0; pointer-events: none; }
-.init-title { font-size: clamp(10px, 1.1vw, 14px); letter-spacing: 0.35em; opacity: 0.9; }
-.init-sub   { font-size: clamp(9px, 0.85vw, 11px); letter-spacing: 0.25em; opacity: 0.35; }
+.init-title, .init-sub { font-family: 'Space Mono', monospace; }
+.init-title { font-size: clamp(0.8rem, 1.1vw, 0.95rem); letter-spacing: 0.35em; }
+.init-sub   { font-size: 0.72rem; letter-spacing: 0.25em; color: #9a9a92; }

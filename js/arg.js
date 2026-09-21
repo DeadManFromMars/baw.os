@@ -156,8 +156,11 @@ const Arg = (() => {
         welcomed   = true;
         PROMPTS.forEach(id => { $(id).classList.remove('visible', 'fading'); });
         $('argWelcomeName').textContent = username;
+        document.querySelector('.scan-tagline').classList.add('gone');   // the welcome line takes its place
 
-        const shown = ['argWelcome', 'argLogout', 'inventoryBtn', 'cardEditorBtn', 'devStickerBtn', 'signalBtn'];
+        const shown = ['argWelcome', 'argLogout', 'inventoryBtn', 'cardEditorBtn', 'signalBtn'];
+        // The dev sticker button only works against a local DEBUG backend, so only show it locally
+        if (['localhost', '127.0.0.1'].includes(location.hostname)) shown.push('devStickerBtn');
         Utils.nextFrames().then(() => shown.forEach(id => $(id)?.classList.add('visible')));
     }
 

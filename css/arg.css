@@ -1,38 +1,25 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   arg.css
-   ARG registration and card upload prompts.
+   arg.css — the prompts after the scan + the welcome view (js/arg.js)
 
-   Two prompts, one shown at a time:
-     #argRegPrompt  — new visitor, picks a username
-     #argCardPrompt — returning visitor, uploads their card image
+   Three prompts, one shown at a time:
+     #argChoicePrompt  register — or — offer token
+     #argRegPrompt     new visitor picks a username
+     #argCardPrompt    returning visitor uploads their card
 
-   Design language: ultra-minimal. No boxes, no decorative chrome.
-   The bare input and single action button carry all the weight.
-   The UI trusts the player to understand what's being asked.
-
-   Contains:
-     - Shared prompt container rules (#argRegPrompt, #argCardPrompt)
-     - Minimal input, button, message, and sub-label styles
-     - Card slot dropzone (two lines = card reader slit)
-     - Ghost "switch to register" button
+   Ultra-minimal on purpose: no boxes, just a bare input or slot and
+   one action. The player is trusted to work out what's being asked.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   SHARED PROMPT CONTAINER
-   Both prompts use identical positioning and visibility logic.
-   JS adds/removes .visible and .fading.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-/* All three ARG prompts share the same right-side position.
-   They are shown one at a time — JS adds/removes .visible.
-   right:17vw + top:50% + translateY(-50%) keeps them vertically
-   centred on the right third of the screen, clear of the globe. */
+/* All three share one spot: the right-hand column the scan's message
+   box used (--scan-* in scan.css), level with the globe.
+   JS adds .visible to show one, .fading to dismiss it. */
 #argRegPrompt,
 #argCardPrompt,
 #argChoicePrompt {
     position: fixed;
-    right: 17vw;
+    right: var(--scan-side);
+    width: var(--scan-panel-w);
     top: 50%;
     transform: translateY(-50%);
     display: flex;
@@ -114,7 +101,7 @@
 .arg-minimal-btn {
     background: transparent;
     border: none;
-    color: var(--muted);
+    color: var(--ink2);
     font-family: 'Space Mono', monospace;
     font-size: 1.2rem;
     cursor: pointer;
@@ -135,10 +122,10 @@
 
 .arg-minimal-msg {
     font-family: 'Space Mono', monospace;
-    font-size: 0.58rem;
-    letter-spacing: 0.12em;
-    min-height: 16px;
-    color: var(--muted);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    min-height: 18px;
+    color: var(--text2);
     text-align: center;
 }
 
@@ -154,10 +141,9 @@
 
 .arg-minimal-sub {
     font-family: 'Space Mono', monospace;
-    font-size: 0.5rem;
+    font-size: 0.68rem;
     letter-spacing: 0.3em;
     color: var(--muted);
-    opacity: 0.4;
     text-transform: uppercase;
 }
 
@@ -196,51 +182,24 @@
 }
 
 
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   GHOST SWITCH BUTTON
-   The "—" button on the card prompt that resets to registration.
-   Barely visible — it's an escape hatch, not a primary action.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-/* Back button — shared by both reg and card prompts.
-   Sits below the status message. Same ghost family as .arg-minimal-ghost
-   but slightly more readable — this is a nav action, not an escape hatch. */
+/* "← back" on the register + card prompts, under the status message */
 .arg-back-btn {
     background: transparent;
     border: none;
-    color: var(--muted);
+    color: var(--text2);
     font-family: 'Space Mono', monospace;
-    font-size: 0.5rem;
-    letter-spacing: 0.25em;
+    font-size: 0.68rem;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
     cursor: pointer;
-    opacity: 0.45;
-    transition: opacity 0.2s, color 0.15s;
+    transition: color 0.15s;
     padding: 6px 0;
     margin-top: 8px;
 }
 
-.arg-back-btn:hover {
-    opacity: 1;
-    color: var(--ink);
-}
+.arg-back-btn:hover { color: var(--ink); }
 
 
-.arg-minimal-ghost {
-    background: transparent;
-    border: none;
-    color: var(--muted);
-    font-size: 1rem;
-    cursor: pointer;
-    opacity: 0.25;
-    transition: opacity 0.2s;
-    padding: 4px 8px;
-    font-family: 'Space Mono', monospace;
-}
-
-.arg-minimal-ghost:hover {
-    opacity: 0.6;
-}
 
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -251,28 +210,38 @@
 
 .arg-choice-btn {
     font-family: 'Space Mono', monospace;
-    font-size: 0.62rem;
+    font-size: 0.85rem;
     letter-spacing: 0.3em;
     text-transform: uppercase;
-    color: var(--muted);
-    padding: 8px 0;
-    width: 180px;
-    transition: color 0.15s;
+    color: var(--ink2);
+    padding: 10px 0;
+    width: 220px;
+    transition: color 0.15s, border-color 0.15s;
     border-bottom: 1px solid transparent;
 }
 
-.arg-choice-btn:hover {
-    color: var(--ink);
-    border-bottom-color: var(--ink);
+.arg-choice-btn:hover,
+.arg-choice-btn:focus-visible {
+    color: var(--red);
+    border-bottom-color: var(--red);
+    outline: none;
 }
 
 /* The "—" divider between the two options */
 .arg-choice-divider {
     font-family: 'Space Mono', monospace;
-    font-size: 0.5rem;
+    font-size: 0.72rem;
     color: var(--muted);
-    opacity: 0.3;
-    letter-spacing: 0.2em;
+}
+
+/* Narrow windows: prompts go under the globe, full width */
+@media (max-width: 820px) {
+    #argRegPrompt, #argCardPrompt, #argChoicePrompt {
+        left: var(--scan-side);
+        top: auto;
+        bottom: 8vh;
+        transform: none;
+    }
 }
 
 
@@ -281,13 +250,16 @@
    Hidden by default. JS adds .visible class to show them.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
+/* Sits just under the wordmark, in the tagline's place (arg.js fades the
+   tagline out as this fades in). The wordmark block is centred at 12% and
+   scales with the window width, hence the vw offset. */
 #argWelcome {
     position: fixed;
-    top: 32px;
+    top: calc(12% + clamp(1.2rem, 2.75vw, 2.4rem));
     left: 50%;
     transform: translateX(-50%);
     font-family: 'Vipnagorgialla Rg', sans-serif;
-    font-size: clamp(1.2rem, 2.5vw, 2rem);
+    font-size: clamp(1rem, 2vw, 1.6rem);
     letter-spacing: 0.12em;
     color: var(--ink);
     text-transform: uppercase;
@@ -309,7 +281,7 @@
     font-family: 'Space Mono', monospace;
     font-size: 0.72rem;
     letter-spacing: 0.25em;
-    color: var(--muted);
+    color: var(--ink2);          /* matches INVENTORY / EDIT CARD / SIGNAL VIEWER */
     background: transparent;
     border: none;
     cursor: pointer;

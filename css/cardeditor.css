@@ -9,8 +9,7 @@
 
    READABILITY
      Body text is never smaller than ~11px, and secondary text uses
-     --ced-text-2 (darker than the site-wide --muted) so it passes
-     WCAG AA contrast on the cream background.
+     --text2 (base.css) so it passes WCAG AA contrast on cream.
 
    Below 900px wide the columns stack vertically.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -21,8 +20,7 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 #cardEditorOverlay {
-    /* Editor-only colors — readable secondary text + focus ring */
-    --ced-text-2: #55554d;        /* ~7:1 on cream (site --muted is ~3:1) */
+    /* Editor-only colors — focus ring + panel tint */
     --ced-focus:  var(--red);
     --ced-panel:  rgba(26, 26, 24, 0.035);
 
@@ -126,13 +124,13 @@
 .ced-section-sub {
     margin: 0;
     font-size: 0.72rem;
-    color: var(--ced-text-2);
+    color: var(--text2);
 }
 .ced-empty {
     margin: 0;
     padding: 12px 0;
     font-size: 0.75rem;
-    color: var(--ced-text-2);
+    color: var(--text2);
     list-style: none;
 }
 
@@ -208,11 +206,11 @@
 .ced-crop-placeholder {
     width: 100%; height: 100%;
     border-radius: 50%;
-    border: 1.5px dashed var(--ced-text-2);
+    border: 1.5px dashed var(--text2);
     background: var(--ced-panel);
     font-family: inherit;
     font-size: 0.75rem;
-    color: var(--ced-text-2);
+    color: var(--text2);
     cursor: pointer;
     transition: border-color 0.2s, color 0.2s;
 }
@@ -247,7 +245,7 @@
     padding: 0;
     list-style: none;
     font-size: 0.72rem;
-    color: var(--ced-text-2);
+    color: var(--text2);
     flex-shrink: 0;
 }
 .ced-help kbd {
@@ -287,7 +285,7 @@
     margin: 0;
     flex-shrink: 0;
     font-size: 0.75rem;
-    color: var(--ced-text-2);
+    color: var(--text2);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -355,7 +353,7 @@
     min-height: 1.4em;
     font-size: 0.78rem;
     text-align: center;
-    color: var(--ced-text-2);
+    color: var(--text2);
 }
 .ced-msg-error   { color: #c42a1f; }      /* slightly darker red for text contrast */
 .ced-msg-success { color: #3f6b57; }      /* darker sage for text contrast */
@@ -430,7 +428,7 @@
     border: none;
     border-radius: 50%;
     background: transparent;
-    color: var(--ced-text-2);
+    color: var(--text2);
     font-size: 0.8rem;
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
