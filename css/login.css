@@ -11,8 +11,6 @@
      - HUD corner labels (.lp-hud-tl, .lp-hud-br)
      - Center input cluster (.lp-center, .lp-label, .lp-input)
      - Status message overrides for this context
-     - Progress bar (login verification state)
-     - Access granted overlay (#overlay)
      - Secured flash (#securedFlash, #securedWord)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
@@ -38,11 +36,6 @@
     background: transparent;
 }
 
-#loginPhase.visible {
-    opacity: 1;
-    pointer-events: all;
-}
-
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    HUD CORNER LABELS
@@ -63,17 +56,6 @@
     align-items: center;
     gap: 8px;
     opacity: 0.45;
-}
-
-/* Pulsing status dot — tells the player the node is live */
-.lp-hud-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--red);
-    display: inline-block;
-    animation: dotPulse 1.5s ease-in-out infinite;
-    flex-shrink: 0;
 }
 
 /* Bottom-right: session ID (populated by JS from dataReady.session) */
@@ -168,86 +150,6 @@
 #loginPhase #msg.success { color: var(--sage); }
 
 
-/* ── Login progress bar ──
-   Only shown while JS is verifying the passphrase. */
-#loginPhase .progress-wrap {
-    width: 260px;
-    height: 1px;
-    background: rgba(26, 26, 24, 0.1);
-    display: none;
-}
-
-#loginPhase .progress-wrap.show {
-    display: block;
-}
-
-#loginPhase .progress-bar {
-    height: 100%;
-    width: 0%;
-    background: var(--red);
-    transition: width 1.5s ease;
-}
-
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   ACCESS GRANTED OVERLAY
-   Full-screen cream takeover that plays before redirect to stage2.
-   JS adds .show to trigger the fade-in.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-#overlay {
-    position: fixed;
-    inset: 0;
-    background: var(--cream);
-    z-index: 100;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.8s ease;
-}
-
-#overlay.show {
-    opacity: 1;
-    pointer-events: all;
-}
-
-.ov-title {
-    font-weight: 700;
-    font-size: 3.5rem;
-    letter-spacing: -0.03em;
-    color: var(--ink);
-}
-
-.ov-title span {
-    color: var(--red);
-}
-
-.ov-sub {
-    font-size: 0.58rem;
-    letter-spacing: 0.3em;
-    color: var(--muted);
-    text-transform: uppercase;
-}
-
-.ov-bar {
-    width: 200px;
-    height: 1px;
-    background: var(--border);
-    overflow: hidden;
-}
-
-.ov-fill {
-    height: 100%;
-    width: 0%;
-    background: var(--red);
-    transition: width 2.2s ease;
-}
-
-
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    SECURED FLASH
    The word "SECURED" flickers in over the hex city after login,
@@ -288,6 +190,13 @@
     height: 100%;
     pointer-events: none;
     overflow: visible;
+}
+
+/* One expanding rectangle (login.js animates size + opacity) */
+.secured-ripple {
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 0.8;
 }
 
 

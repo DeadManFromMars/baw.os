@@ -1,63 +1,49 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   sounds.js  —  UI SOUND EFFECTS
+   sounds.js — UI sound effects
 
-   Three sounds, all from Audio/Sounds/HUD/:
-     hover.mp3    — played on mouseenter of interactive ARG elements
-     positive.mp3 — played on actions that move forward
-                    (register submit, offer token submit)
-     negative.mp3 — played on actions that move back or exit
-                    (back button, logout)
+   SFX.hover()     pointer enters something interactive
+   SFX.positive()  moving forward (submit, open, add)
+   SFX.negative()  going back / closing / removing
+   SFX.stamp()     sticker stamp impact
 
-   Usage:
-     SFX.hover()
-     SFX.positive()
-     SFX.negative()
-
-   All calls are fire-and-forget — each play() rewinds to 0 first
-   so rapid re-triggers (e.g. moving between menu items quickly)
-   always restart cleanly rather than overlapping or going silent.
-
-   Volume is kept low by default so sounds accent rather than dominate.
-   Adjust SFX_VOLUME below to taste (0.0 – 1.0).
+   Any element with data-sfx="hover" plays the hover sound
+   automatically — no inline handlers needed.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const SFX = (() => {
 
-    const SFX_VOLUME = 0.35;
-    const BASE_PATH  = 'Audio/Sounds/HUD/';
-    const STAMP_PATH = 'Audio/Sounds/Stamp/';
-
-    /* Creates an Audio element with standard settings.
-       path defaults to BASE_PATH if not provided. */
-    function make(file, path = BASE_PATH) {
-        const audio = new Audio(path + file);
-        audio.volume  = SFX_VOLUME;
-        audio.preload = 'auto';
-        return audio;
-    }
+    const VOLUME = 0.35;
 
     const sounds = {
-        hover:    make('hover.mp3'),
-        positive: make('positive.mp3'),
-        negative: make('negative.mp3'),
-        stamp:    make('stamp_impact.mp3', STAMP_PATH),
+        hover:    'Audio/Sounds/HUD/hover.mp3',
+        positive: 'Audio/Sounds/HUD/positive.mp3',
+        negative: 'Audio/Sounds/HUD/negative.mp3',
+        stamp:    'Audio/Sounds/Stamp/stamp_impact.mp3',
     };
-
-    function play(sound) {
-        const a = sounds[sound];
-        if (!a) return;
-        a.currentTime = 0;
-        a.play().catch(() => {
-            // Autoplay policy — browser blocked it before first interaction.
-            // Silently ignored; sounds will work after the user's first click.
-        });
+    for (const [name, src] of Object.entries(sounds)) {
+        const audio = new Audio(src);
+        audio.volume  = VOLUME;
+        audio.preload = 'auto';
+        sounds[name]  = audio;
     }
 
-    return {
-        hover()    { play('hover');    },
-        positive() { play('positive'); },
-        negative() { play('negative'); },
-        stamp()    { play('stamp');    },
-    };
+    // Rewind first so rapid repeats restart instead of being dropped.
+    // play() is refused until the page's first click — that's fine.
+    function play(name) {
+        const audio = sounds[name];
+        audio.currentTime = 0;
+        audio.play().catch(() => {});
+    }
 
+    document.addEventListener('mouseover', e => {
+        const target = e.target.closest('[data-sfx="hover"]');
+        if (target && !target.contains(e.relatedTarget)) play('hover');   // entering, not moving within
+    });
+
+    return {
+        hover:    () => play('hover'),
+        positive: () => play('positive'),
+        negative: () => play('negative'),
+        stamp:    () => play('stamp'),
+    };
 })();

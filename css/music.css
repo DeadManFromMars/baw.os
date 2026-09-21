@@ -1,0 +1,638 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   music.css  —  RADIO WIDGET + MIXTAPE MANAGER
+   (replaces radio.css + playlist.css; pairs with js/music.js)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+
+/* ════════════════════════════════════════════════════════
+   RADIO WIDGET
+   Frosted panel, bottom-right. Faded in by music.js once
+   playback starts; draggable by its handle.
+════════════════════════════════════════════════════════ */
+
+#radioWidget {
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    width: 280px;
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.5s ease;
+    user-select: none;
+
+    border-radius: 16px;
+    background: rgba(253, 252, 250, 0.55);
+    backdrop-filter: blur(24px) saturate(1.4);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow:
+        0 8px 32px rgba(26, 26, 24, 0.12),
+        inset 0  1px 0 rgba(255, 255, 255, 0.8),
+        inset 0 -1px 0 rgba(26, 26, 24, 0.06);
+}
+#radioWidget.visible { opacity: 1; pointer-events: all; }
+
+#radioWidget button:focus-visible,
+#radioWidget input:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+/* Drag handle — the pill bar at the top */
+#radioDragHandle {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    touch-action: none;
+    border-bottom: 1px solid rgba(26, 26, 24, 0.06);
+}
+#radioDragHandle:active { cursor: grabbing; }
+#radioDragHandle::before {
+    content: '';
+    width: 32px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(26, 26, 24, 0.15);
+}
+
+.radio-inner {
+    padding: 14px 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Title scrolls only when too long (JS adds .fits otherwise) */
+.radio-marquee-wrap { overflow: hidden; }
+.radio-marquee {
+    display: inline-block;
+    white-space: nowrap;
+    font-family: 'Vipnagorgialla Rg', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    animation: marqueeScroll 10s linear infinite;
+}
+.radio-marquee.fits { animation: none; }
+@keyframes marqueeScroll {
+    from { transform: translateX(100%); }
+    to   { transform: translateX(-100%); }
+}
+
+.radio-artist {
+    margin-top: -6px;
+    font-size: 0.68rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #55554d;
+}
+
+/* Progress — click to seek */
+.radio-progress-bar {
+    height: 4px;
+    background: rgba(26, 26, 24, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+    cursor: pointer;
+}
+.radio-progress-fill {
+    height: 100%;
+    width: 0;
+    background: var(--red);
+}
+.radio-times {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: #55554d;
+}
+
+/* Prev / play / next */
+.radio-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+.radio-btn {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid rgba(26, 26, 24, 0.1);
+    background: rgba(26, 26, 24, 0.06);
+    font-size: 0.65rem;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+}
+.radio-btn:hover  { background: rgba(26, 26, 24, 0.12); }
+.radio-btn:active { transform: scale(0.92); }
+.radio-play {
+    width: 44px;
+    height: 44px;
+    font-size: 0.8rem;
+    background: var(--ink);
+    color: var(--cream);
+    border-color: transparent;
+}
+.radio-play:hover { background: var(--ink2); }
+
+/* Volume */
+.radio-volume-wrap { display: flex; align-items: center; gap: 8px; }
+.radio-vol-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    color: #55554d;
+}
+.radio-volume {
+    flex: 1;
+    height: 4px;
+    appearance: none;
+    -webkit-appearance: none;
+    background: rgba(26, 26, 24, 0.1);
+    border-radius: 2px;
+    cursor: pointer;
+}
+.radio-volume::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: var(--ink); border: none; }
+.radio-volume::-moz-range-thumb     {                          width: 12px; height: 12px; border-radius: 50%; background: var(--ink); border: none; }
+
+/* Opens the mixtape manager */
+.radio-mixtape-btn {
+    padding: 8px 0 0;
+    border: none;
+    border-top: 1px solid rgba(26, 26, 24, 0.08);
+    background: transparent;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #55554d;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.radio-mixtape-btn:hover { color: var(--red); }
+
+
+/* ════════════════════════════════════════════════════════
+   MIXTAPE MANAGER OVERLAY
+   Three columns: library wheel | selected record | the mixtape
+════════════════════════════════════════════════════════ */
+
+#mixtapeOverlay {
+    --mix-track-h: 64px;       /* sync with C.TRACK_H in music.js */
+    --mix-text-2:  #55554d;    /* readable secondary text on cream */
+
+    position: fixed;
+    inset: 0;
+    z-index: 700;
+    display: flex;
+    flex-direction: column;
+    background: rgba(245, 242, 236, 0.96);
+    color: var(--ink);
+    font-family: 'Space Mono', monospace;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+}
+#mixtapeOverlay.visible   { opacity: 1; pointer-events: all; }
+#mixtapeOverlay:focus     { outline: none; }
+#mixtapeOverlay [hidden]  { display: none !important; }
+#mixtapeOverlay :focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+/* ── Header ── */
+
+.mix-header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    padding: 14px 20px 12px 32px;
+    border-bottom: 1px solid var(--border2);
+    flex-shrink: 0;
+}
+.mix-title {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+}
+.mix-sub     { font-size: 0.72rem; color: var(--mix-text-2); }
+.mix-unsaved { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--red); }
+.mix-close-btn {
+    margin-left: auto;
+    align-self: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    font-family: inherit;
+    font-size: 1rem;
+    color: var(--ink);
+    cursor: pointer;
+}
+.mix-close-btn:hover { border-color: var(--border2); }
+
+/* ── Columns ── */
+
+.mix-body { flex: 1; display: flex; min-height: 0; }
+.mix-col  { display: flex; flex-direction: column; min-height: 0; }
+.mix-col-library { flex: 1; min-width: 0; }
+.mix-col-record  {
+    width: 320px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 24px;
+    border-left: 1px solid var(--border2);
+    border-right: 1px solid var(--border2);
+}
+.mix-col-queue { width: 380px; flex-shrink: 0; }
+
+.mix-col-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px 10px 24px;
+    border-bottom: 1px solid var(--border2);
+    flex-shrink: 0;
+}
+.mix-col-label {
+    margin: 0;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+.mix-col-count { margin-right: auto; font-size: 0.72rem; color: var(--mix-text-2); }
+
+.mix-hint {
+    margin: 0;
+    padding: 8px 24px;
+    border-top: 1px solid var(--border2);
+    font-size: 0.68rem;
+    color: var(--mix-text-2);
+    flex-shrink: 0;
+}
+.mix-empty {
+    margin: 0;
+    padding: 36px 24px;
+    font-size: 0.75rem;
+    line-height: 1.6;
+    color: var(--mix-text-2);
+    text-align: center;
+    list-style: none;
+}
+
+/* Shared small bordered button (sort, shuffle, clear) */
+.mix-sort-btn,
+.mix-text-btn {
+    padding: 5px 10px;
+    border: 1px solid var(--border2);
+    border-radius: 3px;
+    background: transparent;
+    font-family: inherit;
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--mix-text-2);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+.mix-sort-btn:hover,
+.mix-text-btn:hover { color: var(--ink); border-color: var(--ink); }
+.mix-sort-btn[aria-pressed="true"],
+.mix-text-btn[aria-pressed="true"] { color: var(--ink); border-color: var(--ink); font-weight: 700; }
+.mix-text-btn:disabled { opacity: 0.35; cursor: default; }
+
+.mix-sort { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.mix-sort-label { font-size: 0.68rem; color: var(--mix-text-2); }
+
+/* ── Library wheel ──
+   Rows are absolutely positioned by music.js every frame, so no CSS
+   transitions on top/transform/opacity (they'd fight the JS spring). */
+
+.mix-wheel-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 12%, black 88%, transparent);
+            mask-image: linear-gradient(to bottom, transparent, black 12%, black 88%, transparent);
+}
+.mix-wheel-selector {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: var(--mix-track-h);
+    transform: translateY(-50%);
+    border-top: 1px solid rgba(26, 26, 24, 0.12);
+    border-bottom: 1px solid rgba(26, 26, 24, 0.12);
+    pointer-events: none;
+    z-index: 2;
+}
+.mix-wheel { position: absolute; inset: 0; z-index: 1; }
+.mix-wheel:focus-visible { outline-offset: -2px; }
+
+.mix-track-row,
+.mix-divider-row {
+    position: absolute;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    transform-origin: left center;
+    will-change: transform, opacity, top;
+}
+.mix-track-row {
+    gap: 14px;
+    padding: 0 24px;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+}
+.mix-track-row-active { border-left-color: var(--red); }
+.mix-track-row-active .mix-track-index { color: var(--red); }
+
+.mix-track-index { width: 24px; flex-shrink: 0; text-align: right; font-size: 0.72rem; color: var(--mix-text-2); }
+.mix-track-info  { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mix-track-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mix-track-row-active .mix-track-title { color: var(--ink); }
+.mix-track-artist { font-size: 0.72rem; color: var(--mix-text-2); }
+.now-playing .mix-track-title,
+.now-playing .mix-queue-title { color: var(--red); }
+
+/* "On tape" tag — only shown for tracks already in the mixtape */
+.mix-on-tape-tag {
+    display: none;
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border: 1px solid var(--ink);
+    border-radius: 3px;
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+.mix-track-row.on-tape .mix-on-tape-tag { display: inline-block; }
+
+/* Group divider: dark tab + hairline */
+.mix-divider-row { padding: 0 16px 0 20px; pointer-events: none; }
+.mix-div-tab {
+    padding: 4px 12px;
+    border-radius: 3px;
+    background: var(--ink);
+    color: var(--cream);
+    font-size: 0.68rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.mix-div-line { flex: 1; height: 1px; margin-left: 10px; background: rgba(26, 26, 24, 0.16); }
+
+/* ── Selected record ── */
+
+.mix-record-info   { text-align: center; max-width: 100%; }
+.mix-record-title  {
+    margin: 0 0 4px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mix-record-artist { margin: 0; font-size: 0.75rem; color: var(--mix-text-2); }
+
+/* Sleeve with the vinyl peeking out to the right */
+.mix-sleeve-wrap { position: relative; width: 190px; height: 190px; margin-right: 40px; }
+.mix-sleeve {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: 3px;
+    background: var(--ink);
+    overflow: hidden;
+}
+.mix-sleeve-art {
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+.mix-sleeve-art.loaded { opacity: 1; }
+.mix-vinyl {
+    position: absolute;
+    right: -42px;
+    top: 50%;
+    width: 170px;
+    height: 170px;
+    border-radius: 50%;
+    transform: translateY(-50%);
+    background: radial-gradient(circle,          /* grooves */
+        #1a1a18 20%, #2a2a28 21% 22%, #1a1a18 23% 40%,
+        #252523 41% 42%, #1a1a18 43% 60%, #252523 61% 62%, #1a1a18 63%);
+}
+.mix-vinyl.spinning { animation: vinylSpin 2s linear infinite; }
+@keyframes vinylSpin {
+    from { transform: translateY(-50%) rotate(0deg); }
+    to   { transform: translateY(-50%) rotate(360deg); }
+}
+
+/* ‹ preview › — browse the library and listen to the selected track */
+.mix-browse {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    max-width: 240px;
+}
+.mix-browse-btn {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    font-family: inherit;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: var(--mix-text-2);
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+}
+.mix-browse-btn:hover { color: var(--ink); background: rgba(26, 26, 24, 0.06); }
+
+.mix-preview-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 40px;
+    border: 1px solid var(--border2);
+    border-radius: 20px;
+    background: transparent;
+    font-family: inherit;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink);
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+.mix-preview-btn:hover { border-color: var(--ink); }
+.mix-preview-icon { font-size: 0.65rem; }
+
+/* Main action: add (solid) / already on the mixtape (outlined, red on hover = remove) */
+.mix-toggle-btn {
+    width: 100%;
+    max-width: 240px;
+    padding: 12px 18px;
+    border: 1px solid var(--ink);
+    border-radius: 4px;
+    background: var(--ink);
+    font-family: inherit;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--cream);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.mix-toggle-btn:hover { background: var(--red); border-color: var(--red); }
+.mix-toggle-btn.is-on { background: transparent; color: var(--ink); }
+.mix-toggle-btn.is-on:hover { background: transparent; color: var(--red); border-color: var(--red); }
+
+/* ── The mixtape (queue) ── */
+
+.mix-queue-list {
+    flex: 1;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--muted) transparent;
+}
+.mix-queue-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-left: 10px;
+    border-left: 3px solid transparent;
+    border-top: 2px solid transparent;
+    border-bottom: 2px solid transparent;
+}
+.mix-queue-row:hover      { background: rgba(26, 26, 24, 0.04); }
+.mix-queue-row.now-playing { border-left-color: var(--red); }
+.mix-queue-row.dragging   { opacity: 0.4; }
+.mix-queue-row.drop-above { border-top-color: var(--red); }
+.mix-queue-row.drop-below { border-bottom-color: var(--red); }
+
+.mix-queue-grip { cursor: grab; color: var(--mix-text-2); font-size: 0.8rem; user-select: none; }
+.mix-queue-play {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 6px;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    text-align: left;
+    color: inherit;
+    cursor: pointer;
+}
+.mix-queue-pos  { width: 22px; flex-shrink: 0; text-align: right; font-size: 0.68rem; color: var(--mix-text-2); }
+.mix-queue-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mix-queue-title {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mix-queue-artist { font-size: 0.68rem; color: var(--mix-text-2); }
+.mix-queue-remove {
+    width: 32px;
+    height: 32px;
+    margin-right: 8px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    font-size: 0.75rem;
+    color: var(--mix-text-2);
+    cursor: pointer;
+}
+.mix-queue-remove:hover { background: var(--red); color: #fff; }
+
+/* ── Footer ── */
+
+.mix-footer {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px 12px 24px;
+    border-top: 1px solid var(--border2);
+    flex-shrink: 0;
+}
+.mix-msg { flex: 1; margin: 0; min-height: 1.2em; font-size: 0.72rem; color: var(--mix-text-2); }
+.mix-msg-success { color: #3f6b57; }
+.mix-msg-error   { color: #c42a1f; }
+.mix-save-btn {
+    padding: 11px 22px;
+    border: none;
+    border-radius: 4px;
+    background: var(--ink);
+    font-family: inherit;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--cream);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.mix-save-btn:hover    { background: var(--red); }
+.mix-save-btn:disabled { opacity: 0.5; cursor: progress; }
+.mix-save-btn.is-dirty { box-shadow: inset 0 -3px 0 var(--red); }
+
+/* ── Narrow screens: stack the columns ── */
+
+@media (max-width: 1000px) {
+    .mix-body { flex-direction: column; overflow-y: auto; }
+    .mix-col-library { min-height: 50vh; }
+    .mix-col-record,
+    .mix-col-queue { width: auto; border: none; border-top: 1px solid var(--border2); }
+    .mix-col-queue { min-height: 50vh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #mixtapeOverlay, #radioWidget { transition: none; }
+    .radio-marquee, .mix-vinyl.spinning { animation: none; }
+}

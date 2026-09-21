@@ -1,125 +1,94 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   login.js  —  LOGIN FORM + SECURED FLASH + INITIATION SEQUENCE
+   login.js — passphrase screen → "SECURED" flash → scan phase
 
-   Handles everything that happens on the login screen:
-     - Listening for Enter key / form submission
-     - Validating the passphrase via POST /api/verify (server-side)
-     - Showing status messages (wrong password, etc.)
-     - The "SECURED" flash animation that plays on correct login
-     - The city swoop intro sequence (first-visit only)
+   Enter in the passphrase box checks it with POST /api/verify
+   (the passphrase itself never lives in the frontend). Wrong:
+   message + city glitch. Right: city music fades, SECURED flashes,
+   and the scan phase starts (scan.js).
 
-   DEPENDENCIES:
-     config.js, utils.js, scan.js (Scan.start), CITY
+   The city intro + revealing this screen is session.js's job.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const Login = (() => {
 
-    /* ════════════════════════════════════════════════════════
-       STATUS MESSAGE
-       Sets the #msg element text and type class.
-       Type is one of: 'error' | 'success' | 'info'
-    ════════════════════════════════════════════════════════ */
+    let busy = false;   // one attempt at a time — and never twice after success
 
     function showMessage(text, type) {
         const el = document.getElementById('msg');
-        if (!el) return;
         el.textContent = text;
-        el.className   = type;  // CSS handles colour via .error / .success / .info
+        el.className   = `msg ${type}`;
     }
 
-
-    /* ════════════════════════════════════════════════════════
-       ATTEMPT LOGIN
-       Reads the password input, validates it, and either shows
-       an error or kicks off the post-login sequence.
-    ════════════════════════════════════════════════════════ */
-
     async function attemptLogin() {
-        const inputEl  = document.getElementById('password');
-        const password = inputEl ? inputEl.value.trim().toLowerCase() : '';
+        if (busy) return;
+        busy = true;
+        const input = document.getElementById('password');
 
-        // Verify the passphrase server-side — the code never lives in the frontend.
         let ok = false;
         try {
-            const res  = await fetch(`${CONFIG.apiBase}/api/verify`, {
-                method:      'POST',
-                credentials: 'include',
-                headers:     { 'Content-Type': 'application/json' },
-                body:        JSON.stringify({ code: password }),
+            const res = await fetch(`${CONFIG.apiBase}/api/verify`, {
+                method: 'POST', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: input.value.trim() }),
             });
-            const data = await res.json();
-            ok = data.ok === true;
+            ok = (await res.json()).ok === true;
         } catch (err) {
             console.error('[Login] /api/verify failed:', err);
             showMessage('Connection error. Please try again.', 'error');
+            busy = false;
             return;
         }
 
         if (!ok) {
             showMessage('Invalid credentials. This attempt has been logged.', 'error');
-            if (typeof CITY !== 'undefined') CITY.corruptEffect();
-            if (inputEl) { inputEl.value = ''; inputEl.focus(); }
+            CITY.corruptEffect();
+            input.value = '';
+            input.focus();
+            busy = false;
             return;
         }
 
-        // Mark the gate as passed so returning visits skip the intro
-        localStorage.setItem('baw_gate_passed', 'true');
+        // Correct — returning visits skip straight to the card prompt (session.js)
+        try { localStorage.setItem('baw_gate_passed', 'true'); } catch {}
 
-        // Fade out the login phase UI
         const loginPhase = document.getElementById('loginPhase');
         loginPhase.style.transition = 'opacity 0.6s ease';
         loginPhase.style.opacity    = '0';
 
-        // Fade music out, then continue into the SECURED flash sequence
-        SceneAudio.fadeOut(async () => {
+        CITY.fadeOutMusic(async () => {
             await Utils.sleep(200);
-
             CITY.stop();
             document.getElementById('cityCanvas').style.display = 'none';
-
             await playSecuredFlash();
-
             loginPhase.style.display = 'none';
-            _revealScanPhase();
+            revealScanPhase();
         });
     }
 
-    /* Fades the scan phase in after login, then starts streaming rows. */
-    function _revealScanPhase() {
+    /* Fade the scan phase in; its columns follow, then rows start streaming */
+    async function revealScanPhase() {
         const scanPhase = document.getElementById('scanPhase');
-        scanPhase.style.display    = 'flex';
-        scanPhase.style.opacity    = '0';
-        scanPhase.style.transition = 'opacity 2s ease';
+        const columns   = ['.scan-lines-wrap', '.scan-progress', '.scan-right'].map(s => document.querySelector(s));
 
-        // Start the sub-elements invisible — they fade in separately
-        const subEls = ['.scan-lines-wrap', '.scan-progress', '.scan-right'];
-        for (const sel of subEls) {
-            const el = document.querySelector(sel);
-            if (el) el.style.opacity = '0';
-        }
-
+        Object.assign(scanPhase.style, { display: 'flex', opacity: '0', transition: 'opacity 2s ease' });
+        columns.forEach(el => { el.style.opacity = '0'; });
         requestAnimationFrame(() => { scanPhase.style.opacity = '1'; });
 
-        // After the scan phase fades in, reveal sub-elements and begin scan rows
-        setTimeout(() => {
-            for (const sel of subEls) {
-                const el = document.querySelector(sel);
-                if (el) {
-                    el.style.transition = 'opacity 1.5s ease';
-                    el.style.opacity    = '1';
-                }
-            }
-            Scan.start();
-        }, 3000);
+        await Utils.sleep(3000);
+        columns.forEach(el => { el.style.transition = 'opacity 1.5s ease'; el.style.opacity = '1'; });
+        Scan.start();
     }
 
 
     /* ════════════════════════════════════════════════════════
-       SECURED FLASH
-       The word "SECURED" flickers in like a lamp switching on,
-       fires expanding rectangular SVG ripples, holds, then flickers out.
-       Returns a Promise that resolves when the flash is gone.
+       SECURED FLASH — "SECURED" flickers on like a lamp, fires
+       expanding rectangle ripples, holds, flickers off.
     ════════════════════════════════════════════════════════ */
+
+    // Alternating on/off step durations in ms (index 0 = first state)
+    const FLICKER_ON  = [0, 60, 120, 80, 160, 0, 200];
+    const FLICKER_OFF = [0, 50, 100, 60, 140, 0, 180];
+    const HOLD_MS     = 900;
 
     function playSecuredFlash() {
         return new Promise(resolve => {
@@ -127,115 +96,53 @@ const Login = (() => {
             const word    = document.getElementById('securedWord');
             const ripples = document.getElementById('securedRipples');
 
-            // Style the word for the ink-on-cream look
-            flash.style.background = 'transparent';
-            word.style.color       = 'var(--ink)';
-            word.style.borderColor = 'var(--ink)';
+            // Schedule a flicker: even steps show `firstOn`, odd steps the opposite
+            const flicker = (steps, startMs, firstOn) => {
+                let t = startMs;
+                steps.forEach((dur, i) => {
+                    setTimeout(() => { flash.style.opacity = (i % 2 === 0) === firstOn ? '1' : '0'; }, t);
+                    t += dur;
+                });
+                return t;
+            };
 
-            /* ── Ripple spawner ──
-               Each ripple is an SVG rect that expands outward from the
-               word's bounding box and fades to nothing over `dur` ms.
-               scale controls the maximum expansion (so staggered ripples
-               don't all reach the same size). */
-            function spawnRipple(delay, scale = 1) {
-                setTimeout(() => {
-                    const rect   = word.getBoundingClientRect();
-                    const cx     = rect.left + rect.width  / 2;
-                    const cy     = rect.top  + rect.height / 2;
-                    const startW = rect.width;
-                    const startH = rect.height;
+            // One rectangle growing out from the word and fading
+            const spawnRipple = (delay, scale) => setTimeout(() => {
+                const r = word.getBoundingClientRect();
+                const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+                const maxW = Math.max(innerWidth, innerHeight) * 2.4 * scale;
+                const maxH = maxW * (r.height / r.width);
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('class', 'secured-ripple');
+                ripples.appendChild(rect);
 
-                    const el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                    el.setAttribute('fill',         'none');
-                    el.setAttribute('stroke',       'var(--ink)');
-                    el.setAttribute('stroke-width', '0.8');
-                    el.setAttribute('opacity',      '0.6');
-                    ripples.appendChild(el);
+                const start = performance.now();
+                (function grow(now) {
+                    const p = Math.min((now - start) / 1200, 1);
+                    const e = 1 - (1 - p) * (1 - p);                      // ease-out
+                    const w = r.width + (maxW - r.width) * e, h = r.height + (maxH - r.height) * e;
+                    rect.setAttribute('x', cx - w / 2);
+                    rect.setAttribute('y', cy - h / 2);
+                    rect.setAttribute('width', w);
+                    rect.setAttribute('height', h);
+                    rect.setAttribute('opacity', (0.6 * (1 - p)).toFixed(3));
+                    p < 1 ? requestAnimationFrame(grow) : rect.remove();
+                })(start);
+            }, delay);
 
-                    const dur  = 1200;
-                    const maxW = Math.max(window.innerWidth, window.innerHeight) * 2.4 * scale;
-                    const maxH = maxW * (startH / startW);
-                    const t0   = performance.now();
-
-                    function animateRipple(ts) {
-                        const rawT   = Math.min((ts - t0) / dur, 1);
-                        const easedT = 1 - Math.pow(1 - rawT, 2);  // ease-out quad
-                        const curW   = startW + (maxW - startW) * easedT;
-                        const curH   = startH + (maxH - startH) * easedT;
-
-                        el.setAttribute('x',       cx - curW / 2);
-                        el.setAttribute('y',       cy - curH / 2);
-                        el.setAttribute('width',   curW);
-                        el.setAttribute('height',  curH);
-                        el.setAttribute('opacity', (0.6 * (1 - rawT)).toFixed(3));
-
-                        if (rawT < 1) requestAnimationFrame(animateRipple);
-                        else          el.remove();
-                    }
-                    requestAnimationFrame(animateRipple);
-                }, delay);
-            }
-
-            /* ── Flicker in ──
-               Alternating on/off timings produce a lamp-switching-on effect.
-               Even indices = on, odd indices = off.
-               `t` accumulates the total elapsed time for each step. */
-            const flickerIn = [0, 60, 120, 80, 160, 0, 200];
-            let t = 0;
-            flickerIn.forEach((dur, i) => {
-                setTimeout(() => { flash.style.opacity = i % 2 === 0 ? '1' : '0'; }, t);
-                t += dur;
-            });
-
-            // Spawn ripples at the moment the flash settles on
-            spawnRipple(t,        1.0);
-            spawnRipple(t +  80,  0.7);
-            spawnRipple(t + 180,  0.5);
-            spawnRipple(t + 320,  0.35);
-
-            const holdEnd = t + 900;
-
-            /* ── Flicker out ──
-               Same idea in reverse — starts off this time. */
-            const flickerOut = [0, 50, 100, 60, 140, 0, 180];
-            let t2 = holdEnd;
-            flickerOut.forEach((dur, i) => {
-                setTimeout(() => { flash.style.opacity = i % 2 === 0 ? '0' : '1'; }, t2);
-                t2 += dur;
-            });
-
-            // Callback after the flash disappears
-            setTimeout(() => {
-                flash.style.opacity = '0';
-                resolve();
-            }, t2 + 100);
+            const onAt = flicker(FLICKER_ON, 0, true);
+            [[0, 1], [80, 0.7], [180, 0.5], [320, 0.35]].forEach(([delay, scale]) => spawnRipple(onAt + delay, scale));
+            const offAt = flicker(FLICKER_OFF, onAt + HOLD_MS, false);
+            setTimeout(() => { flash.style.opacity = '0'; resolve(); }, offAt + 100);
         });
     }
 
 
-    /* playInitiationSequence removed — CITY.js now owns the full
-       intro sequence. Login reveal is triggered via CITY.onLoginReveal
-       callback, wired in session.js. */
-
-
-    /* ════════════════════════════════════════════════════════
-       INIT
-    ════════════════════════════════════════════════════════ */
-
     document.addEventListener('DOMContentLoaded', () => {
-        // Enter key submits the login form from anywhere on the page
-        document.addEventListener('keydown', e => {
+        document.getElementById('password').addEventListener('keydown', e => {
             if (e.key === 'Enter') attemptLogin();
         });
     });
 
-
-    /* ════════════════════════════════════════════════════════
-       PUBLIC API
-    ════════════════════════════════════════════════════════ */
-
-    return {
-        attemptLogin,
-    };
-
+    return { attemptLogin };
 })();

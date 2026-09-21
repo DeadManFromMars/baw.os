@@ -1,195 +1,108 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   session.js  —  SESSION ORCHESTRATION
+   session.js — decides where a visitor starts. Load LAST.
 
-   Entry point. Runs on DOMContentLoaded.
-   Calls /auth/me to determine the player's actual server-side
-   session state — never trusts localStorage for auth decisions.
+   Asks the backend who's logged in (/auth/me), then:
+     logged in                      → welcome view
+     passed the passphrase before   → card prompt ("offer token")
+     seen the intro before          → passphrase screen
+     first visit                    → city intro → passphrase screen
 
-   THREE STATES:
-     1. Not authenticated  — /auth/me returns 401
-        → Show the full city intro + login form (first visit)
-        OR skip city but still show login (returning visit hint)
-
-     2. Authenticated, no card upload yet
-        → Skip intro, go straight to ARG choice (register / upload card)
-
-     3. Authenticated, session active
-        → Skip intro, go straight to the globe / main experience
-
-   localStorage is only used for UI hints (skip the city animation
-   on returning visits). It is never used to grant access to anything.
-
-   DEPENDENCIES: must load last — config, utils, city, login, arg
-   must all be ready.
+   localStorage only skips animations — access is always decided by
+   the backend. Every path starts with a "click to begin" screen,
+   because browsers block audio until the page is clicked.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-document.addEventListener('DOMContentLoaded', async () => {
+(() => {
 
-    // Check actual server-side session state
-    let sessionUser = null;
-    try {
-        const res = await fetch(`${CONFIG.apiBase}/auth/me`, {
-            credentials: 'include',
+    const $ = id => document.getElementById(id);
+
+    function remembered(key) {
+        try { return localStorage.getItem(key) === 'true'; } catch { return false; }
+    }
+    function remember(key) {
+        try { localStorage.setItem(key, 'true'); } catch {}
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        let user = null;
+        try {
+            const res = await fetch(`${CONFIG.apiBase}/auth/me`, { credentials: 'include' });
+            if (res.ok) user = await res.json();
+        } catch { /* backend unreachable — treat as logged out */ }
+
+        if (user)                                startLoggedIn(user);
+        else if (remembered('baw_gate_passed'))  startAtCardPrompt();
+        else if (remembered('baw_seen_intro'))   startAtPassphrase();
+        else                                     startFirstVisit();
+    });
+
+
+    /* "INITIALISE SEQUENCE — click anywhere" (styled in base.css) */
+    function clickToBegin(onStart) {
+        const overlay = document.createElement('div');
+        overlay.id = 'initOverlay';
+        overlay.innerHTML = '<div class="init-title">Initialise sequence</div><div class="init-sub">Click anywhere to begin</div>';
+        document.body.appendChild(overlay);
+        overlay.addEventListener('click', () => {
+            overlay.classList.add('gone');
+            setTimeout(() => overlay.remove(), 600);
+            onStart();
+        }, { once: true });
+    }
+
+    function showLogin(fadeSeconds) {
+        const login = $('loginPhase');
+        login.style.transition    = `opacity ${fadeSeconds}s ease`;
+        login.style.opacity       = '1';
+        login.style.pointerEvents = 'all';
+        $('password').focus();
+    }
+
+    function startFirstVisit() {
+        DataStore.lookupNetwork();
+        const login = $('loginPhase');
+        login.style.opacity       = '0';
+        login.style.pointerEvents = 'none';
+        CITY.onLoginReveal = () => { CITY.toBackground(); showLogin(1.4); };
+        $('cityCanvas').style.display = 'block';
+        clickToBegin(() => {
+            remember('baw_seen_intro');
+            CITY.start();
         });
-        if (res.ok) {
-            sessionUser = await res.json();
-        }
-    } catch (_) {
-        // Network error — treat as unauthenticated
     }
 
-    if (sessionUser) {
-        // Valid session — notify modules that a player is authenticated
+    function startAtPassphrase() {
+        DataStore.lookupNetwork();
+        $('cityCanvas').style.display = 'none';
+        clickToBegin(() => showLogin(1.2));
+    }
+
+    function startAtCardPrompt() {
+        showGlobeScreen();
+        clickToBegin(() => setTimeout(Arg.showCardPrompt, 400));
+    }
+
+    function startLoggedIn(user) {
+        showGlobeScreen();
         document.dispatchEvent(new CustomEvent('player:authenticated'));
-        _handleAuthenticatedSession(sessionUser);
-    } else {
-        // No valid session — must go through login
-        const hasSeenIntro = localStorage.getItem('baw_seen_intro');
-        if (hasSeenIntro) {
-            _handleReturningUnauthenticated();
-        } else {
-            _handleFirstVisit();
-        }
+        clickToBegin(() => {
+            window.startPinLines();          // when they finish, the radio starts (music.js)
+            Arg.showWelcome(user.username);
+        });
     }
 
-});
+    /* Skip straight to the post-scan layout: globe centred, wordmark at the top */
+    function showGlobeScreen() {
+        document.body.classList.add('accents-ready');
+        $('cityCanvas').style.display = 'none';
+        Object.assign($('loginPhase').style, { opacity: '0', pointerEvents: 'none' });
+        Object.assign($('scanPhase').style, { display: 'flex', opacity: '1' });
+        document.querySelector('.scan-left').style.display  = 'none';
+        document.querySelector('.scan-right').style.display = 'none';
 
-
-/* ════════════════════════════════════════════════════════════════
-   INIT OVERLAY
-   Satisfies browser autoplay policy. Always shown.
-════════════════════════════════════════════════════════════════ */
-
-function _showInitOverlay(onStart) {
-    const overlay = document.createElement('div');
-    overlay.id = 'initOverlay';
-    overlay.style.cssText = [
-        'position:fixed', 'inset:0', 'z-index:1000', 'background:#000',
-        'display:flex', 'align-items:center', 'justify-content:center',
-        'cursor:pointer', 'transition:opacity 0.6s ease',
-    ].join(';');
-
-    overlay.innerHTML = `
-        <div style="text-align:center;pointer-events:none;user-select:none;">
-            <div style="
-                font-family:'Courier New',Courier,monospace;
-                font-size:clamp(10px,1.1vw,14px);
-                letter-spacing:0.35em;
-                color:#fff;
-                opacity:0.9;
-                margin-bottom:0.9em;
-                text-transform:uppercase;
-            ">INITIALISE SEQUENCE</div>
-            <div style="
-                font-family:'Courier New',Courier,monospace;
-                font-size:clamp(9px,0.85vw,11px);
-                letter-spacing:0.25em;
-                color:#fff;
-                opacity:0.35;
-                text-transform:uppercase;
-            ">CLICK ANYWHERE TO BEGIN</div>
-        </div>`;
-
-    document.body.appendChild(overlay);
-
-    overlay.addEventListener('click', () => {
-        overlay.style.opacity = '0';
-        overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
-        onStart();
-    }, { once: true });
-}
-
-
-/* ════════════════════════════════════════════════════════════════
-   FIRST VISIT — no session, never seen the intro
-   Full city sequence plays, then login form fades in.
-════════════════════════════════════════════════════════════════ */
-
-function _handleFirstVisit() {
-    const cityCanvas = document.getElementById('cityCanvas');
-    const loginEl    = document.getElementById('loginPhase');
-
-    loginEl.style.opacity       = '0';
-    loginEl.style.pointerEvents = 'none';
-
-    CITY.onLoginReveal = () => {
-        CITY.toBackground();
-        loginEl.style.transition    = 'opacity 1.4s ease';
-        loginEl.style.opacity       = '1';
-        loginEl.style.pointerEvents = 'all';
-        document.getElementById('password')?.focus();
-    };
-
-    cityCanvas.style.display = 'block';
-
-    _showInitOverlay(() => {
-        localStorage.setItem('baw_seen_intro', 'true');
-        CITY.start();
-    });
-}
-
-
-/* ════════════════════════════════════════════════════════════════
-   RETURNING UNAUTHENTICATED — no session, has seen the intro
-   Skip city animation, show login directly.
-════════════════════════════════════════════════════════════════ */
-
-function _handleReturningUnauthenticated() {
-    const cityCanvas = document.getElementById('cityCanvas');
-    const loginEl    = document.getElementById('loginPhase');
-
-    // Hide city — not needed
-    if (cityCanvas) cityCanvas.style.display = 'none';
-
-    _showInitOverlay(() => {
-        loginEl.style.transition    = 'opacity 1.2s ease';
-        loginEl.style.opacity       = '1';
-        loginEl.style.pointerEvents = 'all';
-        document.getElementById('password')?.focus();
-    });
-}
-
-
-/* ════════════════════════════════════════════════════════════════
-   AUTHENTICATED SESSION — valid /auth/me response
-   Skip everything, go straight to the main experience.
-════════════════════════════════════════════════════════════════ */
-
-function _handleAuthenticatedSession(user) {
-    document.body.classList.add('accents-ready');
-
-    // Hide city and login — not needed
-    const cityCanvas = document.getElementById('cityCanvas');
-    if (cityCanvas) cityCanvas.style.display = 'none';
-
-    const loginEl = document.getElementById('loginPhase');
-    if (loginEl) {
-        loginEl.style.opacity       = '0';
-        loginEl.style.pointerEvents = 'none';
-    }
-
-    // Show scan phase header (wordmark) only
-    const scanPhase = document.getElementById('scanPhase');
-    if (scanPhase) {
-        scanPhase.style.display = 'flex';
-        scanPhase.style.opacity = '1';
-    }
-    const scanLeft  = document.querySelector('.scan-left');
-    const scanRight = document.querySelector('.scan-right');
-    if (scanLeft)  scanLeft.style.display  = 'none';
-    if (scanRight) scanRight.style.display = 'none';
-
-    // Move globe and header to post-scan position
-    if (window.startGlobeMove) {
         window.startGlobeMove(CONFIG.globe.centerX, CONFIG.globe.centerY);
-    }
-    const header = document.querySelector('.scan-header');
-    if (header) {
+        const header = document.querySelector('.scan-header');
         header.style.left = '50%';
         header.style.top  = CONFIG.globe.postScanY + '%';
     }
-
-    _showInitOverlay(() => {
-        setTimeout(() => Arg.showArgChoice(), 400);
-    });
-}
+})();

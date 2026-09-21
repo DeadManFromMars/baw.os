@@ -1,7 +1,7 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   inventory.css  —  INVENTORY OVERLAY
+   inventory.css  —  INVENTORY OVERLAY + GLOBE-SCREEN SIDE BUTTONS
 
-   Design language: cream/ink palette, Space Mono, ultra-minimal.
+   Design language: cream/ink palette, Space Mono, minimal.
    Feels like a secure terminal readout, not a game UI.
 
    Layout:
@@ -12,39 +12,51 @@
          .inv-wheel-wrap          ← clips the wheel, holds selector
            .inv-wheel-selector    ← STATIC centre marker, JS never moves it
            .inv-wheel             ← rows are position:absolute inside here
+         .inv-key-hint
        .inv-right
-         #invCanvas / .inv-blackhole-canvas
+         .inv-viewer   (3D card / sticker)
+         .inv-locked   (black hole canvas)
+         .inv-right-note
 
    Wheel alignment contract:
      .inv-wheel-selector is top:50% + translateY(-50%), height = ROW_HEIGHT.
      JS places each row so its midpoint = wrapH/2 + dist*ROW_HEIGHT.
      When dist=0 the active row's midpoint = wrapH/2 = selector centre.
-     They are always aligned. JS never sets selector position.
+     To change row height: update ROW_HEIGHT in WHEEL_CONFIG (inventory.js)
+     AND --inv-row-h below.
 
-   To change row height: update ROW_HEIGHT in WHEEL_CONFIG (inventory.js)
-   AND the height values in .inv-wheel-selector and .inv-row below.
-   Both must stay in sync.
+   READABILITY
+     Nothing smaller than ~11px; secondary text uses --inv-text-2,
+     which passes WCAG AA contrast on cream (site --muted2 does not).
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 
 /* ── Overlay ─────────────────────────────────────────────────── */
 
 #inventoryOverlay {
+    --inv-row-h:  52px;        /* sync with WHEEL_CONFIG.ROW_HEIGHT */
+    --inv-text-2: #55554d;     /* readable secondary text */
+
     position: fixed;
     inset: 0;
     z-index: 600;
     display: flex;
-    flex-direction: row;
-    background: rgba(245, 242, 236, 0.88);
+    background: rgba(245, 242, 236, 0.94);
+    color: var(--ink);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.5s ease;
     font-family: 'Space Mono', monospace;
 }
+#inventoryOverlay.visible { opacity: 1; pointer-events: all; }
+#inventoryOverlay:focus   { outline: none; }
 
-#inventoryOverlay.visible {
-    opacity: 1;
-    pointer-events: all;
+/* The hidden attribute must win over display rules below */
+#inventoryOverlay [hidden] { display: none !important; }
+
+#inventoryOverlay :focus-visible {
+    outline: 2px solid var(--red);
+    outline-offset: 2px;
 }
 
 
@@ -52,8 +64,8 @@
 
 .inv-left {
     width: 32%;
-    min-width: 260px;
-    max-width: 400px;
+    min-width: 280px;
+    max-width: 420px;
     display: flex;
     flex-direction: column;
     border-right: 1px solid var(--border2);
@@ -63,196 +75,175 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 24px 28px 14px;
-    border-bottom: 1px solid var(--border);
+    padding: 16px 20px 12px 28px;
+    border-bottom: 1px solid var(--border2);
     flex-shrink: 0;
 }
 
-.inv-header-label {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.48rem;
-    letter-spacing: 0.45em;
-    color: var(--muted);
+.inv-title {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
     text-transform: uppercase;
 }
 
 .inv-close-btn {
+    width: 36px; height: 36px;
     background: transparent;
-    border: none;
-    color: var(--muted);
-    font-family: 'Space Mono', monospace;
-    font-size: 0.7rem;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 1rem;
     cursor: pointer;
-    padding: 2px 6px;
-    transition: color 0.15s;
-    line-height: 1;
+    transition: border-color 0.15s;
+}
+.inv-close-btn:hover { border-color: var(--border2); }
+
+.inv-key-hint {
+    margin: 0;
+    padding: 10px 28px 14px;
+    border-top: 1px solid var(--border2);
+    font-size: 0.7rem;
+    color: var(--inv-text-2);
+    flex-shrink: 0;
 }
 
-.inv-close-btn:hover { color: var(--ink); }
+
+/* ── Tabs ────────────────────────────────────────────────────── */
+
+.inv-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border2);
+    flex-shrink: 0;
+}
+
+.inv-tab {
+    flex: 1;
+    padding: 12px 0;
+    margin-bottom: -1px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-family: inherit;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--inv-text-2);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+.inv-tab:hover { color: var(--ink); }
+.inv-tab[aria-selected="true"] {
+    color: var(--ink);
+    font-weight: 700;
+    border-bottom-color: var(--red);
+}
 
 
 /* ── Wheel wrap ──────────────────────────────────────────────── */
 
 /*
   Contains both the selector and the wheel track.
-  overflow:hidden clips rows that have scrolled out of the visible band.
-  The mask fades rows out softly at top and bottom.
-  position:relative lets JS read .getBoundingClientRect().height correctly.
+  overflow:hidden clips rows that have scrolled out of the visible band;
+  the mask fades rows out softly at top and bottom.
 */
-
 .inv-wheel-wrap {
     flex: 1;
     position: relative;
     overflow: hidden;
-
-    -webkit-mask-image: linear-gradient(
-        to bottom,
-        transparent 0%,
-        black 16%,
-        black 84%,
-        transparent 100%
-    );
-    mask-image: linear-gradient(
-        to bottom,
-        transparent 0%,
-        black 16%,
-        black 84%,
-        transparent 100%
-    );
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 16%, black 84%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0%, black 16%, black 84%, transparent 100%);
 }
 
-
-/* ── Selector — static centre marker ────────────────────────── */
-
-/*
-  This element NEVER moves. JS does not touch it.
-  It marks the vertical centre of the wheel wrap.
-  Two thin ink lines top and bottom — understated, matches the
-  cream/ink terminal aesthetic. No fill, no color, no gimmicks.
-
-  Height must equal ROW_HEIGHT in WHEEL_CONFIG (default 52px).
-*/
-
+/* Static centre marker — two thin ink lines. JS never moves it. */
 .inv-wheel-selector {
     position: absolute;
     top: 50%;
     left: 0;
     right: 0;
-    height: 52px;                               /* sync with ROW_HEIGHT */
+    height: var(--inv-row-h);
     transform: translateY(-50%);
-
     border-top:    1px solid rgba(0, 0, 0, 0.13);
     border-bottom: 1px solid rgba(0, 0, 0, 0.13);
-
     pointer-events: none;
-    z-index: 2;   /* above rows so lines draw on top of row content */
+    z-index: 2;
 }
 
-
-/* ── Wheel track ─────────────────────────────────────────────── */
-
-/*
-  Full-size absolute container. JS places rows inside via style.top.
-  No layout mode — rows are purely JS-positioned.
-*/
-
+/* Full-size track. JS positions rows inside via style.top. */
 .inv-wheel {
     position: absolute;
     inset: 0;
     z-index: 1;
 }
+.inv-wheel:focus-visible { outline-offset: -2px; }
 
 
-/* ── Item rows ───────────────────────────────────────────────── */
+/* ── Rows ────────────────────────────────────────────────────── */
 
 /*
-  Every row is position:absolute. JS sets:
-    style.top       — vertical position (changes every frame)
-    style.transform — translateX (pull) + scale (falloff)
-    style.opacity   — falloff
-
-  transform-origin: left center keeps scale anchored to the left
-  edge so text stays left-aligned as items shrink.
-
-  No CSS transition on transform/opacity/top — the JS spring loop
-  handles interpolation. Adding CSS transitions here would cause
-  double-interpolation and visible stuttering.
+  Every wheel row is position:absolute. JS sets top, transform
+  (pull + scale) and opacity every frame — so no CSS transitions
+  on those, or they'd double-interpolate and stutter.
+  transform-origin: left keeps text left-aligned as rows shrink.
 */
-
 .inv-row {
     position: absolute;
     left: 0;
     right: 0;
-    height: 52px;                               /* sync with ROW_HEIGHT */
-
+    height: var(--inv-row-h);
     display: flex;
     align-items: center;
     gap: 14px;
     padding: 0 28px 0 24px;
-
-    cursor: pointer;
     border-left: 3px solid transparent;
+    cursor: pointer;
     user-select: none;
     transform-origin: left center;
     will-change: transform, opacity, top;
 }
+.inv-row:hover { background: rgba(26, 26, 24, 0.04); }
 
-.inv-row:hover {
-    background: rgba(26, 26, 24, 0.04);
-}
+/* Active row — red left bar */
+.inv-row-active { border-left-color: var(--red); }
+.inv-row-active .inv-row-name  { color: var(--ink); font-weight: 700; }
+.inv-row-active .inv-row-index { color: var(--red); }
 
-/* Active row — red left bar + boosted text weight */
-.inv-row-active {
-    border-left-color: var(--red) !important;
-}
-
-.inv-row-active .inv-row-name  { color: var(--ink)  !important; font-weight: 700; }
-.inv-row-active .inv-row-index { color: var(--red)  !important; }
-.inv-row-active .inv-row-type  { color: var(--muted) !important; }
-
-/* Row content */
 .inv-row-index {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.5rem;
-    letter-spacing: 0.12em;
-    color: var(--muted2);
+    width: 24px;
     flex-shrink: 0;
-    width: 22px;
+    font-size: 0.72rem;
+    color: var(--inv-text-2);
 }
 
 .inv-row-name {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.85rem;
-    letter-spacing: 0.12em;
-    color: var(--ink2);
     flex: 1;
+    min-width: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
+    color: var(--ink2);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-weight: 600;
 }
 
 .inv-row-type {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.42rem;
-    letter-spacing: 0.2em;
-    color: var(--muted2);
     flex-shrink: 0;
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
+    color: var(--inv-text-2);
 }
 
-/* Locked rows */
+/* Locked rows — deliberately faded */
 .inv-row-locked .inv-row-name,
-.inv-row-locked .inv-row-type,
-.inv-row-locked .inv-row-index {
-    color: var(--muted2);
-}
+.inv-row-locked .inv-row-type { color: var(--muted); }
 
 /* Redacted text flicker */
-.inv-row-redacted {
-    animation: inv-redact-flicker 5s ease-in-out infinite;
-}
+.inv-row-redacted { animation: inv-redact-flicker 5s ease-in-out infinite; }
 
 @keyframes inv-redact-flicker {
     0%, 88%, 100% { opacity: 0.5; }
@@ -265,48 +256,42 @@
 
 /* ── Stickers tab — flat scrollable list ─────────────────────── */
 
-/*
-  Sticker rows reuse .inv-row but override the absolute positioning
-  so they flow normally. JS hides .inv-wheel-selector in this tab.
-  .inv-wheel becomes a normal scrollable column.
-*/
-
-.inv-row-sticker-flat {
-    position: static   !important;
-    height:   auto     !important;
-    top:      auto     !important;
-    padding-top:    10px !important;
-    padding-bottom: 10px !important;
-    transform:  none   !important;
-    opacity:    1      !important;
-    will-change: auto  !important;
+/* JS adds .is-list to the wrap in the stickers tab */
+.inv-wheel-wrap.is-list {
+    -webkit-mask-image: none;
+            mask-image: none;
 }
-
-.inv-wheel:has(.inv-row-sticker-flat) {
-    position:   static;
-    overflow-y: auto;
-    overflow-x: hidden;
-    display:    flex;
+.inv-wheel-wrap.is-list .inv-wheel {
+    display: flex;
     flex-direction: column;
+    overflow-y: auto;
     scrollbar-width: thin;
-    scrollbar-color: var(--muted2) transparent;
+    scrollbar-color: var(--muted) transparent;
 }
 
-.inv-wheel:has(.inv-row-sticker-flat)::-webkit-scrollbar       { width: 2px; }
-.inv-wheel:has(.inv-row-sticker-flat)::-webkit-scrollbar-track { background: transparent; }
-.inv-wheel:has(.inv-row-sticker-flat)::-webkit-scrollbar-thumb { background: var(--muted2); border-radius: 1px; }
+.inv-row-flat {
+    position: static;
+    flex-shrink: 0;
+    height: auto;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    will-change: auto;
+}
+.inv-row-thumb {
+    width: 36px; height: 36px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
 
 
-/* ── Empty / loading states ──────────────────────────────────── */
+/* ── Empty / note states ─────────────────────────────────────── */
 
-.inv-loading,
 .inv-empty {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.45rem;
-    letter-spacing: 0.3em;
-    color: var(--muted);
+    margin: 0;
+    padding: 40px 24px;
+    font-size: 0.78rem;
+    color: var(--inv-text-2);
     text-align: center;
-    padding: 40px 0;
 }
 
 
@@ -314,34 +299,34 @@
 
 .inv-right {
     flex: 1;
+    min-width: 0;
+    position: relative;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    position: relative;
     overflow: hidden;
-    padding: 28px 40px;
-    border-left: 1px solid var(--border);
+}
+
+.inv-viewer {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 28px 40px 20px;
 }
 
 .inv-viewer-label {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.62rem;
-    letter-spacing: 0.3em;
-    color: var(--ink);
+    margin: 0 0 4px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
-    margin-bottom: 6px;
-    align-self: flex-start;
 }
 
 .inv-viewer-sub {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.5rem;
-    letter-spacing: 0.2em;
-    color: var(--muted);
-    text-transform: uppercase;
-    margin-bottom: 20px;
-    align-self: flex-start;
+    margin: 0 0 12px;
+    font-size: 0.78rem;
+    color: var(--inv-text-2);
 }
 
 #invCanvas {
@@ -349,154 +334,131 @@
     width: 100%;
     flex: 1;
     min-height: 0;
+    cursor: grab;
+    touch-action: none;       /* pointer events handle drag + pinch */
 }
+#invCanvas:active { cursor: grabbing; }
 
 .inv-viewer-hint {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.36rem;
-    letter-spacing: 0.2em;
-    color: var(--muted2);
-    text-transform: uppercase;
-    margin-top: 14px;
+    margin: 10px 0 0;
+    font-size: 0.7rem;
+    color: var(--inv-text-2);
+    text-align: center;
 }
 
 
 /* ── Black hole (locked items) ───────────────────────────────── */
 
-.inv-blackhole-canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
+.inv-locked {
     position: absolute;
     inset: 0;
 }
 
+.inv-blackhole-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #0a080e;
+}
+
 .inv-blackhole-label {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.42rem;
-    letter-spacing: 0.45em;
-    color: var(--muted);
-    text-transform: uppercase;
     position: absolute;
     bottom: 32px;
     left: 50%;
     transform: translateX(-50%);
+    margin: 0;
+    font-size: 0.72rem;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: #b8b8c8;           /* light, for the dark canvas */
     white-space: nowrap;
     animation: inv-redact-flicker 4s ease-in-out infinite;
 }
 
 
-/* ── Inventory button — left side of globe ───────────────────── */
+/* ── Narrow screens — stack panels ───────────────────────────── */
 
-#inventoryBtn {
-    position: fixed;
-    left: 36px;
-    top: 50%;
-    transform: translateY(-50%) rotate(180deg);
-    font-family: 'Space Mono', monospace;
-    font-size: 0.48rem;
-    letter-spacing: 0.35em;
-    color: var(--muted);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 1.4s ease, color 0.15s;
-    z-index: 400;
-    text-transform: uppercase;
-    padding: 8px 0;
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
+@media (max-width: 760px) {
+    #inventoryOverlay { flex-direction: column; }
+    .inv-left {
+        width: auto;
+        max-width: none;
+        min-width: 0;
+        height: 50%;
+        border-right: none;
+        border-bottom: 1px solid var(--border2);
+    }
+    .inv-viewer { padding: 16px; }
 }
 
-#inventoryBtn.visible { opacity: 1; pointer-events: all; }
-#inventoryBtn:hover   { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) {
+    #inventoryOverlay { transition: none; }
+    .inv-row-redacted,
+    .inv-blackhole-label { animation: none; }
+}
 
 
-/* ── Card editor button — right side of globe ────────────────── */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   GLOBE-SCREEN SIDE BUTTONS
+   INVENTORY (left) and EDIT CARD (right) — vertical text either
+   side of the globe. Faded in by arg.js via .visible.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
+#inventoryBtn,
 #cardEditorBtn {
     position: fixed;
-    right: 36px;
     top: 50%;
     transform: translateY(-50%) rotate(180deg);
-    font-family: 'Space Mono', monospace;
-    font-size: 0.48rem;
-    letter-spacing: 0.35em;
-    color: var(--muted);
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    padding: 12px 6px;
     background: transparent;
     border: none;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink2);
     cursor: pointer;
     opacity: 0;
     pointer-events: none;
     transition: opacity 1.4s ease, color 0.15s;
     z-index: 400;
-    text-transform: uppercase;
-    padding: 8px 0;
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
 }
+#inventoryBtn  { left: 30px; }
+#cardEditorBtn { right: 30px; }
 
+#inventoryBtn.visible,
 #cardEditorBtn.visible { opacity: 1; pointer-events: all; }
-#cardEditorBtn:hover   { color: var(--ink); }
+
+#inventoryBtn:hover,
+#cardEditorBtn:hover { color: var(--red); }
+
+#inventoryBtn:focus-visible,
+#cardEditorBtn:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 
 
-/* ── Dev sticker button ──────────────────────────────────────── */
+/* ── Dev sticker button (remove before launch) ───────────────── */
 
 #devStickerBtn {
     position: fixed;
     top: 28px;
     left: 50%;
     transform: translateX(-50%);
-    font-family: 'Space Mono', monospace;
-    font-size: 0.42rem;
-    letter-spacing: 0.3em;
-    color: var(--muted);
+    padding: 6px 14px;
     background: transparent;
     border: 1px solid var(--border2);
     border-radius: 3px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink2);
     cursor: pointer;
     opacity: 0;
     pointer-events: none;
     transition: opacity 1.4s ease, color 0.15s, border-color 0.15s;
     z-index: 400;
-    text-transform: uppercase;
-    padding: 6px 14px;
 }
-
-#devStickerBtn.visible             { opacity: 1; pointer-events: all; }
-#devStickerBtn:hover               { color: var(--ink); border-color: var(--muted); }
-
-
-/* ── Tabs ────────────────────────────────────────────────────── */
-
-.inv-tabs {
-    display: flex;
-    flex-direction: row;
-    border-bottom: 1px solid var(--border2);
-    flex-shrink: 0;
-}
-
-.inv-tab {
-    flex: 1;
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-    font-family: 'Space Mono', monospace;
-    font-size: 0.42rem;
-    letter-spacing: 0.3em;
-    color: var(--muted2);
-    text-transform: uppercase;
-    cursor: pointer;
-    padding: 10px 0;
-    transition: color 0.15s, border-color 0.15s;
-    margin-bottom: -1px;
-}
-
-.inv-tab:hover { color: var(--muted); }
-
-.inv-tab-active {
-    color: var(--ink) !important;
-    border-bottom-color: var(--red) !important;
-}
+#devStickerBtn.visible { opacity: 1; pointer-events: all; }
+#devStickerBtn:hover   { color: var(--ink); border-color: var(--muted); }

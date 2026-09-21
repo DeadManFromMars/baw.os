@@ -1,205 +1,148 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   utils.js
-   Pure utility functions with zero side effects.
-
-   Rules for this file:
-     - No DOM reads or writes
-     - No globals modified
-     - No setTimeout/setInterval
-     - Every function takes inputs and returns an output
-
-   If you find yourself needing something from here in a new module,
-   just make sure utils.js loads before it in index.html.
+   utils.js — small shared helpers (timing, easing, animation, assets).
+   No module state. Load right after config.js.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const Utils = Object.freeze({
 
-    /* ── Time formatting ───────────────────────────────────────
-       Converts a raw seconds value into a MM:SS display string.
-       Used by the radio widget's time display.
-
-       Examples:
-         formatTime(0)    → "0:00"
-         formatTime(75)   → "1:15"
-         formatTime(3600) → "60:00" (no hours — intentional) */
+    /* 75 → "1:15" (no hours) */
     formatTime(seconds) {
-        const m = Math.floor(seconds / 60);
-        const s = Math.floor(seconds % 60);
-        return `${m}:${s.toString().padStart(2, '0')}`;
+        const s = Math.floor(seconds || 0);
+        return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
     },
 
-    /* ── Easing functions ──────────────────────────────────────
-       All take t in [0, 1] and return an eased value in [0, 1].
-       Using named functions rather than inline math keeps the
-       animation code readable and makes it easy to swap curves. */
-
+    /* Easing curves: t in 0–1 → eased 0–1 */
     easing: {
-        /* Cubic ease-out — fast start, decelerates to stop.
-           Good for things that "land" (slide-in panels, elements
-           coming to rest). */
-        easeOutCubic(t) {
-            return 1 - Math.pow(1 - t, 3);
-        },
-
-        /* Cubic ease-in-out — slow start, fast middle, slow end.
-           Good for things moving from one place to another
-           (hand animation, camera drift). */
-        easeInOutCubic(t) {
-            return t < 0.5
-                ? 4 * t * t * t
-                : 1 - Math.pow(-2 * t + 2, 3) / 2;
-        },
-
-        /* Power ease-out — generalised version of easeOutCubic.
-           Higher power = lingers longer at start, drops sharper at end.
-           Used by the hex city camera swoop. */
-        easeOutPow(t, power) {
-            return 1 - Math.pow(1 - t, power);
-        },
-
-        /* Quadratic ease-in-out — slightly softer than cubic.
-           Used for position tweens (globe move). */
-        easeInOutQuad(t) {
-            return t < 0.5
-                ? 2 * t * t
-                : 1 - Math.pow(-2 * t + 2, 2) / 2;
-        },
+        easeOutCubic:   t => 1 - Math.pow(1 - t, 3),                                            // lands softly
+        easeInOutCubic: t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),      // glides
+        easeInOutQuad:  t => (t < 0.5 ? 2 * t * t     : 1 - Math.pow(-2 * t + 2, 2) / 2),      // softer glide
     },
 
-    /* ── Clamped linear interpolation ─────────────────────────
-       Lerps from `a` to `b` by ratio `t`, clamped to [0, 1].
-       Prevents overshooting at the ends of an animation. */
+    /* a → b by t, with t clamped to 0–1 */
     lerp(a, b, t) {
         return a + (b - a) * Math.min(1, Math.max(0, t));
     },
 
-    /* ── Random integer in range ───────────────────────────────
-       Returns an integer in [min, max] inclusive. */
-    randInt(min, max) {
-        return Math.floor(Math.random() * (max - min + 1)) + min;
-    },
-
-    /* ── Random array element ──────────────────────────────────
-       Picks a uniformly random element from any array. */
     randElement(arr) {
         return arr[Math.floor(Math.random() * arr.length)];
     },
 
-    /* ── DOM: wait two animation frames ───────────────────────
-       requestAnimationFrame fires at the start of the next paint.
-       Some transitions need to be set AFTER an element is rendered
-       in the DOM, not in the same tick it was inserted. Waiting two
-       frames ensures the browser has committed the initial state
-       before the transition class is added.
-
-       Usage:
-         container.appendChild(el);
-         await Utils.nextFrames();
-         el.classList.add('active'); // transition fires correctly */
-    nextFrames() {
-        return new Promise(resolve =>
-            requestAnimationFrame(() => requestAnimationFrame(resolve))
-        );
-    },
-
-    /* ── Animation: smooth XY movement ────────────────────────
-       Moves `el` from (fromX, fromY) to (toX, toY) over `dur` ms
-       using a named easing function. Calls onDone when complete.
-
-       Uses requestAnimationFrame for smooth 60fps motion without
-       needing a library. The positions are set via el.style.left/top
-       so the element must be position:fixed or position:absolute.
-
-       Parameters:
-         el      — the element to move
-         fromX   — starting left (px)
-         fromY   — starting top (px)
-         toX     — ending left (px)
-         toY     — ending top (px)
-         dur     — duration in milliseconds
-         easeFn  — one of Utils.easing.* functions
-         onDone  — optional callback when animation completes */
-    animateXY(el, fromX, fromY, toX, toY, dur, easeFn, onDone) {
-        const startTime = performance.now();
-
-        function step(now) {
-            const rawT  = Math.min((now - startTime) / dur, 1);
-            const easedT = easeFn(rawT);
-
-            el.style.left = Utils.lerp(fromX, toX, easedT) + 'px';
-            el.style.top  = Utils.lerp(fromY, toY, easedT) + 'px';
-
-            if (rawT < 1) {
-                requestAnimationFrame(step);
-            } else {
-                // Snap to exact final values — floating point can leave you 0.01px off
-                el.style.left = toX + 'px';
-                el.style.top  = toY + 'px';
-                if (onDone) onDone();
-            }
-        }
-
-        requestAnimationFrame(step);
-    },
-
-    /* ── Async sleep ───────────────────────────────────────────
-       Returns a Promise that resolves after `ms` milliseconds.
-       Lets async functions use `await Utils.sleep(500)` instead
-       of nesting callbacks inside setTimeout.
-
-       This is the core tool that makes conductor.js readable —
-       every step of the sequence is a sequential await rather
-       than a nested pyramid. */
     sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     },
 
-    /* ── Typewrite text before a cursor element ────────────────
-       Types `text` character-by-character into the DOM, inserting
-       each character immediately before `cursorEl` at `speed` ms
-       per character. Returns a Promise that resolves when done.
+    /* Resolves after two frames — use before adding a class that should
+       CSS-transition from an element's just-inserted initial state. */
+    nextFrames() {
+        return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    },
 
-       The cursor stays at the end of the typed text because we
-       use insertAdjacentText('beforebegin'), which places new
-       characters just before the cursor node each time.
-
-       Parameters:
-         cursorEl — a DOM node acting as the blinking cursor
-         text     — the string to type
-         speed    — ms between each character */
-    typeBeforeCursor(cursorEl, text, speed) {
+    /* Move a fixed/absolute element's left/top from (fromX, fromY) to
+       (toX, toY) px over `ms`. Resolves when it arrives. */
+    animateXY(el, fromX, fromY, toX, toY, ms, ease = Utils.easing.easeInOutCubic) {
         return new Promise(resolve => {
-            let i = 0;
-            const interval = setInterval(() => {
-                if (i < text.length) {
-                    cursorEl.insertAdjacentText('beforebegin', text[i++]);
-                } else {
-                    clearInterval(interval);
-                    resolve();
-                }
-            }, speed);
+            const start = performance.now();
+            (function step(now) {
+                const t = ease(Math.min((now - start) / ms, 1));
+                el.style.left = Utils.lerp(fromX, toX, t) + 'px';
+                el.style.top  = Utils.lerp(fromY, toY, t) + 'px';
+                if (now - start < ms) requestAnimationFrame(step);
+                else resolve();
+            })(start);
         });
     },
 
-    /* ── Generate a fake-looking data value ────────────────────
-       Returns a random string that looks like a corrupted or
-       classified data readout. Used for the extra scan rows
-       beyond the real data definitions. */
+    /* Type `text` one character at a time just before `cursorEl`
+       (so a blinking cursor element stays at the end). */
+    typeBeforeCursor(cursorEl, text, msPerChar) {
+        return new Promise(resolve => {
+            let i = 0;
+            const timer = setInterval(() => {
+                if (i < text.length) cursorEl.insertAdjacentText('beforebegin', text[i++]);
+                else { clearInterval(timer); resolve(); }
+            }, msPerChar);
+        });
+    },
+
+    /* A random "classified readout" value for the endless extra scan rows */
     fakeDataValue() {
-        const generators = [
-            () => Math.random().toString(16).slice(2, 10).toUpperCase(),
-            () => Utils.randElement([
-                'NULL', 'UNREGISTERED', 'NOT FOUND', 'FLAGGED', 'CLASSIFIED',
-                'EXPIRED', 'DRIFTING', 'PARTIAL', 'INACTIVE', 'SEVERED',
-                'DEGRADED', 'MISMATCH',
-            ]),
+        const rand = () => Math.random().toString(16).slice(2, 10).toUpperCase();
+        return Utils.randElement([
+            () => rand(),
+            () => '0x' + rand(),
+            () => Utils.randElement(['NULL', 'UNREGISTERED', 'NOT FOUND', 'FLAGGED', 'CLASSIFIED', 'EXPIRED',
+                                     'DRIFTING', 'PARTIAL', 'INACTIVE', 'SEVERED', 'DEGRADED', 'MISMATCH',
+                                     'ACTIVE', 'PASSIVE', 'MONITORED', 'WATCHING', 'PROCESSING']),
             () => (Math.random() * 10).toFixed(2) + ' / 10',
             () => Math.floor(Math.random() * 9999) + '-' + Math.random().toString(36).slice(2, 6).toUpperCase(),
             () => Utils.randElement(['0.' + Math.floor(Math.random() * 99), '1.00', '0.00']),
-            () => Utils.randElement(['ACTIVE', 'PASSIVE', 'MONITORED', 'WATCHING', 'PROCESSING']),
-            () => '0x' + Math.random().toString(16).slice(2, 10).toUpperCase(),
-        ];
-        return Utils.randElement(generators)();
+        ])();
     },
 
+    /* Make text safe to put inside innerHTML (content or a quoted attribute) */
+    esc(s) {
+        return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                              .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    },
+
+    /* Keep Tab focus inside a dialog. Call from its keydown handler on Tab. */
+    trapFocus(e, dialog) {
+        const focusable = [...dialog.querySelectorAll('button:not([disabled]), [tabindex="0"]')]
+            .filter(el => el.offsetParent !== null);            // skip hidden ones
+        if (!focusable.length) return;
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (e.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    },
+
+    /* Per-frame spring factor made frame-rate independent: `perFrame` is
+       the fraction closed per frame at 60fps, dtMs the real frame time. */
+    springStep(perFrame, dtMs) {
+        return 1 - Math.pow(1 - perFrame, Math.min(dtMs, 50) / (1000 / 60));
+    },
+
+    /* Sticker display image. Capital "I": web hosts are case-sensitive. */
+    stickerSrc(slug) {
+        return `Images/stickers/${slug}.png`;
+    },
+
+    /* ── 3D card model (inventory viewer + card editor) ──
+       Proportions match card_gen.py's PNG (560×860 ≈ 1 : 1.535).
+       Returns a rounded, bevelled geometry with the PNG mapped across
+       the front: material 0 = face, 1 = edges. Needs Three.js. */
+    CARD_DIMS: Object.freeze({ w: 1.0, h: 1.535, d: 0.022, radius: 0.06 }),
+
+    makeCardGeometry() {
+        const { w, h, d, radius: r } = Utils.CARD_DIMS;
+        const hw = w / 2, hh = h / 2;
+
+        const shape = new THREE.Shape();
+        shape.moveTo(-hw + r, -hh);
+        shape.lineTo(hw - r, -hh);   shape.quadraticCurveTo(hw, -hh, hw, -hh + r);
+        shape.lineTo(hw, hh - r);    shape.quadraticCurveTo(hw, hh, hw - r, hh);
+        shape.lineTo(-hw + r, hh);   shape.quadraticCurveTo(-hw, hh, -hw, hh - r);
+        shape.lineTo(-hw, -hh + r);  shape.quadraticCurveTo(-hw, -hh, -hw + r, -hh);
+
+        const geo = new THREE.ExtrudeGeometry(shape, {
+            depth: d, bevelEnabled: true,
+            bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 4, curveSegments: 12,
+        });
+        geo.center();
+
+        // Planar UVs: the whole PNG spans the face, top-left origin
+        const pos = geo.attributes.position;
+        const uv  = new Float32Array(pos.count * 2);
+        for (let i = 0; i < pos.count; i++) {
+            uv[i * 2]     =     (pos.getX(i) + hw) / w;
+            uv[i * 2 + 1] = 1 - (pos.getY(i) + hh) / h;
+        }
+        geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+        geo.computeVertexNormals();
+        return geo;
+    },
 });

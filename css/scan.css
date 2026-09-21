@@ -162,19 +162,6 @@
     animation: riseIn 1s 0.2s ease forwards;
 }
 
-/* The small pulsing red dot at the end of "BAWSOME ONLINE" */
-.scan-wordmark .red-dot {
-    display: inline-block;
-    width: 0.14em;
-    height: 0.14em;
-    border-radius: 50%;
-    background: var(--red);
-    margin-left: 0.05em;
-    vertical-align: middle;
-    margin-bottom: 0.04em;
-    animation: dotPulse 2s ease-in-out infinite;
-}
-
 .scan-tagline {
     font-size: clamp(0.48rem, 0.9vw, 0.6rem);
     font-weight: 400;
@@ -409,21 +396,48 @@
     opacity: 1 !important;
 }
 
-/* Resolved: same row after the hand animation types "resolved" */
-.scan-line.resolved .scan-line-val {
-    color: var(--green) !important;
-    background: rgba(0, 200, 83, 0.1);
-    padding: 3px 8px;
-    border-left: 3px solid var(--green);
-    font-size: 1.1rem !important;
-    transition: color 0.4s ease, background 0.4s ease, border-color 0.4s ease;
+/* ── Rewind (scan.js runRewind) ──
+   Rows replay backwards, growing as they slow down. Font sizes,
+   opacity and indent are set per row in JS; the rest lives here. */
+.scan-lines-wrap.rewinding {
+    height: calc(100vh - 140px);
+    overflow: visible;
+    padding-left: 0;
+}
+.scan-lines-wrap.rewinding .scan-lines { gap: 3px; }
+
+.rewind-row {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 1px 2vw 1px 0;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.rewind-key {
+    flex-shrink: 0;
+    min-width: 90px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.rewind-val {
+    font-family: 'Space Mono', monospace;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.scan-line.resolved .scan-line-key {
-    color: var(--green) !important;
-    font-size: 0.6rem !important;
-    opacity: 1 !important;
-}
+/* The orphaned row it stops on — red, then green once the hand fixes it */
+.rewind-row.is-orphan { width: 100%; padding-top: 6px; padding-bottom: 6px; background: rgba(232, 55, 42, 0.06); }
+.rewind-row.is-orphan .rewind-key,
+.rewind-row.is-orphan .rewind-val { color: var(--red); }
+.rewind-row.is-orphan .rewind-val { border-left: 3px solid var(--red); padding-left: 10px; }
+.rewind-row.is-resolved .rewind-key,
+.rewind-row.is-resolved .rewind-val { color: var(--green); }
+.rewind-row.is-resolved .rewind-val { border-left-color: var(--green); background: rgba(0, 200, 83, 0.08); }
 
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -582,6 +596,9 @@
     letter-spacing: 0.04em;
     flex: 1;
 }
+
+.term-response { margin-left: 16px; font-size: 0.6rem;  color: #888; }       /* "→ …" after a command */
+.term-speed    { font-size: 0.65rem; letter-spacing: 0.06em; color: #ffaa44; }  /* rewind speed readout */
 
 /* The blinking block cursor at the typing position */
 .term-cursor {

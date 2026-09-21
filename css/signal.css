@@ -45,15 +45,6 @@
     text-transform: uppercase;
 }
 
-.sig-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--red);
-
-    flex-shrink: 0;
-}
-
 
 
 .sig-status {

@@ -1,42 +1,63 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    cardeditor.css  —  CARD CUSTOMIZATION EDITOR OVERLAY
 
-   Full-screen overlay for customizing the player's access card.
+   Full-screen dialog for customizing the player's access card.
    Three-column layout:
      LEFT   (.ced-avatar-panel)   — profile picture upload + circular crop
-     CENTER (.ced-center-panel)   — 3D card preview + sticker bar + action buttons
+     CENTER (.ced-center-panel)   — 3D card preview, status line, sticker tray, actions
      RIGHT  (.ced-layers-sidebar) — placed sticker layer list
 
-   Contains:
-     - Overlay container (#cardEditorOverlay)
-     - Header bar (.ced-header)
-     - Body layout (.ced-body, panels)
-     - Card preview wrap + ghost sticker overlay
-     - Sticker tray (.ced-sticker-bar, .ced-sticker-tray, .ced-sticker-btn)
-     - Action buttons (.ced-big-btn variants)
-     - Layers sidebar (.ced-layers-sidebar, .ced-layer-row)
-     - Avatar panel labels and crop placeholder
-     - Status messages (.ced-msg)
+   READABILITY
+     Body text is never smaller than ~11px, and secondary text uses
+     --ced-text-2 (darker than the site-wide --muted) so it passes
+     WCAG AA contrast on the cream background.
+
+   Below 900px wide the columns stack vertically.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   OVERLAY CONTAINER
+   OVERLAY CONTAINER + LOCAL TOKENS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 #cardEditorOverlay {
+    /* Editor-only colors — readable secondary text + focus ring */
+    --ced-text-2: #55554d;        /* ~7:1 on cream (site --muted is ~3:1) */
+    --ced-focus:  var(--red);
+    --ced-panel:  rgba(26, 26, 24, 0.035);
+
     position: fixed;
     inset: 0;
     z-index: 600;
     display: flex;
     flex-direction: column;
-    background: rgba(245, 242, 236, 0.88);
+    background: rgba(245, 242, 236, 0.94);
+    color: var(--ink);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.5s ease;
     font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    line-height: 1.45;
 }
 #cardEditorOverlay.visible { opacity: 1; pointer-events: all; }
+#cardEditorOverlay:focus { outline: none; }
+
+/* Visible keyboard focus on everything interactive */
+#cardEditorOverlay :focus-visible {
+    outline: 2px solid var(--ced-focus);
+    outline-offset: 2px;
+}
+
+/* Text only screen readers can hear */
+.ced-sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    HEADER BAR
@@ -45,125 +66,405 @@
 .ced-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 18px 32px 14px;
-    border-bottom: 1px solid var(--border);
+    gap: 16px;
+    padding: 14px 28px;
+    border-bottom: 1px solid var(--border2);
     flex-shrink: 0;
 }
-.ced-header-label { font-size: 0.48rem; letter-spacing: 0.45em; color: var(--muted); text-transform: uppercase; }
-.ced-close-btn { background: transparent; border: none; color: var(--muted); font-family: 'Space Mono', monospace; font-size: 0.7rem; cursor: pointer; padding: 2px 6px; transition: color 0.15s; }
-.ced-close-btn:hover { color: var(--ink); }
+.ced-title {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+}
+.ced-unsaved {
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--red);
+}
+.ced-close-btn {
+    margin-left: auto;
+    width: 36px; height: 36px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--ink);
+    font-size: 1rem;
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+.ced-close-btn:hover { border-color: var(--border2); }
+
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    BODY LAYOUT
-   Three-column flex row. LEFT and RIGHT have fixed widths;
-   CENTER takes the remaining space.
+   LEFT and RIGHT have fixed widths; CENTER takes the rest.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-.ced-body { flex: 1; display: flex; flex-direction: row; align-items: stretch; overflow: hidden; min-height: 0; }
+.ced-body {
+    flex: 1;
+    display: flex;
+    align-items: stretch;
+    overflow: hidden;
+    min-height: 0;
+}
+
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   LEFT PANEL — AVATAR
-   Profile picture upload with circular crop editor.
+   SHARED TEXT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-/* LEFT avatar panel */
-.ced-avatar-panel { width: 200px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px 18px; border-right: 1px solid var(--border); overflow-y: auto; }
+.ced-section-label {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+.ced-section-sub {
+    margin: 0;
+    font-size: 0.72rem;
+    color: var(--ced-text-2);
+}
+.ced-empty {
+    margin: 0;
+    padding: 12px 0;
+    font-size: 0.75rem;
+    color: var(--ced-text-2);
+    list-style: none;
+}
+
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   CENTER PANEL — CARD PREVIEW + STICKER BAR
-   The 3D card preview fills available height. The sticker tray
-   scrolls horizontally below it.
+   BUTTONS
+   .ced-text-btn  — small underlined text button
+   .ced-big-btn   — bottom action buttons
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-/* CENTER */
-.ced-center-panel { flex: 1; display: flex; flex-direction: column; align-items: stretch; min-width: 0; overflow: hidden; padding: 16px 20px 12px; gap: 10px; }
-.ced-sticker-header { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
-.ced-card-preview-wrap { flex: 1; position: relative; min-height: 0; border-radius: 12px; overflow: hidden; background: transparent; }
-.ced-card-preview-wrap canvas { display: block; width: 100% !important; height: 100% !important; }
-.ced-ghost { display: none; position: absolute; width: 52px; height: 52px; background-size: contain; background-repeat: no-repeat; background-position: center; transform: translate(-50%, -50%); pointer-events: none; opacity: 0.7; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.3)); }
-.ced-card-preview-wrap.stamp-mode { cursor: none; }
+.ced-text-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--ink);
+    padding: 6px 2px;
+    font-family: inherit;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+.ced-text-btn:hover { color: var(--red); border-bottom-color: var(--red); }
+.ced-text-btn:disabled { opacity: 0.35; cursor: default; color: var(--ink); border-bottom-color: var(--ink); }
+
+.ced-big-btn {
+    padding: 14px 22px;
+    border: 1px solid var(--ink);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.ced-big-btn-back { background: transparent; color: var(--ink); border-color: var(--border2); }
+.ced-big-btn-back:hover { border-color: var(--ink); }
+
+.ced-big-btn-save { flex: 1; background: var(--ink); color: var(--cream); }
+.ced-big-btn-save:hover { background: var(--red); border-color: var(--red); }
+.ced-big-btn-save:disabled { opacity: 0.6; cursor: progress; }
+/* Red underline when there's something to save */
+.ced-big-btn-save.is-dirty { box-shadow: inset 0 -3px 0 var(--red); }
+
+.ced-big-btn-download { background: transparent; color: var(--ink); }
+.ced-big-btn-download:hover { background: var(--ink); color: var(--cream); }
+.ced-big-btn-download[aria-disabled="true"] { opacity: 0.4; }
+.ced-big-btn-download[aria-disabled="true"]:hover { background: transparent; color: var(--ink); }
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   LEFT PANEL — PROFILE PICTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.ced-avatar-panel {
+    width: 220px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 22px 20px;
+    border-right: 1px solid var(--border2);
+    overflow-y: auto;
+}
+.ced-crop-area {
+    width: 160px; height: 160px;
+    align-self: center;
+    margin: 6px 0;
+}
+.ced-crop-placeholder {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    border: 1.5px dashed var(--ced-text-2);
+    background: var(--ced-panel);
+    font-family: inherit;
+    font-size: 0.75rem;
+    color: var(--ced-text-2);
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+}
+.ced-crop-placeholder:hover { border-color: var(--ink); color: var(--ink); }
+#cedCropCanvas { display: block; border-radius: 50%; cursor: grab; touch-action: none; }
+#cedCropCanvas:active { cursor: grabbing; }
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   CENTER PANEL — CARD PREVIEW + TOOLS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.ced-center-panel {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px 22px 12px;
+    overflow: hidden;
+}
+
+.ced-toolbar { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.ced-toolbar-btns { display: flex; gap: 18px; }
+
+/* Key legend */
+.ced-help {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.72rem;
+    color: var(--ced-text-2);
+    flex-shrink: 0;
+}
+.ced-help kbd {
+    display: inline-block;
+    min-width: 1.6em;
+    padding: 1px 5px;
+    margin-right: 2px;
+    border: 1px solid var(--border2);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: #fff;
+    font-family: inherit;
+    font-size: 0.68rem;
+    text-align: center;
+    color: var(--ink);
+}
+
+/* Card preview */
+.ced-card-preview-wrap {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+    border-radius: 12px;
+    overflow: hidden;
+}
+.ced-card-preview-wrap canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;      /* pointer events handle touch — no page scroll/zoom */
+    border-radius: 12px;
+}
+.ced-card-preview-wrap.stamp-mode canvas { cursor: crosshair; }
+
+/* Status line: what's being edited, its size and angle */
+.ced-adjust-label {
+    margin: 0;
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    color: var(--ced-text-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    STICKER TRAY
-   Horizontal scrolling row of owned stickers below the card.
-   Active sticker gets a red border + indicator dot.
+   Horizontal scrolling row of owned stickers with names.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-/* Sticker bar */
-.ced-sticker-bar { flex-shrink: 0; border-top: 1px solid var(--border); padding: 10px 0; }
-.ced-sticker-tray { display: flex; flex-direction: row; gap: 10px; overflow-x: auto; overflow-y: hidden; padding: 4px 2px; scrollbar-width: thin; scrollbar-color: var(--muted2) transparent; }
-.ced-sticker-loading { font-size: 0.42rem; letter-spacing: 0.25em; color: var(--muted2); text-transform: uppercase; padding: 12px 0; white-space: nowrap; }
-.ced-sticker-btn { width: 100px; height: 100px; border-radius: 10px; border: 1px solid var(--border2); background: rgba(26,26,24,0.03); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 10px; transition: border-color 0.15s, background 0.15s, transform 0.15s; position: relative; flex-shrink: 0; }
-.ced-sticker-btn img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; display: block; }
-.ced-sticker-btn:hover { border-color: var(--muted); background: rgba(26,26,24,0.06); transform: scale(1.06); }
-.ced-sticker-btn.active { border-color: var(--red); background: rgba(232,55,42,0.06); box-shadow: 0 0 0 2px rgba(232,55,42,0.2); }
-.ced-sticker-btn.active::after { content: '●'; position: absolute; bottom: 4px; right: 6px; font-size: 7px; color: var(--red); }
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   ACTION BUTTONS
-   Bottom row: back, save card, download. Variants control color/flex.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-/* Big buttons */
-.ced-bottom-actions { display: flex; gap: 12px; flex-shrink: 0; }
-.ced-big-btn { padding: 16px 24px; font-family: 'Space Mono', monospace; font-size: 0.6rem; letter-spacing: 0.25em; text-transform: uppercase; cursor: pointer; border-radius: 6px; transition: all 0.15s; border: 1px solid var(--border2); }
-.ced-big-btn-back { background: transparent; color: var(--muted); flex: 0 0 auto; padding: 16px 20px; }
-.ced-big-btn-back:hover { color: var(--ink); border-color: var(--ink); }
-.ced-big-btn-save { background: var(--ink); color: var(--cream); border-color: var(--ink); flex: 1; }
-.ced-big-btn-save:hover { background: var(--red); border-color: var(--red); }
-.ced-big-btn-save:disabled { opacity: 0.5; cursor: default; }
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   RIGHT PANEL — LAYERS SIDEBAR
-   Stack of placed sticker thumbnails. Delete button reveals on hover.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-/* RIGHT layers sidebar */
-.ced-layers-sidebar { width: 130px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; padding: 16px 14px; border-left: 1px solid var(--border); overflow: hidden; }
-.ced-sidebar-label { font-size: 0.36rem; letter-spacing: 0.3em; color: var(--muted2); text-transform: uppercase; padding-bottom: 6px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-.ced-layers-panel { flex: 1; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 8px; scrollbar-width: thin; scrollbar-color: var(--muted2) transparent; }
-.ced-layer-row { position: relative; width: 100%; height: 100px; border-radius: 10px; border: 1px solid var(--border2); background: rgba(26,26,24,0.03); flex-shrink: 0; overflow: hidden; transition: border-color 0.15s; }
-.ced-layer-row:hover { border-color: var(--red); }
-.ced-layer-thumb { width: 100%; height: 100%; object-fit: contain; padding: 10px; display: block; }
-.ced-layer-label { display: none; }
-.ced-layer-del { position: absolute; top: 4px; right: 4px; background: rgba(232,55,42,0.85); border: none; color: white; font-size: 0.5rem; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; opacity: 0; transition: opacity 0.15s; }
-.ced-layer-row:hover .ced-layer-del { opacity: 1; }
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   AVATAR PANEL — LABELS, CROP AREA, ACTION BUTTONS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-/* Avatar panel labels */
-.ced-section-label { font-size: 0.55rem; letter-spacing: 0.35em; color: var(--ink); text-transform: uppercase; align-self: flex-start; }
-.ced-section-sub { font-size: 0.38rem; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; }
-.ced-crop-area { width: 160px; height: 160px; display: flex; align-items: center; justify-content: center; position: relative; }
-.ced-crop-placeholder { width: 160px; height: 160px; border-radius: 50%; border: 1px dashed var(--muted2); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: border-color 0.2s; }
-.ced-crop-placeholder:hover { border-color: var(--muted); }
-.ced-crop-placeholder-text { font-size: 0.38rem; letter-spacing: 0.2em; color: var(--muted2); text-transform: uppercase; text-align: center; }
-.ced-actions { display: flex; gap: 14px; align-items: center; }
-.ced-action-btn { background: transparent; border: none; border-bottom: 1px solid var(--border2); font-family: 'Space Mono', monospace; font-size: 0.45rem; letter-spacing: 0.22em; color: var(--muted); text-transform: uppercase; cursor: pointer; padding: 7px 0; transition: color 0.15s, border-color 0.15s; }
-.ced-action-btn:hover { color: var(--ink); border-bottom-color: var(--ink); }
-.ced-action-btn:disabled { opacity: 0.4; cursor: default; }
-.ced-action-btn-primary { color: var(--ink); border-bottom-color: var(--ink); }
-.ced-action-btn-primary:hover { color: var(--red); border-bottom-color: var(--red); }
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   STATUS MESSAGES + DOWNLOAD BUTTON
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-.ced-msg { font-size: 0.38rem; letter-spacing: 0.15em; text-transform: uppercase; min-height: 14px; text-align: center; color: var(--muted); }
-.ced-msg-error { color: var(--red); }
-.ced-msg-success { color: var(--sage); }
-.ced-placed-sticker { position: absolute; width: 12%; height: auto; pointer-events: none; transform-origin: center center; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25)); }
-.ced-big-btn-download {
-    background: transparent;
+.ced-sticker-tray {
+    display: flex;
+    gap: 10px;
+    padding: 10px 2px 6px;
+    border-top: 1px solid var(--border2);
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-shrink: 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--muted) transparent;
+}
+.ced-sticker-btn {
+    position: relative;
+    flex-shrink: 0;
+    width: 92px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 6px 6px;
+    border: 1.5px solid var(--border2);
+    border-radius: 10px;
+    background: var(--ced-panel);
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+.ced-sticker-btn img { width: 64px; height: 64px; object-fit: contain; pointer-events: none; }
+.ced-sticker-name {
+    max-width: 100%;
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
     color: var(--ink);
-    border-color: var(--ink);
-    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ced-sticker-btn:hover { border-color: var(--ink); transform: translateY(-2px); }
+.ced-sticker-btn[aria-pressed="true"] {
+    border-color: var(--red);
+    background: rgba(232, 55, 42, 0.08);
+    box-shadow: 0 0 0 2px rgba(232, 55, 42, 0.25);
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   BOTTOM ACTIONS + STATUS MESSAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.ced-bottom-actions { display: flex; gap: 12px; flex-shrink: 0; }
+
+.ced-msg {
+    margin: 0;
+    min-height: 1.4em;
+    font-size: 0.78rem;
+    text-align: center;
+    color: var(--ced-text-2);
+}
+.ced-msg-error   { color: #c42a1f; }      /* slightly darker red for text contrast */
+.ced-msg-success { color: #3f6b57; }      /* darker sage for text contrast */
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   RIGHT PANEL — LAYERS
+   One row per placed sticker (top layer first). The row selects
+   the sticker; the ✕ removes it. Both are always visible.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.ced-layers-sidebar {
+    width: 200px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 22px 16px;
+    border-left: 1px solid var(--border2);
+    overflow: hidden;
+}
+.ced-layers-panel {
+    flex: 1;
+    margin: 4px 0 0;
+    padding: 0;
+    list-style: none;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--muted) transparent;
+}
+.ced-layer-row {
     display: flex;
     align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-    padding: 16px 20px;
+    gap: 4px;
+    border: 1.5px solid var(--border2);
+    border-radius: 8px;
+    background: var(--ced-panel);
+    flex-shrink: 0;
+    transition: border-color 0.15s;
 }
-.ced-big-btn-download:hover { background: var(--ink); color: var(--cream); }
+.ced-layer-row:hover { border-color: var(--ink); }
+.ced-layer-row.selected { border-color: var(--red); background: rgba(232, 55, 42, 0.08); }
+
+.ced-layer-pick {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.ced-layer-thumb { width: 36px; height: 36px; object-fit: contain; flex-shrink: 0; }
+.ced-layer-name {
+    font-size: 0.72rem;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ced-layer-del {
+    width: 30px; height: 30px;
+    margin-right: 4px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ced-text-2);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.ced-layer-del:hover { background: var(--red); color: #fff; }
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   NARROW SCREENS — stack the columns, scroll the whole body
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+@media (max-width: 900px) {
+    .ced-header { padding: 12px 16px; }
+    .ced-body { flex-direction: column; overflow-y: auto; }
+    .ced-avatar-panel,
+    .ced-layers-sidebar {
+        width: auto;
+        border: none;
+        border-bottom: 1px solid var(--border2);
+        padding: 16px;
+    }
+    .ced-center-panel { overflow: visible; padding: 16px; }
+    .ced-card-preview-wrap { flex: none; height: 60vh; }
+    .ced-layers-panel { max-height: 240px; }
+    .ced-bottom-actions { flex-wrap: wrap; }
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   REDUCED MOTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+@media (prefers-reduced-motion: reduce) {
+    #cardEditorOverlay,
+    #cardEditorOverlay * { transition: none !important; }
+    .ced-sticker-btn:hover { transform: none; }
+}

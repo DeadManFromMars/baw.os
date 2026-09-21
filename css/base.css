@@ -128,18 +128,6 @@ body {
     }
 }
 
-/* Pulsing dot — used in wordmark and HUD corner labels */
-@keyframes dotPulse {
-    0%, 100% {
-        transform: scale(1);
-        opacity: 1;
-    }
-    50% {
-        transform: scale(1.6);
-        opacity: 0.4;
-    }
-}
-
 /* Generic blink — used for terminal cursor and login prompt char */
 @keyframes blink {
     0%, 100% { opacity: 1; }
@@ -164,3 +152,30 @@ body {
 .msg.error   { color: var(--red); }
 .msg.success { color: var(--sage); }
 .msg.info    { color: var(--muted); }
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   "CLICK TO BEGIN" SCREEN (session.js)
+   Shown on every load — browsers block audio until a click.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+#initOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.9em;
+    background: #000;
+    color: #fff;
+    font-family: 'Courier New', Courier, monospace;
+    text-transform: uppercase;
+    cursor: pointer;
+    user-select: none;
+    transition: opacity 0.6s ease;
+}
+#initOverlay.gone { opacity: 0; pointer-events: none; }
+.init-title { font-size: clamp(10px, 1.1vw, 14px); letter-spacing: 0.35em; opacity: 0.9; }
+.init-sub   { font-size: clamp(9px, 0.85vw, 11px); letter-spacing: 0.25em; opacity: 0.35; }

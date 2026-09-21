@@ -1,420 +1,261 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   signal.js  —  SIGNAL VIEWER OVERLAY
+   signal.js — SIGNAL VIEWER overlay
 
-   Taps directly into #bgMusic via Web Audio API.
-   The radio widget stays visible and draggable inside the overlay.
-   No frequency range sliders — just gain, colormap, freeze, clear.
+   A scrolling spectrogram of whatever the radio (<audio id="bgMusic">)
+   is playing: one 1px column per frame, low frequencies at the bottom.
+   The radio widget is lifted above the overlay so it stays usable.
+
+   Signal.open() / Signal.close()      arg.js (data-action="signal")
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const Signal = (() => {
 
-    const FFT_SIZE  = 4096;   // higher = more frequency resolution
-    const CREAM     = '#f5f2ec';
-    const COLORMAPS = {
-        ink:  v => `rgba(26,26,24,${(v/255).toFixed(3)})`,
-        red:  v => `rgba(232,55,42,${(v/255).toFixed(3)})`,
-        sage: v => `rgba(122,154,138,${(v/255).toFixed(3)})`,
-    };
+    const FFT_SIZE    = 4096;     // higher = finer frequency detail
+    const USABLE_FRAC = 0.6;      // top 40% of the spectrum is near-inaudible and shows as noise
+    const MIN_AMP     = 6;        // quieter than this draws as background
+    const CREAM       = [245, 242, 236];
+    const COLORMAPS   = { ink: [26, 26, 24], red: [232, 55, 42], sage: [122, 154, 138] };
+    const RADIO_Z     = '660';    // above this overlay (650), below the mixtape (700)
 
-    let _isOpen   = false;
-    let _audioCtx = null;
-    let _analyser = null;
-    let _source   = null;
-    let _freqData = null;
-    let _rafId    = null;
-    let _timeInt  = null;
-    let _writeX   = 0;
-    let _frozen   = false;
-    let _colormap = 'ink';
-    let _gain     = 2.5;
-    let _canvas         = null;
-    let _ctx          = null;
-    let _colCount     = 0;
-    let _resizeObserver = null;
+    const audioEl = document.getElementById('bgMusic');
+
+    // Created on first open and kept: an <audio> can only be routed into Web Audio once
+    let audioCtx = null, analyser = null, freqData = null;
+
+    let overlay = null, els = null, ctx = null, column = null;
+    let raf = null, resizeObs = null;
+    let writeX = 0, colCount = 0, frozen = false, gain = 2.5;
+    let lut = null;               // amplitude 0–255 → RGB, pre-blended over cream
+    let lastPlaying = null, lastTime = '';
 
 
-    /* ════════════════════════════════════════════════════════
-       PUBLIC
-    ════════════════════════════════════════════════════════ */
+    /* ── OPEN / CLOSE ─────────────────────────────────────── */
 
     function open() {
-        if (_isOpen) return;
-        _isOpen = true;
-        if (typeof SFX !== 'undefined') SFX.positive();
-        _buildShell();
-        _initAudio();
-        _startLoop();
-        _moveRadioIn();
+        if (overlay) return;
+        SFX.positive();
+        initAudio();
+        buildOverlay();
+        setColormap('ink');
+        document.getElementById('radioWidget').style.zIndex = RADIO_Z;
+        raf = requestAnimationFrame(loop);
     }
 
     function close() {
-        if (!_isOpen) return;
-        _isOpen = false;
-        if (typeof SFX !== 'undefined') SFX.negative();
-        _stopLoop();
-        _moveRadioOut();
+        if (!overlay) return;
+        SFX.negative();
+        cancelAnimationFrame(raf);
+        resizeObs.disconnect();
+        document.getElementById('radioWidget').style.zIndex = '';
 
-        const overlay = document.getElementById('signalOverlay');
-        if (overlay) {
-            overlay.classList.remove('visible');
-            overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
-        }
+        const closing = overlay;
+        overlay = null;
+        closing.classList.remove('visible');
+        setTimeout(() => closing.remove(), 450);   // after the 0.4s fade (signal.css)
     }
 
 
-    /* ════════════════════════════════════════════════════════
-       RADIO WIDGET — move it inside/outside the overlay
-    ════════════════════════════════════════════════════════ */
+    /* ── AUDIO ────────────────────────────────────────────── */
 
-    function _moveRadioIn() {
-        const widget = document.getElementById('radioWidget');
-        const overlay = document.getElementById('signalOverlay');
-        if (!widget || !overlay) return;
-        // Reparent into the overlay so it sits above the canvas
-        // but keep its current screen position via fixed positioning
-        widget.style.zIndex = '800';
-        overlay.appendChild(widget);
-    }
-
-    function _moveRadioOut() {
-        const widget = document.getElementById('radioWidget');
-        if (!widget) return;
-        // Move back to body
-        widget.style.zIndex = '200';
-        document.body.appendChild(widget);
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new AudioContext();
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = FFT_SIZE;
+            analyser.smoothingTimeConstant = 0;
+            // From now on the radio plays through this graph: element → analyser → speakers
+            audioCtx.createMediaElementSource(audioEl).connect(analyser);
+            analyser.connect(audioCtx.destination);
+            freqData = new Uint8Array(analyser.frequencyBinCount);
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
     }
 
 
-    /* ════════════════════════════════════════════════════════
-       AUDIO
-    ════════════════════════════════════════════════════════ */
+    /* ── OVERLAY ──────────────────────────────────────────── */
 
-    function _initAudio() {
-        const audioEl = document.getElementById('bgMusic');
-        if (!audioEl) return;
-
-        if (!_audioCtx) {
-            _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (_audioCtx.state === 'suspended') _audioCtx.resume();
-
-        if (!_source) {
-            _source   = _audioCtx.createMediaElementSource(audioEl);
-        }
-
-        if (!_analyser) {
-            _analyser = _audioCtx.createAnalyser();
-            _analyser.fftSize               = FFT_SIZE;
-            _analyser.smoothingTimeConstant  = 0.0;
-            _source.connect(_analyser);
-            _analyser.connect(_audioCtx.destination);
-            _freqData = new Uint8Array(_analyser.frequencyBinCount);
-        }
-
-        const fftEl = document.getElementById('sigFftSize');
-        const srEl  = document.getElementById('sigSampleRate');
-        if (fftEl) fftEl.textContent = FFT_SIZE.toLocaleString();
-        if (srEl)  srEl.textContent  = _audioCtx.sampleRate.toLocaleString() + ' Hz';
-
-        _buildFreqAxis();
-    }
-
-
-    /* ════════════════════════════════════════════════════════
-       SHELL
-    ════════════════════════════════════════════════════════ */
-
-    function _buildShell() {
-        document.getElementById('signalOverlay')?.remove();
-
-        const overlay = document.createElement('div');
+    function buildOverlay() {
+        overlay = document.createElement('div');
         overlay.id = 'signalOverlay';
+        overlay.tabIndex = -1;
         overlay.innerHTML = `
             <div class="sig-header">
                 <div class="sig-header-left">
                     <span class="sig-label">SIGNAL VIEWER</span>
-                    <span class="sig-dot"></span>
-                    <span class="sig-status" id="sigStatus">AWAITING SIGNAL</span>
+                    <span class="sig-status" data-el="status">AWAITING SIGNAL</span>
                 </div>
-                <button class="sig-close-btn" id="sigCloseBtn">✕</button>
+                <button class="sig-close-btn" data-el="close">✕</button>
             </div>
 
             <div class="sig-body">
                 <div class="sig-sidebar">
-
                     <div class="sig-section">
                         <div class="sig-section-label">GAIN</div>
                         <div class="sig-range-row">
-                            <input type="range" class="sig-range" id="sigGain"
-                                min="1" max="10" value="2.5" step="0.1">
-                            <span class="sig-range-val" id="sigGainVal">2.5×</span>
+                            <input type="range" class="sig-range" data-el="gain" min="1" max="10" step="0.1" value="${gain}">
+                            <span class="sig-range-val" data-el="gainVal">${gain.toFixed(1)}×</span>
                         </div>
                     </div>
 
                     <div class="sig-section">
                         <div class="sig-section-label">COLORMAP</div>
                         <div class="sig-colormap-options">
-                            <button class="sig-cm-btn active" data-cm="ink">INK</button>
-                            <button class="sig-cm-btn" data-cm="red">RED</button>
-                            <button class="sig-cm-btn" data-cm="sage">SAGE</button>
+                            ${Object.keys(COLORMAPS).map(cm =>
+                                `<button class="sig-cm-btn" data-cm="${cm}">${cm.toUpperCase()}</button>`).join('')}
                         </div>
                     </div>
 
                     <div class="sig-section">
                         <div class="sig-section-label">CONTROLS</div>
-                        <button class="sig-btn" id="sigClearBtn">CLEAR</button>
-                        <button class="sig-btn" id="sigFreezeBtn">FREEZE</button>
+                        <button class="sig-btn" data-el="clear">CLEAR</button>
+                        <button class="sig-btn" data-el="freeze">FREEZE</button>
                     </div>
 
                     <div class="sig-meta">
-                        <div class="sig-meta-row">
-                            <span class="sig-meta-label">FFT SIZE</span>
-                            <span class="sig-meta-val" id="sigFftSize">—</span>
-                        </div>
-                        <div class="sig-meta-row">
-                            <span class="sig-meta-label">SAMPLE RATE</span>
-                            <span class="sig-meta-val" id="sigSampleRate">—</span>
-                        </div>
-                        <div class="sig-meta-row">
-                            <span class="sig-meta-label">COLUMNS</span>
-                            <span class="sig-meta-val" id="sigColumns">0</span>
-                        </div>
+                        <div class="sig-meta-row"><span class="sig-meta-label">FFT SIZE</span>
+                            <span class="sig-meta-val">${FFT_SIZE.toLocaleString()}</span></div>
+                        <div class="sig-meta-row"><span class="sig-meta-label">SAMPLE RATE</span>
+                            <span class="sig-meta-val">${audioCtx.sampleRate.toLocaleString()} Hz</span></div>
+                        <div class="sig-meta-row"><span class="sig-meta-label">COLUMNS</span>
+                            <span class="sig-meta-val" data-el="columns">0</span></div>
                     </div>
-
                 </div>
 
-                <div class="sig-canvas-wrap" id="sigCanvasWrap">
-                    <canvas id="sigCanvas"></canvas>
-                    <div class="sig-idle" id="sigIdle">
+                <div class="sig-canvas-wrap" data-el="wrap">
+                    <canvas data-el="canvas"></canvas>
+                    <div class="sig-idle" data-el="idle">
                         <div class="sig-idle-text">PLAY A TRACK TO BEGIN</div>
                         <div class="sig-idle-sub">Signal renders in real time</div>
                     </div>
-                    <div class="sig-freq-axis" id="sigFreqAxis"></div>
-                    <div class="sig-cursor"    id="sigCursor"></div>
+                    <div class="sig-freq-axis">${freqLabels()}</div>
+                    <div class="sig-cursor" data-el="cursor"></div>
                 </div>
             </div>
 
             <div class="sig-footer">
                 <span class="sig-footer-note">Real-time frequency analysis of the active radio stream</span>
-                <span class="sig-footer-time" id="sigTime">0:00</span>
-            </div>
-        `;
-
+                <span class="sig-footer-time" data-el="time">0:00</span>
+            </div>`;
         document.body.appendChild(overlay);
 
-        overlay.querySelector('#sigCloseBtn').addEventListener('click', close);
+        els = {};
+        overlay.querySelectorAll('[data-el]').forEach(el => { els[el.dataset.el] = el; });
+        ctx = els.canvas.getContext('2d');
+        writeX = 0; colCount = 0; frozen = false; lastPlaying = null; lastTime = '';
+
+        els.close.addEventListener('click', close);
         overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
-        overlay.setAttribute('tabindex', '-1');
-
-        overlay.querySelector('#sigClearBtn').addEventListener('click', _clearCanvas);
-
-        overlay.querySelector('#sigFreezeBtn').addEventListener('click', function () {
-            _frozen = !_frozen;
-            this.classList.toggle('active', _frozen);
-            this.textContent = _frozen ? 'UNFREEZE' : 'FREEZE';
+        els.clear.addEventListener('click', clearCanvas);
+        els.freeze.addEventListener('click', () => {
+            frozen = !frozen;
+            els.freeze.classList.toggle('active', frozen);
+            els.freeze.textContent = frozen ? 'UNFREEZE' : 'FREEZE';
         });
-
-        overlay.querySelectorAll('.sig-cm-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                _colormap = btn.dataset.cm;
-                overlay.querySelectorAll('.sig-cm-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-            });
+        els.gain.addEventListener('input', () => {
+            gain = parseFloat(els.gain.value);
+            els.gainVal.textContent = gain.toFixed(1) + '×';
         });
+        overlay.querySelectorAll('[data-cm]').forEach(btn =>
+            btn.addEventListener('click', () => setColormap(btn.dataset.cm)));
 
-        const gainSlider = overlay.querySelector('#sigGain');
-        const gainVal    = overlay.querySelector('#sigGainVal');
-        gainSlider.addEventListener('input', function () {
-            _gain = parseFloat(this.value);
-            gainVal.textContent = _gain.toFixed(1) + '×';
-        });
+        // Fires once the wrap has its real size, and again on every resize
+        resizeObs = new ResizeObserver(resizeCanvas);
+        resizeObs.observe(els.wrap);
 
-        requestAnimationFrame(() => {
-            overlay.classList.add('visible');
-            overlay.focus();
-        });
-
-        // Use ResizeObserver on the wrap itself — fires when it gets its real dimensions
-        const wrap = overlay.querySelector('#sigCanvasWrap');
-        if (wrap) {
-            const ro = new ResizeObserver(() => { _resizeCanvas(); });
-            ro.observe(wrap);
-            _resizeObserver = ro;
-        }
+        requestAnimationFrame(() => { overlay.classList.add('visible'); overlay.focus(); });
     }
 
-
-    /* ════════════════════════════════════════════════════════
-       CANVAS
-    ════════════════════════════════════════════════════════ */
-
-    function _resizeCanvas() {
-        const wrap = document.getElementById('sigCanvasWrap');
-        const cv   = document.getElementById('sigCanvas');
-        if (!wrap || !cv) return;
-
-        _canvas = cv;
-        _ctx    = cv.getContext('2d');
-
-        const W = wrap.offsetWidth;
-        const H = wrap.offsetHeight;
-
-        // Preserve existing content
-        const tmp = document.createElement('canvas');
-        tmp.width  = cv.width;
-        tmp.height = cv.height;
-        if (tmp.width && tmp.height) {
-            tmp.getContext('2d').drawImage(cv, 0, 0);
-        }
-
-        cv.width  = W;
-        cv.height = H;
-        _ctx.fillStyle = CREAM;
-        _ctx.fillRect(0, 0, W, H);
-
-        if (tmp.width && tmp.height) {
-            _ctx.drawImage(tmp, 0, 0, W, H);
-        }
-
-        _writeX = 0;
-        _buildFreqAxis();
-    }
-
-    function _clearCanvas() {
-        if (!_canvas || !_ctx) return;
-        _ctx.fillStyle = CREAM;
-        _ctx.fillRect(0, 0, _canvas.width, _canvas.height);
-        _writeX   = 0;
-        _colCount = 0;
-        const el = document.getElementById('sigColumns');
-        if (el) el.textContent = '0';
-    }
-
-
-    /* ════════════════════════════════════════════════════════
-       DRAW LOOP
-    ════════════════════════════════════════════════════════ */
-
-    function _startLoop() {
-        if (_rafId) return;
-        _rafId = requestAnimationFrame(_loop);
-
-        _timeInt = setInterval(() => {
-            const audioEl = document.getElementById('bgMusic');
-            if (!audioEl) return;
-            const t  = audioEl.currentTime;
-            const el = document.getElementById('sigTime');
-            if (el) el.textContent =
-                `${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;
-        }, 500);
-    }
-
-    function _stopLoop() {
-        if (_rafId)         { cancelAnimationFrame(_rafId); _rafId = null; }
-        if (_timeInt)       { clearInterval(_timeInt); _timeInt = null; }
-        if (_resizeObserver){ _resizeObserver.disconnect(); _resizeObserver = null; }
-    }
-
-    function _loop() {
-        if (!_isOpen) return;
-        _rafId = requestAnimationFrame(_loop);
-
-        if (!_analyser || !_freqData || !_canvas || !_ctx) return;
-
-        const audioEl = document.getElementById('bgMusic');
-        const playing = audioEl && !audioEl.paused;
-
-        // Status + idle
-        const statusEl = document.getElementById('sigStatus');
-        const idleEl   = document.getElementById('sigIdle');
-        if (statusEl) {
-            statusEl.textContent = playing ? 'RECEIVING' : 'SIGNAL LOST';
-            statusEl.classList.toggle('active', playing);
-        }
-        if (idleEl) idleEl.classList.toggle('hidden', playing);
-
-        if (_frozen || !playing) return;
-
-        _analyser.getByteFrequencyData(_freqData);
-
-        const W    = _canvas.width;
-        const H    = _canvas.height;
-        const bins = _analyser.frequencyBinCount;
-
-        // Only use the bottom 60% of bins — top bins are inaudible
-        // ultrasonic content that just shows as noise
-        const usableBins = Math.floor(bins * 0.6);
-        const cmFn = COLORMAPS[_colormap] || COLORMAPS.ink;
-
-        // Erase column
-        _ctx.fillStyle = CREAM;
-        _ctx.fillRect(_writeX, 0, 1, H);
-
-        for (let y = 0; y < H; y++) {
-            // Map canvas Y to bin index — bottom of canvas = low freq
-            const binFrac = 1 - (y / H);
-            const bin     = Math.floor(binFrac * usableBins);
-            if (bin >= bins) continue;
-
-            const raw = _freqData[bin];
-            const amp = Math.min(255, raw * _gain);
-            if (amp < 6) continue;
-
-            _ctx.fillStyle = cmFn(amp);
-            _ctx.fillRect(_writeX, y, 1, 1);
-        }
-
-        _writeX = (_writeX + 1) % W;
-
-        // Cursor
-        const cursor = document.getElementById('sigCursor');
-        if (cursor) {
-            cursor.style.left    = _writeX + 'px';
-            cursor.style.display = 'block';
-        }
-
-        // Column count (update every 20 frames for perf)
-        _colCount++;
-        if (_colCount % 20 === 0) {
-            const colEl = document.getElementById('sigColumns');
-            if (colEl) colEl.textContent = _colCount.toLocaleString();
-        }
-    }
-
-
-    /* ════════════════════════════════════════════════════════
-       HELPERS
-    ════════════════════════════════════════════════════════ */
-
-    function _buildFreqAxis() {
-        const axis = document.getElementById('sigFreqAxis');
-        if (!axis || !_audioCtx) return;
-        const nyquist = _audioCtx.sampleRate / 2;
-        // Show labels for the usable 60% of spectrum
-        const maxFreq = nyquist * 0.6;
-        const steps   = [maxFreq, maxFreq*0.75, maxFreq*0.5, maxFreq*0.25, 0];
-        axis.innerHTML = steps.map(hz => {
-            const txt = hz >= 1000
-                ? (hz/1000).toFixed(1) + 'k'
-                : Math.round(hz) + '';
-            return `<div class="sig-freq-label">${txt}</div>`;
+    // Axis labels, top to bottom, for the usable part of the spectrum
+    function freqLabels() {
+        const maxHz = (audioCtx.sampleRate / 2) * USABLE_FRAC;
+        return [1, 0.75, 0.5, 0.25, 0].map(f => {
+            const hz = maxHz * f;
+            return `<div class="sig-freq-label">${hz >= 1000 ? (hz / 1000).toFixed(1) + 'k' : Math.round(hz)}</div>`;
         }).join('');
     }
 
+    function setColormap(name) {
+        const c = COLORMAPS[name];
+        lut = new Uint8ClampedArray(256 * 3);
+        for (let a = 0; a < 256; a++)
+            for (let i = 0; i < 3; i++)
+                lut[a * 3 + i] = a < MIN_AMP ? CREAM[i] : CREAM[i] + (c[i] - CREAM[i]) * a / 255;
+        overlay.querySelectorAll('[data-cm]').forEach(b => b.classList.toggle('active', b.dataset.cm === name));
+    }
 
-    /* ════════════════════════════════════════════════════════
-       LISTEN FOR TRACK CHANGES
-    ════════════════════════════════════════════════════════ */
 
-    document.addEventListener('radio:track-changed', () => {
-        // Nothing needed here — the radio widget updates itself
-        // and stays visible inside the overlay
-    });
+    /* ── CANVAS ───────────────────────────────────────────── */
+
+    function resizeCanvas() {
+        const cv = els.canvas;
+        const W = els.wrap.offsetWidth, H = els.wrap.offsetHeight;
+        if (!W || !H) return;
+
+        // Keep what's been drawn, stretched to the new size
+        const old = cv.width && cv.height ? copyCanvas(cv) : null;
+        cv.width = W; cv.height = H;
+        ctx.fillStyle = `rgb(${CREAM})`;
+        ctx.fillRect(0, 0, W, H);
+        if (old) ctx.drawImage(old, 0, 0, W, H);
+
+        column = ctx.createImageData(1, H);
+        writeX = 0;
+    }
+
+    function copyCanvas(cv) {
+        const copy = document.createElement('canvas');
+        copy.width = cv.width; copy.height = cv.height;
+        copy.getContext('2d').drawImage(cv, 0, 0);
+        return copy;
+    }
+
+    function clearCanvas() {
+        ctx.fillStyle = `rgb(${CREAM})`;
+        ctx.fillRect(0, 0, els.canvas.width, els.canvas.height);
+        writeX = 0; colCount = 0;
+        els.columns.textContent = '0';
+    }
 
 
-    /* ════════════════════════════════════════════════════════
-       PUBLIC API
-    ════════════════════════════════════════════════════════ */
+    /* ── DRAW LOOP ────────────────────────────────────────── */
+
+    function loop() {
+        raf = requestAnimationFrame(loop);
+
+        const playing = !audioEl.paused;
+        if (playing !== lastPlaying) {
+            lastPlaying = playing;
+            els.status.textContent = playing ? 'RECEIVING' : 'SIGNAL LOST';
+            els.status.classList.toggle('active', playing);
+            els.idle.classList.toggle('hidden', playing);
+        }
+        const time = Utils.formatTime(audioEl.currentTime);
+        if (time !== lastTime) els.time.textContent = lastTime = time;
+
+        if (frozen || !playing || !column) return;
+        drawColumn();
+    }
+
+    function drawColumn() {
+        analyser.getByteFrequencyData(freqData);
+        const H = column.height, px = column.data;
+        const usable = Math.floor(freqData.length * USABLE_FRAC);
+
+        for (let y = 0; y < H; y++) {
+            const bin = Math.floor((1 - y / H) * usable);          // bottom = low frequencies
+            const amp = Math.min(255, freqData[bin] * gain) | 0;
+            const o = y * 4, l = amp * 3;
+            px[o] = lut[l]; px[o + 1] = lut[l + 1]; px[o + 2] = lut[l + 2]; px[o + 3] = 255;
+        }
+        ctx.putImageData(column, writeX, 0);
+
+        writeX = (writeX + 1) % els.canvas.width;
+        els.cursor.style.left    = writeX + 'px';
+        els.cursor.style.display = 'block';
+
+        if (++colCount % 20 === 0) els.columns.textContent = colCount.toLocaleString();
+    }
+
 
     return { open, close };
 

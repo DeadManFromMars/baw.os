@@ -39,37 +39,27 @@
     <link rel="stylesheet" href="css/arg.css">
     <link rel="stylesheet" href="css/inventory.css">
     <link rel="stylesheet" href="css/cardeditor.css">
-    <link rel="stylesheet" href="css/radio.css">
+    <link rel="stylesheet" href="css/music.css">
     <link rel="stylesheet" href="css/signal.css">
-    <link rel="stylesheet" href="css/playlist.css">
 </head>
 <body>
 
     <!-- ─────────────────────────────────────────────────────────
-         AUDIO
-         Invisible. Controlled entirely by radio.js.
-         loop attribute handled in JS (nextTrack on ended).
+         MUSIC — <audio> + radio widget, driven by js/music.js.
+         Buttons use data-radio="…" (wired in music.js).
+         The widget fades in once playback starts.
     ───────────────────────────────────────────────────────────── -->
     <audio id="bgMusic"></audio>
 
-
-    <!-- ─────────────────────────────────────────────────────────
-         RADIO WIDGET
-         Draggable music player. Fixed bottom-right initially.
-         Becomes visible (opacity:1) after globe pin lines finish.
-         Drag handle is the pill bar at the top.
-    ───────────────────────────────────────────────────────────── -->
-    <div id="radioWidget">
-        <div id="radioDragHandle">
-            <div class="radio-drag-dots"></div>
-        </div>
+    <div id="radioWidget" role="region" aria-label="Music player">
+        <div id="radioDragHandle" title="Drag to move"></div>
         <div class="radio-inner">
             <div class="radio-marquee-wrap">
-                <div class="radio-marquee" id="radioTitle">Track Name</div>
+                <div class="radio-marquee" id="radioTitle"></div>
             </div>
-            <div class="radio-artist" id="radioArtist">Artist</div>
-            <div class="radio-progress-wrap">
-                <div class="radio-progress-bar">
+            <div class="radio-artist" id="radioArtist"></div>
+            <div>
+                <div class="radio-progress-bar" id="radioProgress" title="Click to seek">
                     <div class="radio-progress-fill" id="radioFill"></div>
                 </div>
                 <div class="radio-times">
@@ -78,38 +68,26 @@
                 </div>
             </div>
             <div class="radio-controls">
-                <button class="radio-btn" onclick="prevTrack()">&#9664;&#9664;</button>
-                <button class="radio-btn radio-play" id="radioPlayBtn" onclick="pauseMusic()">&#9654;</button>
-                <button class="radio-btn" onclick="nextTrack()">&#9654;&#9654;</button>
+                <button type="button" class="radio-btn" data-radio="prev" aria-label="Previous track">&#9664;&#9664;</button>
+                <button type="button" class="radio-btn radio-play" data-radio="play" id="radioPlayBtn" aria-label="Play">&#9654;</button>
+                <button type="button" class="radio-btn" data-radio="next" aria-label="Next track">&#9654;&#9654;</button>
             </div>
-            <div class="radio-volume-wrap">
+            <label class="radio-volume-wrap">
                 <span class="radio-vol-label">VOL</span>
-                <input
-                    type="range"
-                    class="radio-volume"
-                    id="radioVolume"
-                    min="0" max="100" value="30"
-                    oninput="setVolume(this.value / 100)"
-                >
-            </div>
-            <div class="radio-playlist-hint">MIXTAPE MANAGER</div>
+                <input type="range" class="radio-volume" id="radioVolume" min="0" max="100" value="30">
+            </label>
+            <button type="button" class="radio-mixtape-btn" data-radio="mixtape">Mixtape manager</button>
         </div>
     </div>
 
-    <!-- Mixtape overlay — built by playlist.js on first open -->
-    <div id="mixtapeOverlay"></div>
-
-    <!-- Signal viewer overlay — built by signal.js on open -->
-    <div id="signalOverlay"></div>
-
     <!-- Signal viewer button — bottom centre of globe screen -->
-    <button id="signalBtn" onmouseenter="SFX.hover()" onclick="Signal.open()">SIGNAL VIEWER</button>
+    <button id="signalBtn" data-sfx="hover" data-action="signal">SIGNAL VIEWER</button>
 
 
     <!-- ─────────────────────────────────────────────────────────
          BACKGROUND LAYERS
          z-index 0–5. All purely decorative.
-         Dot canvas is drawn by dots.js.
+         Dot canvas is drawn by globe.js.
          Haze is CSS-only animation.
          VHS overlay activates during the conductor freeze.
          Geo lines and corner accents are CSS-animated SVGs.
@@ -206,7 +184,7 @@
 
         <div class="scan-header">
             <div class="scan-wordmark">
-                BAWSOME ONLINE<span class="red-dot"></span>
+                BAWSOME ONLINE
             </div>
             <div class="scan-tagline">Initializing Secure Session</div>
         </div>
@@ -275,7 +253,6 @@
     <div id="loginPhase">
 
         <div class="lp-hud-tl">
-            <span class="lp-hud-dot"></span>
             BSI-NODE-7
         </div>
 
@@ -297,50 +274,21 @@
             </div>
             <div class="lp-hint">ENTER TO AUTHENTICATE</div>
             <div class="msg" id="msg"></div>
-            <div class="progress-wrap" id="loginProgress">
-                <div class="progress-bar" id="loginBar"></div>
-            </div>
         </div>
 
     </div>
 
 
     <!-- ─────────────────────────────────────────────────────────
-         ACCESS GRANTED OVERLAY
-         Full-screen takeover before redirect to stage2.
-         Unused currently (redirect path not implemented in this version).
-    ───────────────────────────────────────────────────────────── -->
-    <div id="overlay">
-        <div class="ov-title">Access <span>Granted.</span></div>
-        <div class="ov-sub">Loading classified archive</div>
-        <div class="ov-bar">
-            <div class="ov-fill" id="ovFill"></div>
-        </div>
-    </div>
-
-
-    <!-- ─────────────────────────────────────────────────────────
-         WELCOME + LOGOUT
-         Hidden by default. JS adds .visible after login/card upload.
+         WELCOME VIEW — hidden until arg.js adds .visible.
+         Buttons: data-action (arg.js), data-sfx="hover" (sounds.js).
     ───────────────────────────────────────────────────────────── -->
     <div id="argWelcome">WELCOME&nbsp;&nbsp;<span id="argWelcomeName"></span>!</div>
-
-    <button id="argLogout" onmouseenter="SFX.hover()" onclick="Arg.handleLogout()">LOGOUT</button>
-
-    <!-- Inventory — left side of globe, visible when logged in -->
-    <button id="inventoryBtn"
-            onmouseenter="SFX.hover()"
-            onclick="Inventory.open()">INVENTORY</button>
-
-    <!-- Card editor — right side of globe, visible when logged in -->
-    <button id="cardEditorBtn"
-            onmouseenter="SFX.hover()"
-            onclick="CardEditor.open()">EDIT CARD</button>
-
-    <!-- DEV: award all stickers — remove before launch -->
-    <button id="devStickerBtn"
-            onmouseenter="SFX.hover()"
-            onclick="Arg.devAwardStickers()">⬡ GET STICKERS</button>
+    <button id="argLogout"     data-sfx="hover" data-action="logout">LOGOUT</button>
+    <button id="inventoryBtn"  data-sfx="hover" data-action="inventory">INVENTORY</button>
+    <button id="cardEditorBtn" data-sfx="hover" data-action="card-editor">EDIT CARD</button>
+    <!-- DEV: gives you every sticker (backend DEBUG only) — remove before launch -->
+    <button id="devStickerBtn" data-sfx="hover" data-action="dev-stickers">⬡ GET STICKERS</button>
 
 
     <!-- ─────────────────────────────────────────────────────────
@@ -352,11 +300,11 @@
     ───────────────────────────────────────────────────────────── -->
     <div id="argChoicePrompt">
         <div class="arg-minimal-inner">
-            <button class="arg-minimal-btn arg-choice-btn" onmouseenter="SFX.hover()" onclick="Arg.chooseRegister()">
+            <button class="arg-minimal-btn arg-choice-btn" data-sfx="hover" data-action="choose-register">
                 <span>register</span>
             </button>
             <div class="arg-choice-divider">—</div>
-            <button class="arg-minimal-btn arg-choice-btn" onmouseenter="SFX.hover()" onclick="Arg.chooseCard()">
+            <button class="arg-minimal-btn arg-choice-btn" data-sfx="hover" data-action="choose-card">
                 <span>offer token</span>
             </button>
         </div>
@@ -379,12 +327,12 @@
                 spellcheck="false"
                 maxlength="32"
             >
-            <button class="arg-minimal-btn" id="argRegBtn" onmouseenter="SFX.hover()" onclick="argRegister()">
+            <button class="arg-minimal-btn" id="argRegBtn" data-sfx="hover" data-action="register">
                 <span id="argRegBtnText">→</span>
             </button>
             <div class="arg-minimal-msg" id="argRegMsg"></div>
             <div class="arg-minimal-sub" id="argRegSub">designate</div>
-            <button class="arg-back-btn" onmouseenter="SFX.hover()" onclick="Arg.showArgChoice()">← back</button>
+            <button class="arg-back-btn" data-sfx="hover" data-action="back">← back</button>
         </div>
     </div>
 
@@ -397,7 +345,7 @@
     ───────────────────────────────────────────────────────────── -->
     <div id="argCardPrompt" class="arg-right-prompt">
         <div class="arg-minimal-inner">
-            <div class="arg-card-slot" onmouseenter="SFX.hover()" onclick="document.getElementById('argCardFile').click()" title="insert card">
+            <div class="arg-card-slot" data-sfx="hover" data-action="pick-card" title="insert card">
                 <!-- Decorative card diagram — mirrors the actual BAWSOME card template.
                      Vertical orientation, rounded corners, orange stripe at 1/3,
                      avatar box, subtle grid. Pure SVG, no data shown. -->
@@ -464,11 +412,10 @@
                 type="file"
                 id="argCardFile"
                 accept="image/*"
-                style="display:none"
-                onchange="argUploadCard(this)"
+                hidden
             >
             <div class="arg-minimal-msg" id="argCardMsg"></div>
-            <button class="arg-back-btn" onmouseenter="SFX.hover()" onclick="Arg.showArgChoice()">← back</button>
+            <button class="arg-back-btn" data-sfx="hover" data-action="back">← back</button>
         </div>
     </div>
 
@@ -489,10 +436,8 @@
 
          Tier 4: Independent visual modules (dep: config.js, utils.js)
            city.js     — hex city 3D renderer (CITY module)
-           hex.js      — honeycomb intro canvas (HEX module)
-           dots.js     — dot canvas background (DotCanvas module)
-           radio.js    — music player (Radio module)
-           globe.js    — spinning globe + pin lines
+           music.js    — playback, radio widget, mixtape manager
+           globe.js    — spinning globe + pin lines + background dots
 
          Tier 5: Gameplay modules (dep: everything above)
            scan.js     — scan rows + conductor sequence (Scan module)
@@ -501,9 +446,6 @@
 
          Tier 6: Orchestration (dep: all gameplay modules)
            session.js  — reads localStorage, routes to correct flow
-
-         DEV ONLY (remove before launch):
-           dev.js      — keyboard shortcuts + dev bypass
 
          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
 
@@ -520,10 +462,7 @@
     <!-- Three.js must load before city.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="js/city.js"></script>
-    <script src="js/hex.js"></script>
-    <script src="js/dots.js"></script>
-    <script src="js/radio.js"></script>
-    <script src="js/playlist.js"></script>
+    <script src="js/music.js"></script>
     <script src="js/globe.js"></script>
 
     <!-- Tier 5 — order within this tier doesn't matter -->
@@ -538,8 +477,6 @@
 
     <!-- Tier 6 — must be last -->
     <script src="js/session.js"></script>
-
-    <!-- dev.js removed for production -->
 
 </body>
 </html>
