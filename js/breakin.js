@@ -6,64 +6,21 @@
                 in red like SECURED, the screen shakes, and it stays.
    2. SLAP      an open palm comes in from the right, winds up and
                 slaps ERROR, which tumbles into the bottom-left corner.
-   (next)       a hand grabs the globe and shakes words out of it, …
+   3. PUNCH     a fist punches through the scan's column of text: it
+                bursts, words fly, and the rest of the tower crumbles
+                into a pile at the bottom.
+   (next)       two hands pick up the globe and crack it like an egg;
+                words pour out like a yolk, …
 
-   The hands are hand.js puppets. BreakIn.start() is called by scan.js
-   once every row is in.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+   The hands are hand.js puppets; everything knocked about is debris.js.
+   BreakIn.start() is called by scan.js once every row is in.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const BreakIn = (() => {
 
     const $ = id => document.getElementById(id);
     const E = Utils.easing;
-
-    /* Knocked things fall under gravity, bounce off the floor and the left
-       wall, slide to a stop and lie flat. Resolves once it's at rest. */
-    const PHYS = {
-        gravity: 2600,      // px/s²
-        bounce:  0.35,      // share of the fall speed kept per floor bounce…
-        grip:    0.6,       // …and of the sideways speed (so it can't skip away along the floor)
-        wall:    0.12,      // share kept bouncing off the left wall — it thuds into the corner
-        slide:   0.03,      // share of the sliding speed kept per second on the floor
-        margin:  24,        // px from the window's edges
-    };
-
-    function knock(el, { vx, vy, spin }) {
-        return new Promise(resolve => {
-            const r  = el.getBoundingClientRect();
-            const x0 = r.left + r.width / 2, y0 = r.top + r.height / 2, w = r.width, h = r.height;
-            let x = 0, y = 0, a = 0, still = 0, last = performance.now();
-
-            requestAnimationFrame(function step(now) {
-                const dt = Math.min((now - last) / 1000, 1 / 30);
-                last = now;
-                vy += PHYS.gravity * dt;
-                x  += vx * dt;
-                y  += vy * dt;
-                a  += spin * dt;
-
-                // Its half-size at this angle, so a tilted word still meets the floor edge-first
-                const rad = a * Math.PI / 180, c = Math.abs(Math.cos(rad)), s = Math.abs(Math.sin(rad));
-                const hw = (w * c + h * s) / 2, hh = (w * s + h * c) / 2;
-                const floor = innerHeight - PHYS.margin - hh - y0, wall = PHYS.margin + hw - x0;
-
-                const onFloor = y >= floor, flat = Math.round(a / 180) * 180;
-                if (onFloor) {
-                    if (vy > 0) vx *= PHYS.grip;                 // landing
-                    y  = floor;
-                    vy = Math.abs(vy) > 90 ? -vy * PHYS.bounce : 0;
-                    vx *= Math.pow(PHYS.slide, dt);
-                    spin = 0;
-                    a += (flat - a) * Utils.springStep(0.2, dt * 1000);   // tips over flat (gravity then lowers it)
-                }
-                if (x < wall) { x = wall; vx = -vx * PHYS.wall; }
-
-                el.style.transform = `translate(${x}px, ${y}px) rotate(${a}deg)`;
-                still = onFloor && Math.abs(vx) < 5 && vy === 0 && Math.abs(flat - a) < 0.5 ? still + dt : 0;
-                still > 0.3 ? resolve() : requestAnimationFrame(step);
-            });
-        });
-    }
+    const rand = (lo, hi) => lo + Math.random() * (hi - lo);
 
 
     /* 1. The scan is refused */
@@ -75,6 +32,7 @@ const BreakIn = (() => {
             onLit: () => Utils.shakeScreen(12, 650),
         });
     }
+
 
     /* 2. An open palm slaps ERROR into the corner */
     async function slap() {
@@ -93,7 +51,7 @@ const BreakIn = (() => {
 
         // Strike: fast, down and left into the word's right half
         await hand.to({ x: r.left + r.width * 0.72, y: cy - 6, rot: 22 }, 130, E.easeInQuad);
-        const fall = knock(word, { vx: -1300, vy: 420, spin: -110 });
+        Debris.fling(word, { vx: -1300, vy: 420, spin: -110 });
         Utils.shakeScreen(9, 380);
 
         // Follow through, hang a moment, then leave the way it came
@@ -101,14 +59,108 @@ const BreakIn = (() => {
         await Utils.sleep(550);
         await hand.to({ x: innerWidth + 320, y: cy - 180, rot: 5 }, 950, E.easeInOutCubic);
         hand.show(false);
-        await fall;
+        await Debris.settled();
     }
+
+
+    /* 3. A fist through the column of text */
+
+    // Every word, value, mark and rule of the column becomes a loose piece
+    // (a copy placed exactly over it), and the column itself goes
+    function shatter(column) {
+        const layer = $('debrisLayer'), pieces = [];
+        const place = (el, r) => {
+            Object.assign(el.style, { left: r.left + 'px', top: r.top + 'px' });
+            layer.appendChild(el);
+            pieces.push({ el, x: r.left + r.width / 2, y: r.top + r.height / 2 });
+        };
+
+        const TEXT = '.scan-panel-head span, .scan-line-key, .scan-line-val, .scan-line-check, .scan-progress span';
+        for (const src of column.querySelectorAll(TEXT)) {
+            const r = src.getBoundingClientRect();
+            if (!r.width || !src.textContent.trim()) continue;
+            const cs = getComputedStyle(src), piece = document.createElement('div');
+            piece.className = 'debris-word';
+            piece.textContent = src.textContent;
+            for (const p of ['fontFamily', 'fontSize', 'fontWeight', 'letterSpacing', 'textTransform', 'color', 'lineHeight']) piece.style[p] = cs[p];
+            place(piece, r);
+        }
+        // The rules between rows, and the progress bar
+        for (const src of column.querySelectorAll('.scan-line, .scan-panel-head, .progress-track')) {
+            const r = src.getBoundingClientRect();
+            if (!r.width) continue;
+            const rule = document.createElement('div');
+            rule.className = 'debris-rule' + (src.matches('.progress-track') ? ' red' : '');
+            Object.assign(rule.style, { width: r.width + 'px' });
+            place(rule, { left: r.left, top: r.bottom - 1, width: r.width, height: 1 });
+        }
+        column.style.visibility = 'hidden';
+        return pieces;
+    }
+
+    // Close to the fist: thrown hard, away from it and on in the punch's
+    // direction (left). Further up the tower: pushed less — it loses what
+    // held it up and topples, scattering as it comes down, the higher bits
+    // a moment later.
+    function explode(pieces, at) {
+        for (const p of pieces) {
+            const dx = p.x - at.x, dy = p.y - at.y, d = Math.hypot(dx, dy) || 1;
+            const blast = 2400 * Math.exp(-d / 220);
+            Debris.fling(p.el, {
+                vx:    dx / d * blast - 800 * Math.exp(-d / 260) + rand(-260, 260),
+                vy:    dy / d * blast - 450 * Math.exp(-d / 220) + rand(-120, 40),
+                spin:  rand(-1, 1) * (120 + blast * 0.4),
+                delay: dy < 0 && blast < 600 ? -dy * 0.3 + rand(0, 140) : rand(0, 30),
+            });
+        }
+        // A puff of flecks from the hole
+        for (let i = 0; i < 16; i++) {
+            const fleck = document.createElement('div');
+            fleck.className = 'debris-fleck' + (i % 3 ? '' : ' red');
+            Object.assign(fleck.style, { left: at.x + 'px', top: at.y + 'px' });
+            $('debrisLayer').appendChild(fleck);
+            const angle = rand(0, Math.PI * 2), speed = rand(500, 1400);
+            Debris.fling(fleck, { vx: Math.cos(angle) * speed - 300, vy: Math.sin(angle) * speed - 300, spin: rand(-900, 900), fade: rand(500, 1000) });
+        }
+    }
+
+    async function punch() {
+        const column = document.querySelector('.scan-left');
+        const c = column.getBoundingClientRect(), cy = c.top + c.height * 0.55;
+        const hit = { x: c.left + c.width * 0.55, y: cy };
+        const hand = Hands.create('right').pose('fist');
+
+        // Comes in low from the right and squares up beside the column
+        hand.place({ x: innerWidth + 240, y: cy + 160, rot: 12 }).show(true);
+        await hand.to({ x: c.right + 230, y: cy, rot: 0 }, 1100, E.easeOutCubic);
+        await Utils.sleep(320);
+
+        // Draws back
+        await hand.to({ x: c.right + 340, y: cy + 12, rot: 8 }, 380, E.easeInOutQuad);
+        await Utils.sleep(90);
+
+        // Punch: into the middle of the column — it bursts — and on through
+        await hand.to({ x: hit.x, y: cy, rot: -4 }, 120, E.easeInQuad);
+        const pieces = shatter(column);
+        explode(pieces, hit);
+        Utils.shakeScreen(16, 620);
+        await hand.to({ x: c.left + 10, y: cy + 8, rot: -6 }, 150, E.easeOutCubic);
+
+        // Holds there a moment, then pulls out and leaves
+        await Utils.sleep(450);
+        await hand.to({ x: innerWidth + 340, y: cy + 70, rot: 10 }, 1050, E.easeInOutCubic);
+        hand.show(false);
+        await Debris.settled();
+    }
+
 
     async function start() {
         await Utils.sleep(900);         // a beat at 100% before it's refused
         await denied();
         await Utils.sleep(1300);        // ERROR sits there, glaring
         await slap();
+        await Utils.sleep(700);
+        await punch();
     }
 
     return { start };

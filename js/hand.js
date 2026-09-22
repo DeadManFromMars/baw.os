@@ -12,9 +12,10 @@
    To feel alive rather than tweened, each hand also breathes a little
    when still and leans into sideways movement (see frame()).
 
-   The photos: one transparent PNG per pose, the hand reaching in from
-   the RIGHT (fingers towards the left). Until they're shot, every pose
-   is hand.png with its name tagged on.
+   The photos: one transparent PNG per pose (open palm, fist, grab,
+   pinch, point, flick), the hand reaching in from the RIGHT (fingers
+   towards the left). Until they're shot, every pose is hand.png with
+   its name tagged on.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const Hands = (() => {
@@ -29,7 +30,8 @@ const Hands = (() => {
                only says how far to tilt from there (a new photo = a new turn) */
     const POSES = {
         palm:  { src: 'Images/hand.png', label: 'OPEN PALM',   anchor: [0.45, 0.55], turn: -70 },
-        grab:  { src: 'Images/hand.png', label: 'GRAB / FIST', anchor: [0.3, 0.5],   turn: 0 },
+        fist:  { src: 'Images/hand.png', label: 'FIST',        anchor: [0.22, 0.47], turn: 0 },
+        grab:  { src: 'Images/hand.png', label: 'GRAB',        anchor: [0.3, 0.5],   turn: 0 },
         pinch: { src: 'Images/hand.png', label: 'PINCH',       anchor: [0.22, 0.47], turn: 0 },
         point: { src: 'Images/hand.png', label: 'POINT',       anchor: [0.22, 0.47], turn: 0 },
         flick: { src: 'Images/hand.png', label: 'FLICK',       anchor: [0.22, 0.47], turn: 0 },

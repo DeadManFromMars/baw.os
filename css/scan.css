@@ -386,6 +386,23 @@
 #errorRipples .flash-ripple { fill: none; stroke: var(--red); stroke-width: 0.8; }
 
 
+/* ── Debris (breakin.js, debris.js) ─────────────────────────────
+   Loose pieces knocked out of the page: words copied from what they
+   were (breakin.js copies their font and colour), rules, flecks. */
+
+#debrisLayer {
+    position: fixed;
+    inset: 0;
+    z-index: 58;                           /* over the scan + globe, under ERROR and the hands */
+    pointer-events: none;
+}
+.debris-word  { position: fixed; white-space: nowrap; }
+.debris-rule  { position: fixed; height: 1px; background: var(--border2); }
+.debris-rule.red { height: 2px; background: var(--red); }
+.debris-fleck { position: fixed; width: 4px; height: 4px; background: var(--ink); }
+.debris-fleck.red { background: var(--red); }
+
+
 /* ── The puppet hands (hand.js, breakin.js) ─────────────────────
    Positioned by transform every frame; graded like the scan's hands.
    The tag names the pose while the photos are placeholders. */
