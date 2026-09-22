@@ -159,9 +159,27 @@
 }
 .scan-line.done .scan-line-check { opacity: 1; }
 
-/* The escalating rows near the end of the list */
-.scan-line.s-xl .scan-line-key { color: var(--ink); }
-.scan-line.s-xl .scan-line-val { font-size: clamp(1.35rem, 2.2vw, 2.1rem); line-height: 1.15; }
+/* The escalating rows near the end of the list: the name large on the left,
+   the value (a failure state) out on the right — two separate pieces, which
+   the break-in's hands pull apart (breakin.js) */
+.scan-line.s-xl {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "key val check";
+    align-items: center;
+    column-gap: 14px;
+    padding: 10px 0;
+}
+.scan-line.s-xl .scan-line-key {
+    font-size: clamp(0.95rem, 1.35vw, 1.3rem);
+    letter-spacing: 0.06em;
+    color: var(--ink);
+}
+.scan-line.s-xl .scan-line-val {
+    font-size: clamp(0.78rem, 0.95vw, 0.95rem);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    text-align: right;
+}
 
 /* route_depth: red when orphaned; once the hand fixes it, ink with a red ✓ (scan.js) */
 .scan-line.is-orphan {

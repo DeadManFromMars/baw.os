@@ -114,10 +114,13 @@ const Scan = (() => {
     /* Timing once the fake rows start: faster, and uneven so it never
        ticks like a metronome. Extra rows keep accelerating until the
        freeze, in bursts with the odd stutter. Returns [wait, pause] in ms. */
+    // DEV: localhost/#scan-fast runs the rows ~6× faster, to get to what follows quickly
+    const FAST = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && location.hash === '#scan-fast' ? 0.15 : 1;
+
     function rhythm(index, row) {
         const jitter = (lo, hi) => lo + Math.random() * (hi - lo);
-        if (index < REAL_ROWS) return [row.wait, row.pause];
-        if (row) return [row.wait * jitter(0.25, 0.8), row.pause * jitter(0.2, 1.1)];
+        if (index < REAL_ROWS) return [row.wait * FAST, row.pause * FAST];
+        if (row) return [row.wait * jitter(0.25, 0.8) * FAST, row.pause * jitter(0.2, 1.1) * FAST];
 
         const base = Math.max(14, 45 * Math.pow(0.95, index - ROWS.length));   // 45ms → 14ms
         const roll = Math.random();

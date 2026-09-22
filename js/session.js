@@ -7,6 +7,7 @@
      seen the intro before          → passphrase screen
      first visit                    → city intro → passphrase screen
      localhost/#scan (dev)          → the scan sequence, to watch it again
+                                      (#scan-fast: the same, rows sped up)
 
    localStorage only skips animations — access is always decided by
    the backend. Every path starts with a "click to begin" screen,
@@ -73,8 +74,9 @@
         });
     }
 
-    // DEV: localhost/#scan replays the scan sequence straight away (skips the passphrase)
-    const DEV_SCAN = ['localhost', '127.0.0.1'].includes(location.hostname) && location.hash === '#scan';
+    // DEV: localhost/#scan replays the scan sequence straight away (skips the passphrase);
+    // #scan-fast does the same with the rows sped up (scan.js)
+    const DEV_SCAN = ['localhost', '127.0.0.1'].includes(location.hostname) && ['#scan', '#scan-fast'].includes(location.hash);
     function startScanReplay() {
         DataStore.lookupNetwork();
         $('cityCanvas').style.display = 'none';

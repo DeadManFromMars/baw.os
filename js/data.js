@@ -89,11 +89,14 @@ const DataStore = (() => {
         .catch(() => {});
 
 
-    /* ── Fake ARG values ── */
+    /* ── Fake ARG values ──
+       fake1–10 read like data; fake11–25 are the big rows (name left, value
+       right — scan.css .s-xl), all failure states. */
 
     ['NULL', 'UNREGISTERED', 'NOT FOUND', 'MISMATCH', 'FLAGGED', 'DRIFTING', 'EXPIRED', 'UNKNOWN',
-     'PARTIAL', '0.34', 'INACTIVE', 'CLASSIFIED', 'SEVERED', '7.4 / 10', 'DEGRADED', '72h', '0.91',
-     'DETECTED', '0x4F3A', 'NULL', 'REVOKED', 'IMMINENT', 'DEEP', 'ACTIVE', 'LOST',
+     'PARTIAL', '0.34',
+     'OVERRIDDEN', 'UNRESOLVED', 'SEVERED', 'CRITICAL', 'COLLAPSED', 'CLOSED', 'EXCEEDED',
+     'DETECTED', 'CORRUPTED', 'NULL', 'REVOKED', 'FAILED', 'UNREACHABLE', 'TERMINAL', 'ABSENT',
     ].forEach((value, i) => set(`fake${i + 1}`, value));
 
 
