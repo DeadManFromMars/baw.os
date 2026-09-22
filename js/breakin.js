@@ -11,8 +11,8 @@
                 destroyed, and the rest of the tower crumbles into a
                 heap at the bottom.
    4. EGG       a second hand joins; they lift the globe, tap it twice to
-                crack it and pull it open, and words pour out like a
-                yolk onto the heap.
+                crack it and pull it open, and words pour out of the
+                opening like a yolk onto the heap.
    5. DIG       they close the shell and throw it away, tumbling, then
                 dig through the heap: pinch a word, hold it up and turn
                 it to read it, and flick it over the shoulder or toss it
@@ -178,7 +178,7 @@ const BreakIn = (() => {
 
     /* 4. Two hands crack the globe like an egg; words pour out like a yolk */
 
-    const YOLK = { words: 36, ms: 2600 };   // how many pour out, over how long
+    const YOLK = { words: 16, ms: 2400 };   // how many pour out, over how long
 
     // The globe's centre as the viewport % it moves in
     const pct = (x, y) => [x / innerWidth * 100, y / innerHeight * 100];
@@ -216,6 +216,22 @@ const BreakIn = (() => {
         const r = w.getBoundingClientRect();
         w.style.left = x - r.width / 2 + 'px';          // centred on the opening
         return w;
+    }
+
+    // One word of the yolk: it wells up inside the shell (fading in), slides down
+    // out of the opening upright — speeding up, like something thick pouring —
+    // and drops off the lip at that speed
+    async function pourOne(text, inside, lip) {
+        const w = yolkWord(text, inside.x, inside.y);
+        const b = Debris.lift(Debris.fling(w));             // measured lying flat, then moved by the pour
+        w.style.opacity = 0;
+        const x = inside.x + rand(-8, 8), lean = rand(-6, 6), ms = rand(420, 560);
+        await Utils.tween(ms, E.easeInQuad, e => {
+            Debris.place(b, x + lean * e, inside.y + (lip.y - inside.y) * e, 90 + lean);
+            w.style.opacity = Math.min(1, e / 0.35);
+        });
+        // easeInQuad leaves at twice its average speed
+        Debris.release(b, { vx: rand(-40, 40), vy: 2 * (lip.y - inside.y) / (ms / 1000), spin: rand(-60, 60) });
     }
 
     async function egg(right) {
@@ -256,15 +272,15 @@ const BreakIn = (() => {
             right.to({ ...grip(g, false, OPEN.tilt, OPEN.gap), rot: -OPEN.tilt }, 950, E.easeInOutCubic),
         ]);
 
-        // The yolk: a thick first glob, thinning to a drip
-        const words = Scan.words().sort(() => Math.random() - 0.5);
-        const mouth = { x: g.cx, y: g.cy + g.r * 0.45 };
-        for (let i = 0; i < YOLK.words; i++) {
-            const k = i / YOLK.words;
-            const w = yolkWord(words[i % words.length], mouth.x + rand(-OPEN.gap, OPEN.gap) * 0.4, mouth.y);
-            Debris.fling(w, { vx: rand(-240, 240), vy: rand(40, 220) * (1 - k * 0.5), spin: rand(-160, 160) });
-            await Utils.sleep(YOLK.ms / YOLK.words * (0.3 + k * 1.4));   // gaps grow as it thins
+        // The yolk pours out of the opening: a glob first, thinning to a drip
+        const words = Scan.words().sort(() => Math.random() - 0.5).slice(0, YOLK.words);
+        const inside = { x: g.cx, y: g.cy - g.r * 0.15 }, lip = { x: g.cx, y: g.cy + g.r * 0.6 };
+        const pouring = [];
+        for (let i = 0; i < words.length; i++) {
+            pouring.push(pourOne(words[i], inside, lip));
+            await Utils.sleep(YOLK.ms / words.length * (0.4 + 1.2 * i / words.length));   // gaps grow as it thins
         }
+        await Promise.all(pouring);
         await Debris.settled();
         return { left, right };
     }
