@@ -27,7 +27,8 @@ const Feed = (() => {
     void main() {
         vec2 p   = uv * 2.0 - 1.0;
         float r2 = dot(p, p);
-        vec2 q   = p * (1.0 + 0.12 * amt * r2);                                  // barrel
+        float k  = 0.12 * amt;
+        vec2 q   = p * (1.0 + k * r2) / (1.0 + k);                               // barrel, edge middles kept on the edge
         vec2 drift = vec2(sin(t * 0.37) + 0.5 * sin(t * 0.83), cos(t * 0.29) + 0.5 * sin(t * 0.61)) * 0.005;
         vec2 st  = q * 0.44 + 0.5 + drift;                                       // cropped in so the drift never shows an edge
 
@@ -55,9 +56,9 @@ const Feed = (() => {
         c += inBand * 0.18 * amt * hash(vec2(floor(uv.x * 60.0), line + frame)); // the band's snow
         c *= 1.0 + 0.05 * amt * smoothstep(0.1, 0.0, abs(fract(uv.y * 0.6 - t * 0.08) - 0.5));   // rolling brightness
 
-        vec2 e = abs(q);                                                         // rounded tube corners
-        float edge = smoothstep(1.0, 0.94, max(e.x, e.y)) * smoothstep(1.9, 1.6, e.x * e.x + e.y * e.y);
-        c *= mix(0.0, 1.0 - 0.15 * amt * r2, edge);                              // vignette, black at the rim
+        vec2 e = abs(q);                                                         // softly rounded tube corners, thin dark rim
+        float edge = smoothstep(1.0, 0.97, max(e.x, e.y)) * smoothstep(2.0, 1.85, e.x * e.x + e.y * e.y);
+        c *= mix(0.0, 1.0 - 0.08 * amt * r2, edge);                              // light vignette
         gl_FragColor = vec4(c, 1.0);
     }`;
 
