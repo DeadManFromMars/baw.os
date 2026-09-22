@@ -304,3 +304,83 @@
 #argLogout:hover {
     color: var(--ink);
 }
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   LOCATION FOCUS (globe.js)
+   A pin's box was clicked: the welcome screen steps back and the
+   location's panel opens beside the zoomed globe — styled like the
+   box it came from.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+body.globe-focused :is(#argWelcome, #argLogout, #inventoryBtn, #cardEditorBtn, #signalBtn, #devStickerBtn, .scan-header, #globeOverlay) {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#globeFocus {
+    position: fixed;
+    right: 8vw;
+    top: 50%;
+    transform: translateY(-50%);
+    width: min(420px, 36vw);
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 28px 30px 22px;
+    border: 1.5px solid rgba(255, 0, 0, 0.7);
+    border-radius: 2px;
+    background: rgba(245, 242, 236, 0.92);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.8s ease;
+}
+#globeFocus.visible { opacity: 1; pointer-events: all; }
+
+.gf-title {
+    margin: 0;
+    font-family: 'Vipnagorgialla Rg', sans-serif;
+    font-size: clamp(1.1rem, 1.8vw, 1.5rem);
+    font-weight: normal;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink);
+}
+
+.gf-text {
+    margin: 0;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--ink2);
+}
+
+.gf-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 8px;
+}
+.gf-actions .arg-back-btn { margin-top: 0; }
+
+.gf-next {
+    padding: 8px 0;
+    border: none;
+    border-bottom: 1px solid transparent;
+    background: transparent;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--ink2);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+.gf-next:hover,
+.gf-next:focus-visible { color: var(--red); border-bottom-color: var(--red); outline: none; }
+
+/* Narrow windows: the globe sits higher, the panel goes underneath */
+@media (max-width: 820px) {
+    #globeFocus { left: 16px; right: 16px; top: auto; bottom: 6vh; transform: none; width: auto; }
+}

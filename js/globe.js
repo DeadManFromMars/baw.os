@@ -1,14 +1,17 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   globe.js — the spinning red dot globe + its four pin lines,
+   globe.js — the spinning red dot globe + its location pins,
               and the drifting background dots (bottom of file)
 
    Drawn on #globeCanvas (2D). Its centre is a % of the viewport and
    tweens when startGlobeMove() is called; its size follows the
    wordmark's width.
 
-   PINS: four points on the globe, each drawing a line out to a box
-   near a screen corner. When all four finish, 'globe:pins-complete'
-   fires (music.js starts the radio on it).
+   PINS: one per entry in LOCATIONS — a line drawn from that spot on
+   the globe out to a box. When they've all drawn, 'globe:pins-complete'
+   fires (music.js starts the radio on it). Clicking a box FOCUSES its
+   location: the globe stops, turns the spot to face you and zooms in,
+   and the location's panel (#globeFocus) opens beside it. Back / Esc
+   zooms out again.
 
    Hidden until one of:
    window.globeLogOn()                 login.js — grows from nothing, spinning
@@ -32,14 +35,25 @@
     const PIN_DRAW_MS   = 2400;     // time for a pin line to reach its box
     const BOX_W = 220, BOX_H = 160;
 
-    // Box centres as fractions of the viewport, one per pin
-    const BOX_ANCHORS = [{ x: 0.18, y: 0.78 }, { x: 0.18, y: 0.22 }, { x: 0.82, y: 0.22 }, { x: 0.82, y: 0.78 }];
-
-    // Each pin's (lat, lon) range, one per hemisphere quarter
-    const PIN_ZONES = [
-        [0.1, Math.PI / 2, 0, Math.PI], [0.1, Math.PI / 2, Math.PI, Math.PI * 2],
-        [Math.PI / 2, Math.PI * 0.9, 0, Math.PI], [Math.PI / 2, Math.PI * 0.9, Math.PI, Math.PI * 2],
+    /* The locations, one pin + box each. New visitors get just the first; add more
+       as the ARG goes on. (This file is public — nothing secret in here.)
+         lat, lon   the spot on the globe, radians (lat 0 = top pole … π = bottom)
+         box        box centre as fractions of the viewport — free corners:
+                    { x: 0.18, y: 0.22 }, { x: 0.18, y: 0.78 }, { x: 0.82, y: 0.78 }
+         title, text  shown in the panel when it's focused
+         next       where the panel's Continue button goes (null = nowhere yet) */
+    const LOCATIONS = [
+        { lat: 0.9, lon: 2.3, box: { x: 0.82, y: 0.22 },
+          title: 'Location 01', text: 'Description of the area goes here.', next: null },
     ];
+
+    // Focusing a location (click its box)
+    const FOCUS = {
+        ms:     1800,   // turn + zoom time, both ways
+        zoom:   2.5,    // × the globe's size
+        wide:   { x: 30, y: 50 },   // globe centre while focused, viewport % …
+        narrow: { x: 50, y: 30 },   // … and on narrow windows (≤ 820px), panel underneath
+    };
 
     // Unit-sphere dot positions — they never change, so compute them once
     const DOTS = [];
@@ -57,12 +71,13 @@
 
     /* Rotate a unit-sphere point by the frame's 3×3 matrix `m` (row-major),
        scale to radius, and project around (cx, cy). Returns [x, y, depth 0–1].
-       Screen axes: x right, y down, z away from the viewer. */
-    function project([ux, uy, uz], m, radius, cx, cy) {
+       Screen axes: x right, y down, z away from the viewer. `persp` grows with
+       the zoom so a zoomed globe is the same shape, just bigger. */
+    function project([ux, uy, uz], m, radius, cx, cy, persp = PERSPECTIVE) {
         const x = m[0] * ux + m[1] * uy + m[2] * uz;
         const y = m[3] * ux + m[4] * uy + m[5] * uz;
         const z = m[6] * ux + m[7] * uy + m[8] * uz;
-        const p = PERSPECTIVE / (PERSPECTIVE + z * radius);
+        const p = persp / (persp + z * radius);
         return [cx + x * radius * p, cy + y * radius * p, (z + 1) / 2];
     }
 
@@ -76,6 +91,7 @@
         aw * bw - ax * bx - ay * by - az * bz,
     ];
     const qNorm = q => { const l = Math.hypot(...q); return q.map(v => v / l); };
+    const qConj = ([x, y, z, w]) => [-x, -y, -z, w];
 
     // Turn by `angle` about screen axis 0 (x), 1 (y) or 2 (z)
     const qAxis = (axis, angle) => { const q = [0, 0, 0, Math.cos(angle / 2)]; q[axis] = Math.sin(angle / 2); return q; };
@@ -99,6 +115,14 @@
         m[0] = 1 - 2 * (y * y + z * z); m[1] = 2 * (x * y - z * w);     m[2] = 2 * (x * z + y * w);
         m[3] = 2 * (x * y + z * w);     m[4] = 1 - 2 * (x * x + z * z); m[5] = 2 * (y * z - x * w);
         m[6] = 2 * (x * z - y * w);     m[7] = 2 * (y * z + x * w);     m[8] = 1 - 2 * (x * x + y * y);
+    }
+
+    // Shortest turn taking unit vector a onto unit vector b
+    function qAlign(a, b) {
+        const c = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+        const s = Math.hypot(...c), angle = Math.atan2(s, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]);
+        return s < 1e-9 ? (angle < 1 ? [0, 0, 0, 1] : qAxis(1, Math.PI))   // already there / dead opposite
+                        : qExp(c.map(v => v / s * angle));
     }
 
     // The normal pose = TILT_Q × spin about Y: spin, then lean back (X), then sideways (Z)
@@ -182,7 +206,9 @@
             move = { from: { ...pos }, to: { x, y }, start: performance.now() };
         };
 
-        const view = () => ({ cx: innerWidth * pos.x / 100, cy: innerHeight * pos.y / 100, r: radius * scale });
+        let zoom  = 1;      // > 1 while a location is focused
+        let focus = null;   // { pin, dir: 'in' | 'out', start, fromQ, toQ, fromZoom } — see Focus
+        const view = () => ({ cx: innerWidth * pos.x / 100, cy: innerHeight * pos.y / 100, r: radius * scale * zoom });
 
 
         /* ── Drag to spin ──
@@ -207,7 +233,7 @@
         };
         const REDUCED_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches;
         const BLOCKERS  = '#initOverlay:not(.gone), #inventoryOverlay.visible, #cardEditorOverlay.visible, #mixtapeOverlay.visible, #signalOverlay.visible';
-        const NOT_GLOBE = 'button, a, input, textarea, select, label, [contenteditable], [data-action], #radioWidget, #argChoicePrompt, #argRegPrompt, #argCardPrompt';
+        const NOT_GLOBE = 'button, a, input, textarea, select, label, [contenteditable], [data-action], #radioWidget, #argChoicePrompt, #argRegPrompt, #argCardPrompt, #globeOverlay rect, #globeFocus';
         const root = document.documentElement;
 
         let draggable = false;
@@ -222,14 +248,14 @@
 
         // Perspective makes the drawn disc bigger than `r` (the rim sits a bit in
         // front of the centre) and the front face bigger still: a = r / PERSPECTIVE.
-        const lens = () => { const { r } = view(); return { r, a: Math.min(r / PERSPECTIVE, 0.95) }; };
+        const lens = () => { const { r } = view(); return { r, a: Math.min(r / (PERSPECTIVE * zoom), 0.95) }; };
 
         function onDisc(px, py) {
             const { cx, cy } = view(), { r, a } = lens();
             return ((px - cx) ** 2 + (py - cy) ** 2) * (1 - a * a) < r * r;
         }
 
-        const canGrab = e => draggable && logon === null && scale === 1
+        const canGrab = e => draggable && logon === null && scale === 1 && !focus
             && !document.querySelector(BLOCKERS)
             && !(e.target instanceof Element && e.target.closest(NOT_GLOBE))
             && onDisc(e.clientX, e.clientY);
@@ -310,17 +336,18 @@
             return overlay.appendChild(el);
         };
 
-        const pins = PIN_ZONES.map(([latMin, latMax, lonMin, lonMax], i) => {
-            const lat = latMin + Math.random() * (latMax - latMin);
-            const lon = lonMin + Math.random() * (lonMax - lonMin);
-            return {
-                unit:   [Math.sin(lat) * Math.cos(lon), Math.cos(lat), Math.sin(lat) * Math.sin(lon)],
-                anchor: BOX_ANCHORS[i],
+        const pins = LOCATIONS.map(loc => {
+            const pin = {
+                loc,
+                unit:   [Math.sin(loc.lat) * Math.cos(loc.lon), Math.cos(loc.lat), Math.sin(loc.lat) * Math.sin(loc.lon)],
+                anchor: loc.box,
                 line:   svg('line', { stroke: 'rgba(255,0,0,0.7)', 'stroke-width': 1.5, opacity: 0 }),
                 box:    svg('rect', { stroke: 'rgba(255,0,0,0.7)', 'stroke-width': 1.5, fill: 'rgba(245,242,236,0.92)',
-                                      rx: 2, width: BOX_W, height: BOX_H, opacity: 0 }),
+                                      rx: 2, width: BOX_W, height: BOX_H, opacity: 0, 'data-sfx': 'hover' }),
                 start:  null,   // ms timestamp once drawing starts
             };
+            pin.box.addEventListener('click', () => focusOn(pin));
+            return pin;
         });
 
         function placeBox(pin) {
@@ -333,6 +360,62 @@
             const now = performance.now();
             pins.forEach(pin => { pin.start ??= now; });
         };
+
+        /* ── Focus ──
+           In: the spin stops and turnQ eases from wherever it is to the turn that
+           brings the pin to the front, while the globe zooms and slides aside.
+           Out: the zoom and slide reverse and the drag spring (stepTurn) takes
+           turnQ home, with the spin running again underneath. */
+
+        const panel = document.getElementById('globeFocus');
+        const rotated = (q, u) => { const m = new Float64Array(9); qMatrix(q, m); return [0, 1, 2].map(i => m[i * 3] * u[0] + m[i * 3 + 1] * u[1] + m[i * 3 + 2] * u[2]); };
+
+        function focusOn(pin) {
+            if (focus || document.querySelector(BLOCKERS)) return;
+            SFX.positive();
+            const where = rotated(qMul(TILT_Q, qAxis(1, -spin)), pin.unit);   // the pin, before the user's turn
+            focus = { pin, dir: 'in', start: performance.now(), fromQ: turnQ, toQ: qAlign(where, [0, 0, -1]), fromZoom: zoom };
+            omega = [0, 0, 0];
+            turning = homing = false;
+            const at = innerWidth <= 820 ? FOCUS.narrow : FOCUS.wide;
+            window.startGlobeMove(at.x, at.y);
+
+            document.getElementById('gfTitle').textContent = pin.loc.title;
+            document.getElementById('gfText').textContent  = pin.loc.text;
+            document.body.classList.add('globe-focused');       // the welcome screen steps back (arg.css)
+            setTimeout(() => focus?.dir === 'in' && panel.classList.add('visible'), FOCUS.ms * 0.6);
+        }
+
+        function unfocus() {
+            if (focus?.dir !== 'in') return;
+            SFX.hover();
+            panel.classList.remove('visible');
+            document.body.classList.remove('globe-focused');
+            focus = { ...focus, dir: 'out', start: performance.now(), fromZoom: zoom };
+            turning = homing = true;                            // spring home from here
+            window.startGlobeMove(CONFIG.globe.centerX, CONFIG.globe.centerY);
+        }
+
+        // Advance the focus tween; returns its eased progress (0–1)
+        function stepFocus(now) {
+            const t = Math.min((now - focus.start) / FOCUS.ms, 1), e = Utils.easing.easeInOutCubic(t);
+            zoom = Utils.lerp(focus.fromZoom, focus.dir === 'in' ? FOCUS.zoom : 1, e);
+            if (focus.dir === 'in') {
+                const way = qLog(qMul(focus.toQ, qConj(focus.fromQ)));
+                turnQ = qNorm(qMul(qExp(way.map(v => v * e)), focus.fromQ));
+            } else if (t === 1) {
+                focus = null;
+            }
+            return e;
+        }
+
+        document.getElementById('gfBack').addEventListener('click', unfocus);
+        document.getElementById('gfNext').addEventListener('click', () => {
+            if (focus?.pin.loc.next) location.href = focus.pin.loc.next;
+        });
+        addEventListener('keydown', e => {
+            if (e.key === 'Escape' && focus?.dir === 'in' && !document.querySelector(BLOCKERS)) unfocus();
+        });
 
         fitCanvas();
         addEventListener('resize', fitCanvas);
@@ -361,7 +444,10 @@
             const bass  = music?.bass ?? 0, level = music?.level ?? 0;
 
             const boost = stepLogOn(now);
-            if (!drag) spin += dt * CONFIG.globe.speed * (1 + boost) * (1 + 0.25 * level);   // held globes don't turn by themselves
+            const focusE = focus ? stepFocus(now) : 0;
+            const marker = focus?.dir === 'in' ? focusE : 0;     // the focused spot's ring fades in with the zoom
+            // Held and focused globes don't turn by themselves
+            if (!drag && focus?.dir !== 'in') spin += dt * CONFIG.globe.speed * (1 + boost) * (1 + 0.25 * level);
             if (turning) for (let t = dt; t > 1e-6; t -= TURN_STEP) stepTurn(Math.min(t, TURN_STEP));
 
             // This frame's rotation: the user's turn on top of the normal pose
@@ -372,12 +458,13 @@
 
             const { cx, cy, r: size } = view();
             const r = size * (1 + 0.012 * bass);
+            const persp = PERSPECTIVE * zoom, dotSize = DOT_SIZE * Math.sqrt(zoom);   // zoomed: same shape, bigger dots
             ctx.globalAlpha = Math.min(1, scale / 0.4);     // fade in while it's still small
 
             // Sort dots into depth levels, then draw each level with one fillStyle
             levelCount.fill(0);
             for (const dot of DOTS) {
-                const [x, y, depth] = project(dot, rot, r, cx, cy);
+                const [x, y, depth] = project(dot, rot, r, cx, cy, persp);
                 const level = Math.min(ALPHA_LEVELS - 1, Math.floor(depth * ALPHA_LEVELS));
                 const n = levelCount[level]++ * 2;
                 levelXY[level][n]     = x;
@@ -386,21 +473,40 @@
             for (let level = 0; level < ALPHA_LEVELS; level++) {
                 ctx.fillStyle = LEVEL_STYLE[level];
                 const xy = levelXY[level];
-                for (let i = 0; i < levelCount[level] * 2; i += 2) ctx.fillRect(xy[i], xy[i + 1], DOT_SIZE, DOT_SIZE);
+                for (let i = 0; i < levelCount[level] * 2; i += 2) ctx.fillRect(xy[i], xy[i + 1], dotSize, dotSize);
+            }
+
+            // Focused: a ring + crosshair on the spot
+            if (marker > 0) {
+                const [px, py] = project(focus.pin.unit, rot, r, cx, cy, persp);
+                ctx.globalAlpha = marker;
+                ctx.strokeStyle = LEVEL_STYLE[ALPHA_LEVELS - 1];
+                ctx.lineWidth   = 1.5;
+                ctx.beginPath();
+                ctx.arc(px, py, 14, 0, Math.PI * 2);
+                for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                    ctx.moveTo(px + dx * 20, py + dy * 20);
+                    ctx.lineTo(px + dx * 30, py + dy * 30);
+                }
+                ctx.stroke();
+                ctx.globalAlpha = 1;
             }
 
             // Pin lines grow from the (moving) globe point out to their box
             for (const pin of pins) {
                 if (pin.start === null) continue;
                 const progress = Math.min((now - pin.start) / PIN_DRAW_MS, 1);
-                const [px, py] = project(pin.unit, rot, r, cx, cy);
+                const [px, py] = project(pin.unit, rot, r, cx, cy, persp);
                 const bx = pin.anchor.x * innerWidth, by = pin.anchor.y * innerHeight;
                 pin.line.setAttribute('x1', px + DOT_SIZE / 2);
                 pin.line.setAttribute('y1', py + DOT_SIZE / 2);
                 pin.line.setAttribute('x2', px + (bx - px) * progress);
                 pin.line.setAttribute('y2', py + (by - py) * progress);
                 pin.line.setAttribute('opacity', 1);
-                if (progress === 1) pin.box.setAttribute('opacity', 1);
+                if (progress === 1 && !pin.box.classList.contains('live')) {
+                    pin.box.setAttribute('opacity', 1);
+                    pin.box.classList.add('live');                            // clickable now (background.css)
+                }
                 pin.box.style.scale = (1 + 0.02 * bass).toFixed(4);          // the boxes breathe with it
             }
 

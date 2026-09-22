@@ -135,6 +135,17 @@
     <canvas id="globeCanvas"></canvas>
     <svg id="globeOverlay"></svg>
 
+    <!-- LOCATION PANEL — beside the zoomed globe once a pin's box is clicked.
+         globe.js fills it from LOCATIONS; Continue goes to the location's `next` (does nothing until set). -->
+    <section id="globeFocus" aria-labelledby="gfTitle">
+        <h2 class="gf-title" id="gfTitle"></h2>
+        <p class="gf-text" id="gfText"></p>
+        <div class="gf-actions">
+            <button type="button" class="gf-next" id="gfNext" data-sfx="hover">Continue &rarr;</button>
+            <button type="button" class="arg-back-btn" id="gfBack" data-sfx="hover">&larr; back</button>
+        </div>
+    </section>
+
 
     <!-- ─────────────────────────────────────────────────────────
          SCAN PHASE
