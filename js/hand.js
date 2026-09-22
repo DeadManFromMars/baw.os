@@ -16,7 +16,8 @@
 
    The photos: one transparent PNG per pose (open palm, fist, grab,
    pinch, point, flick), the hand reaching in from the RIGHT (fingers
-   towards the left). Until they're shot, every pose is hand.png with
+   towards the left) — plus the talking hand facing the viewer, mouth
+   shut and open. Until they're shot, every pose is hand.png with
    its name tagged on.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
@@ -37,6 +38,9 @@ const Hands = (() => {
         pinch: { src: 'Images/hand.png', label: 'PINCH',       anchor: [0.22, 0.47], turn: 0 },
         point: { src: 'Images/hand.png', label: 'POINT',       anchor: [0.22, 0.47], turn: 0 },
         flick: { src: 'Images/hand.png', label: 'FLICK',       anchor: [0.22, 0.47], turn: 0 },
+        // Facing the viewer, a hand shaped like a talking mouth: closed, and open
+        talk:     { src: 'Images/hand.png', label: 'TALK (SHUT)', anchor: [0.5, 0.5], turn: 0 },
+        talkOpen: { src: 'Images/hand.png', label: 'TALK (OPEN)', anchor: [0.5, 0.5], turn: 0 },
     };
 
     const SQUEEZE = 0.06;       // how much a hand draws in while changing pose (a clench)

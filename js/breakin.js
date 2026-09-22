@@ -21,14 +21,18 @@
                 flicks ORPHANED off it — it snaps away.
    7. WIRES     the right hand digs out APPROVED; the two ends are
                 smashed together like live wires: sparks, a flash,
-                everything lights up — ROUTE_DEPTH APPROVED.
+                everything lights up — ROUTE_DEPTH APPROVED, green,
+                which is set back where the row was, and stays.
    8. SWEEP     palms flat on the table, from the middle out: the lot
                 goes over the edges.
-   9. REBUILD   the globe is fetched back, mended, smacked down into
-                place and spun; ERROR is carried back, green, and smacked
-                until it says what it should. The hands go; the register
-                / offer-token choice follows as usual (arg.js).
-   (still to come: a hand turns to the viewer and mouths a line)
+   9. REBUILD   off the sides, each hand finds half of the globe; they
+                slam the halves together (the crack seals) and spin it.
+                ERROR is carried back, green, and smacked until it says
+                what it should.
+   10. TALK     a hand turns to the viewer and mouths a line as it
+                appears underneath, then goes. The word and the row
+                fade; the register / offer-token choice follows as
+                usual (arg.js).
 
    The hands are hand.js puppets; everything knocked about is debris.js.
    BreakIn.start() is called by scan.js once every row is in.
@@ -131,6 +135,8 @@ const BreakIn = (() => {
 
     /* 3. A fist through the column of text */
 
+    let rowHome = null;     // where ROUTE_DEPTH·ORPHANED sat in the column (its left end, middle)
+
     // Every word, value, mark and rule of the column becomes a loose piece
     // (a copy placed exactly over it), and the column itself goes. The orphaned
     // row stays one piece — ROUTE_DEPTH·ORPHANED — and can't be lost: the
@@ -165,7 +171,9 @@ const BreakIn = (() => {
                 span.textContent = src.textContent;
                 copyText(span, getComputedStyle(src));
             }
-            place(row, orphan.querySelector('.scan-line-key').getBoundingClientRect(), true);
+            const r = orphan.querySelector('.scan-line-key').getBoundingClientRect();
+            place(row, r, true);
+            rowHome = { x: r.left, y: r.top + r.height / 2 };    // where the mended row is put back (7)
         }
 
         // The rules between rows, and the progress bar
@@ -374,31 +382,33 @@ const BreakIn = (() => {
     const LOOKS = {
         // tilts it one way, then the other, slowly, as if reading
         read: async (hand, held, s) => {
-            await Promise.all([turnTo(held, rand(-24, 24), rand(500, 800)), hand.to({ rot: rand(-10, 10) }, 600, E.easeInOutQuad)]);
+            await Promise.all([turnTo(held, rand(-14, 14), rand(500, 800)), hand.to({ rot: rand(-8, 8) }, 600, E.easeInOutQuad)]);
             await Utils.sleep(rand(120, 300));
-            await turnTo(held, rand(-12, 12), rand(400, 650));
+            await turnTo(held, rand(-8, 8), rand(400, 650));
         },
-        // brings it closer to have a proper look
+        // brings it closer to have a proper look — sometimes a little, sometimes right up
         closer: async (hand, held, s) => {
-            await hand.to({ x: hand.x - s * 50, y: hand.y - 25, scale: 1.18 }, 480, E.easeInOutCubic);
-            await Utils.sleep(rand(250, 500));
-            await hand.to({ x: hand.x + s * 50, y: hand.y + 25, scale: 1 }, 420, E.easeInOutCubic);
+            const near = rand(1.1, 1.32), x = hand.x, y = hand.y;
+            await hand.to({ x: x - s * 50 * near, y: y - 25 * near, scale: near }, rand(420, 560), E.easeInOutCubic);
+            await Utils.sleep(rand(250, 550));
+            await hand.to({ x, y, scale: 1 }, rand(380, 480), E.easeInOutCubic);
         },
         // a few quick shakes, like there might be something loose inside
         shake: async (hand, held, s) => {
             for (let i = 0; i < 4; i++) await hand.to({ x: hand.x + (i % 2 ? 12 : -12), y: hand.y + rand(-5, 5), rot: rand(-6, 6) }, 65, E.easeInOutQuad);
         },
-        // turns it on end in the fingers, and back
-        onEnd: async (hand, held, s) => {
-            await turnTo(held, s * rand(70, 95), 380);
-            await Utils.sleep(rand(200, 350));
-            await turnTo(held, rand(-8, 8), 380);
+        // twists it in the fingers, back and forth
+        twist: async (hand, held, s) => {
+            for (let i = 0; i < 2; i++) {
+                await turnTo(held, (i % 2 ? -1 : 1) * s * rand(18, 30), rand(260, 360));
+            }
+            await turnTo(held, rand(-6, 6), 320);
         },
-        // turns it right over, and back
-        over: async (hand, held, s) => {
-            await turnTo(held, held.angle + 180, 450);
-            await Utils.sleep(rand(150, 300));
-            await turnTo(held, held.angle - 180 + rand(-6, 6), 450);
+        // tips it up on a slant, and back
+        slant: async (hand, held, s) => {
+            await turnTo(held, s * rand(28, 42), 400);
+            await Utils.sleep(rand(200, 350));
+            await turnTo(held, rand(-6, 6), 380);
         },
     };
     const fidget = hand => hand.to({ x: hand.x + rand(-7, 7), y: hand.y + rand(-6, 6), rot: hand.rot + rand(-4, 4) }, rand(140, 260), E.easeInOutQuad);
@@ -543,11 +553,12 @@ const BreakIn = (() => {
     /* 7. APPROVED dug out, and the two smashed together like live wires */
 
     // The ends touch: sparks, a flash of light, a jolt, and for a moment
-    // everything glows (scan.css body.lit)
+    // everything glows (scan.css body.lit) — warm, not green: green is only
+    // the mended row and ERROR
     function lightUp(at) {
         flecks(at.x, at.y, 16, 1600, '#ffe066', 0, -250);
         flecks(at.x, at.y, 10, 1300, '#ffffff', 0, -250);
-        flecks(at.x, at.y, 8, 1100, 'var(--green)', 0, -250);
+        flecks(at.x, at.y, 8, 1100, '#ffb347', 0, -250);
         const flash = document.body.appendChild(document.createElement('div'));
         flash.className = 'lit-flash';
         flash.style.setProperty('--x', at.x + 'px');
@@ -588,18 +599,24 @@ const BreakIn = (() => {
         weld(held, other);
         lightUp({ x: mid, y });
         await right.to({ x: rx + 140, y: y - 60, rot: 15 }, 300, E.easeOutCubic);
-        await Utils.sleep(900);
+        await Utils.sleep(700);
+
+        // The mended row is set back where it was in the column — a press, and it
+        // stays put (out of the physics, so nothing that follows can move it)
+        const home = rowHome ?? { x: innerWidth * 0.06, y: innerHeight * 0.6 };
+        const spot = { x: home.x + held.b.w / 2 - held.offX, y: home.y };
+        await left.to({ ...spot, rot: 0 }, 800, E.easeInOutCubic);
+        await left.to({ y: spot.y + 5, scale: 0.97 }, 110, E.easeOutQuad);
+        held.on = false;
+        await left.to({ x: spot.x - 60, y: spot.y - 90, rot: -10, scale: 1 }, 380, E.easeOutCubic);
+        return held.b.el;
     }
 
 
     /* 8. Everything swept off the table */
 
-    async function sweep({ left, right }, held) {
-        // The mended row's put down with the rest; nothing's kept now
-        await left.to({ y: innerHeight - 140 }, 500, E.easeInOutCubic);
-        held.letGo();
-        await Utils.sleep(250);
-        Debris.bodies.forEach(b => { b.keep = false; });
+    async function sweep({ left, right }) {
+        Debris.bodies.forEach(b => { b.keep = false; });       // nothing on the table is kept now (the mended row's off it)
 
         // Palms flat on the table, side by side in the middle…
         left.pose('palm', 300);
@@ -638,37 +655,49 @@ const BreakIn = (() => {
     }
 
 
-    /* 9. The site put back: the globe smacked into place, ERROR (green) smacked right */
+    /* 9. The site put back: the globe's halves slammed together, ERROR (green) smacked right */
 
     const SAYS = ['ERR0R', 'E#R?R', 'A?PR█V?D', FINAL_WORD];   // what ERROR shows after each smack
 
     async function rebuild({ left, right }) {
         const shell = window.globeShell;
-        Object.assign(shell, { crack: 0, gap: 0, tilt: 0 });              // mended, out of sight
         const home = { x: innerWidth * CONFIG.globe.centerX / 100, y: innerHeight * CONFIG.globe.centerY / 100 };
 
-        // The right hand fetches the globe back from where it was thrown…
+        // The hands are off the sides after the sweep: out there, each finds half
+        // of the globe. (Out of sight, it's put back home, split far apart — a half
+        // off each side, cracked, square on.)
+        left.pose('grab', 300);
         right.pose('grab', 300);
+        await window.startGlobeMove(CONFIG.globe.centerX, CONFIG.globe.centerY, 1);
+        window.globeKick([0, 0, 0]);
         let g = window.globeView();
-        await right.to({ ...grip(g, false), rot: 0 }, 650, E.easeInOutCubic);
-        const hover = { cx: home.x, cy: home.y - 70, r: g.r };
-        await Promise.all([
-            window.startGlobeMove(...pct(hover.cx, hover.cy), 1100, E.easeOutCubic),
-            right.to(grip(hover, false), 1100, E.easeOutCubic),
-        ]);
+        const wide = innerWidth + g.r * 5;
+        Object.assign(shell, { crack: 1, tilt: 0, gap: wide });
+        left.place({ ...grip(g, true, 0, wide), rot: 0 });
+        right.place({ ...grip(g, false, 0, wide), rot: 0 });
+        await Utils.sleep(600);
 
-        // …the left hand comes over the top, and smacks it down into its place
-        left.pose('palm', 250);
-        await left.to({ x: home.x - 30, y: hover.cy - g.r - 170, rot: -15 }, 650, E.easeInOutCubic);
-        await Utils.sleep(120);
-        await left.to({ x: home.x, y: hover.cy - g.r * 0.85, rot: 5 }, 110, E.easeInQuad);
-        right.to({ x: home.x + g.r + 260, y: home.y - 120, rot: 10 }, 400, E.easeOutCubic);
-        Utils.shakeScreen(12, 450);
+        // They bring them in, one each, and line them up…
+        const hold = g.r * 1.6;
         await Promise.all([
-            window.startGlobeMove(CONFIG.globe.centerX, CONFIG.globe.centerY, 420, E.easeOutBack),
-            left.to({ y: home.y - g.r - 40 }, 420, E.easeOutBack),
+            Utils.tween(1200, E.easeOutCubic, e => { shell.gap = wide + (hold - wide) * e; }),
+            left.to(grip(g, true, 0, hold), 1200, E.easeOutCubic),
+            right.to(grip(g, false, 0, hold), 1200, E.easeOutCubic),
         ]);
-        await left.to({ x: home.x - g.r - 260, y: home.y - g.r - 140, rot: -20 }, 500, E.easeInOutCubic);
+        await Utils.sleep(350);
+
+        // …and slam them together. The crack seals.
+        await Promise.all([
+            Utils.tween(110, E.easeInQuad, e => { shell.gap = hold * (1 - e); }),
+            left.to(grip(g, true), 110, E.easeInQuad),
+            right.to(grip(g, false), 110, E.easeInQuad),
+        ]);
+        Utils.shakeScreen(16, 520);
+        flecks(g.cx, g.cy - g.r * 0.6, 8, 700, 'var(--red)', 0, -200);
+        flecks(g.cx, g.cy + g.r * 0.4, 8, 700, 'var(--ink)', 0, -200);
+        Utils.tween(900, E.easeOutCubic, e => { shell.crack = 1 - e; });
+        await Utils.sleep(500);
+        await left.to({ x: home.x - g.r - 260, y: home.y - g.r - 140, rot: -20 }, 550, E.easeInOutCubic);
 
         // …and the right hand gives it a spin
         right.pose('flick', 250);
@@ -711,19 +740,48 @@ const BreakIn = (() => {
         await Utils.flashWord(flash, word, $('errorRipples'), { stay: true });   // it says it: lit up like SECURED
     }
 
-    // The hands go, the word fades, and the site carries on as usual
-    async function finish({ left, right }) {
-        await Promise.all([
-            left.to({ x: -340, y: innerHeight * 0.3, rot: -10 }, 900, E.easeInOutCubic),
-            right.to({ x: innerWidth + 340, y: innerHeight * 0.3, rot: 10 }, 900, E.easeInOutCubic),
-        ]);
-        left.show(false);
+    /* 10. A hand turns to the viewer and says something */
+
+    const LINE = "You've made it this far, let me help you out a little bit.";
+
+    async function talk({ left, right }) {
+        // The left hand goes; the right turns to face you and comes close
+        left.to({ x: -340, y: innerHeight * 0.3, rot: -10 }, 900, E.easeInOutCubic).then(() => left.show(false));
+        right.pose('talk', 350);
+        const at = { x: innerWidth / 2, y: innerHeight * 0.7 };
+        await right.to({ ...at, rot: 0, scale: 1.25 }, 1000, E.easeInOutCubic);
+        await Utils.sleep(450);
+
+        // It mouths the line a word at a time, as the words appear underneath:
+        // the mouth opens and shuts about once a syllable
+        const line = document.body.appendChild(document.createElement('div'));
+        line.className = 'hand-line';
+        for (const word of LINE.split(' ')) {
+            line.textContent += (line.textContent ? ' ' : '') + word;
+            const beats = Math.max(1, Math.round(word.replace(/[^a-z]/gi, '').length / 3));
+            for (let i = 0; i < beats; i++) {
+                right.pose('talkOpen', 60);
+                await right.to({ y: at.y + 6 }, 90, E.easeOutQuad);
+                right.pose('talk', 60);
+                await right.to({ y: at.y }, 100, E.easeInQuad);
+            }
+            await Utils.sleep(/[,.]$/.test(word) ? 300 : 50);
+        }
+        await Utils.sleep(1900);
+
+        // …and goes
+        line.classList.add('gone');
+        await right.to({ x: innerWidth + 360, y: innerHeight * 0.35, rot: 10, scale: 1 }, 900, E.easeInOutCubic);
         right.show(false);
-        await Utils.sleep(900);
-        const flash = $('errorFlash');
-        flash.style.transition = 'opacity 1.2s ease';
-        flash.style.opacity = 0;
+        setTimeout(() => line.remove(), 1200);
+    }
+
+    // The word and the mended row fade, and the site carries on as usual
+    async function finish(row) {
+        await Utils.sleep(500);
+        for (const el of [$('errorFlash'), row]) Object.assign(el.style, { transition: 'opacity 1.2s ease', opacity: 0 });
         await Utils.sleep(1300);
+        row.remove();
         window.globeSetDraggable(true);
         Arg.showArgChoice();
     }
@@ -739,10 +797,11 @@ const BreakIn = (() => {
         const hands = await egg(hand);
         await dig(hands);
         const held = await snap(hands);
-        await wires(hands, held);
-        await sweep(hands, held);
+        const row = await wires(hands, held);
+        await sweep(hands);
         await rebuild(hands);
-        await finish(hands);
+        await talk(hands);
+        await finish(row);
     }
 
     return { start };

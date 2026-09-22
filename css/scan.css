@@ -50,6 +50,7 @@
     color: var(--ink);
     opacity: 0;
     animation: riseIn 1s 0.2s ease forwards;
+    transition: text-shadow 0.6s ease;     /* glows when the break-in's wires touch (body.lit) */
 }
 
 .scan-tagline {
@@ -406,7 +407,7 @@
 .debris-row.welded span { color: var(--green) !important; }                  /* …ROUTE_DEPTH APPROVED */
 
 /* The wires touch (breakin.js lightUp): a burst of light from the contact
-   point, and for a moment the loose words glow green */
+   point, and for a moment the loose words glow, warm */
 .lit-flash {
     position: fixed;
     inset: 0;
@@ -415,11 +416,29 @@
     background: radial-gradient(circle at var(--x) var(--y),
                 rgba(255, 255, 240, 0.95), rgba(255, 248, 200, 0.5) 22%, transparent 60%);
 }
-body.lit .debris-word  { color: var(--green) !important; text-shadow: 0 0 8px rgba(0, 200, 83, 0.55); transition-duration: 0.15s; }
-body.lit .scan-wordmark { text-shadow: 0 0 22px rgba(0, 200, 83, 0.5); }
+body.lit .debris-word  { text-shadow: 0 0 10px rgba(255, 205, 90, 0.95); transition-duration: 0.15s; }
+body.lit .scan-wordmark { text-shadow: 0 0 24px rgba(255, 205, 90, 0.8); }
 .debris-rule  { position: fixed; height: 1px; background: var(--border2); }
 .debris-rule.red { height: 2px; background: var(--red); }
 .debris-fleck { position: fixed; width: 4px; height: 4px; background: var(--ink); }   /* breakin.js colours them like what burst */
+
+
+/* What the talking hand says (breakin.js), appearing under it word by word */
+.hand-line {
+    position: fixed;
+    left: 8vw;
+    right: 8vw;
+    bottom: 7vh;
+    z-index: 212;
+    text-align: center;
+    font-family: 'DeadPostman', monospace;
+    font-style: italic;
+    font-size: clamp(1.3rem, 2.3vw, 2.1rem);
+    line-height: 1.35;
+    color: var(--ink);
+    transition: opacity 1s ease;
+}
+.hand-line.gone { opacity: 0; }
 
 
 /* ── The puppet hands (hand.js, breakin.js) ─────────────────────
