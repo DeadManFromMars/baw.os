@@ -138,6 +138,7 @@
     <!-- LOCATION PANEL — beside the zoomed globe once a pin's box is clicked.
          globe.js fills it from LOCATIONS; Continue goes to the location's `next` (does nothing until set). -->
     <section id="globeFocus" aria-labelledby="gfTitle">
+        <div class="gf-feed" id="gfFeed" hidden></div>   <!-- the box's feed canvas moves in here -->
         <h2 class="gf-title" id="gfTitle"></h2>
         <p class="gf-text" id="gfText"></p>
         <div class="gf-actions">
@@ -396,7 +397,8 @@
            three-loader   3D library as window.THREE (a module, so it runs
                           after these — see js/three-loader.js)
            city.js        hex city intro        music.js    radio + mixtape
-           globe.js       globe, pins, dots     sounds.js   UI sounds
+           feed.js        live-feed image look  globe.js    globe, pins, dots
+           sounds.js      UI sounds
            scan.js        the scan sequence     login.js    passphrase + SECURED
            inventory.js   inventory overlay     cardeditor.js  card editor
            arg.js         register / card login / welcome / button actions
@@ -415,6 +417,7 @@
     <script type="module" src="js/three-loader.js"></script>
     <script src="js/city.js"></script>
     <script src="js/music.js"></script>
+    <script src="js/feed.js"></script>
     <script src="js/globe.js"></script>
     <script src="js/sounds.js"></script>
     <script src="js/scan.js"></script>

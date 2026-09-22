@@ -33,17 +33,17 @@
     const ALPHA_LEVELS  = 8;        // depth shading steps (back dim → front bright)
     const PERSPECTIVE   = 300;      // larger = flatter
     const PIN_DRAW_MS   = 2400;     // time for a pin line to reach its box
-    const BOX_W = 220, BOX_H = 160;
 
     /* The locations, one pin + box each. New visitors get just the first; add more
        as the ARG goes on. (This file is public — nothing secret in here.)
          lat, lon   the spot on the globe, radians (lat 0 = top pole … π = bottom)
          box        box centre as fractions of the viewport — free corners:
                     { x: 0.18, y: 0.22 }, { x: 0.18, y: 0.78 }, { x: 0.82, y: 0.78 }
+         feed       image shown in the box as a live camera feed (feed.js), or null
          title, text  shown in the panel when it's focused
          next       where the panel's Continue button goes (null = nowhere yet) */
     const LOCATIONS = [
-        { lat: 0.9, lon: 2.3, box: { x: 0.82, y: 0.22 },
+        { lat: 0.9, lon: 2.3, box: { x: 0.82, y: 0.22 }, feed: 'Images/locations/SeattleView.webp',
           title: 'Location 01', text: 'Description of the area goes here.', next: null },
     ];
 
@@ -145,7 +145,6 @@
             canvas.style.width  = innerWidth  + 'px';
             canvas.style.height = innerHeight + 'px';
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-            pins.forEach(placeBox);
             measureRadius();
         }
 
@@ -233,7 +232,7 @@
         };
         const REDUCED_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches;
         const BLOCKERS  = '#initOverlay:not(.gone), #inventoryOverlay.visible, #cardEditorOverlay.visible, #mixtapeOverlay.visible, #signalOverlay.visible';
-        const NOT_GLOBE = 'button, a, input, textarea, select, label, [contenteditable], [data-action], #radioWidget, #argChoicePrompt, #argRegPrompt, #argCardPrompt, #globeOverlay rect, #globeFocus';
+        const NOT_GLOBE = 'button, a, input, textarea, select, label, [contenteditable], [data-action], #radioWidget, #argChoicePrompt, #argRegPrompt, #argCardPrompt, #globeFocus';
         const root = document.documentElement;
 
         let draggable = false;
@@ -336,24 +335,29 @@
             return overlay.appendChild(el);
         };
 
+        // Each box is a button (.pin-box, background.css) centred on its anchor,
+        // holding the location's feed if it has one
         const pins = LOCATIONS.map(loc => {
+            const box = Object.assign(document.createElement('button'), { type: 'button', className: 'pin-box' });
+            Object.assign(box.style, { left: loc.box.x * 100 + '%', top: loc.box.y * 100 + '%' });
+            box.dataset.sfx = 'hover';
+            box.setAttribute('aria-label', loc.title);
+            let feed = null;
+            if (loc.feed) {
+                feed = box.appendChild(document.createElement('canvas'));
+                Feed.start(feed, loc.feed);
+            }
             const pin = {
-                loc,
+                loc, box, feed,
                 unit:   [Math.sin(loc.lat) * Math.cos(loc.lon), Math.cos(loc.lat), Math.sin(loc.lat) * Math.sin(loc.lon)],
                 anchor: loc.box,
                 line:   svg('line', { stroke: 'rgba(255,0,0,0.7)', 'stroke-width': 1.5, opacity: 0 }),
-                box:    svg('rect', { stroke: 'rgba(255,0,0,0.7)', 'stroke-width': 1.5, fill: 'rgba(245,242,236,0.92)',
-                                      rx: 2, width: BOX_W, height: BOX_H, opacity: 0, 'data-sfx': 'hover' }),
                 start:  null,   // ms timestamp once drawing starts
             };
-            pin.box.addEventListener('click', () => focusOn(pin));
+            box.addEventListener('click', () => focusOn(pin));
+            document.body.appendChild(box);
             return pin;
         });
-
-        function placeBox(pin) {
-            pin.box.setAttribute('x', pin.anchor.x * innerWidth  - BOX_W / 2);
-            pin.box.setAttribute('y', pin.anchor.y * innerHeight - BOX_H / 2);
-        }
 
         let pinsDone = false;
         window.startPinLines = () => {
@@ -370,9 +374,14 @@
         const panel = document.getElementById('globeFocus');
         const MORPH = { duration: 900, easing: 'cubic-bezier(0.65, 0, 0.35, 1)' };
 
+        const panelFeed = document.getElementById('gfFeed');
+
+        // Where an element sits on screen, and its padding (the box's feed is inset
+        // less than the panel's, so the padding morphs too)
         const rectOf = el => {
             const r = el.getBoundingClientRect();
-            return { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' };
+            return { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px',
+                     padding: getComputedStyle(el).padding };
         };
 
         // Move + resize the panel from one screen rectangle to another. It holds
@@ -400,9 +409,11 @@
             document.getElementById('gfText').textContent  = pin.loc.text;
             document.body.classList.add('globe-focused');       // the welcome screen steps back (arg.css)
 
-            // The box grows into the panel, then the text fades in
+            // The box grows into the panel, taking its feed along; then the text fades in
             const from = rectOf(pin.box);
             pin.box.classList.add('opened');                    // the panel stands in for it (background.css)
+            panelFeed.hidden = !pin.feed;
+            if (pin.feed) panelFeed.appendChild(pin.feed);
             panel.classList.add('visible');
             morph(from, rectOf(panel)).then(() => focus?.dir === 'in' && panel.classList.add('open'));
         }
@@ -415,6 +426,7 @@
             // The text fades while the panel shrinks back into the box
             panel.classList.remove('open');
             morph(rectOf(panel), rectOf(pin.box), () => {
+                if (pin.feed) pin.box.appendChild(pin.feed);
                 panel.classList.remove('visible');
                 pin.box.classList.remove('opened');
             });
@@ -536,10 +548,7 @@
                 pin.line.setAttribute('x2', px + (bx - px) * progress);
                 pin.line.setAttribute('y2', py + (by - py) * progress);
                 pin.line.setAttribute('opacity', 1);
-                if (progress === 1 && !pin.box.classList.contains('live')) {
-                    pin.box.setAttribute('opacity', 1);
-                    pin.box.classList.add('live');                            // clickable now (background.css)
-                }
+                if (progress === 1 && !pin.box.classList.contains('live')) pin.box.classList.add('live');   // shown + clickable (background.css)
                 pin.box.style.scale = (1 + 0.02 * bass).toFixed(4);          // the boxes breathe with it
             }
 

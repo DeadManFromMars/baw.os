@@ -312,7 +312,7 @@
    box grows into the location's panel beside the zoomed globe.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-body.globe-focused :is(#argWelcome, #argLogout, #inventoryBtn, #cardEditorBtn, #signalBtn, #devStickerBtn, .scan-header, #globeOverlay) {
+body.globe-focused :is(#argWelcome, #argLogout, #inventoryBtn, #cardEditorBtn, #signalBtn, #devStickerBtn, .scan-header, #globeOverlay, .pin-box) {
     opacity: 0;
     pointer-events: none;
 }
@@ -333,12 +333,18 @@ body.globe-focused #globeOverlay { transition-delay: 0.9s; }
     border: 1.5px solid rgba(255, 0, 0, 0.7);
     border-radius: 2px;
     background: rgba(245, 242, 236, 0.92);
+    overflow: hidden;                      /* while it's box-sized, only the feed shows */
     visibility: hidden;
 }
-/* globe.js grows it out of the box (.visible), then fades the contents in (.open) */
+/* globe.js grows it out of the box (.visible) with the box's feed in it, then
+   fades the rest in (.open) */
 #globeFocus.visible { visibility: visible; }
-#globeFocus > *      { opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
-#globeFocus.open > * { opacity: 1; pointer-events: all;  transition-duration: 0.6s; }
+#globeFocus > :not(.gf-feed)      { opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+#globeFocus.open > :not(.gf-feed) { opacity: 1; pointer-events: all;  transition-duration: 0.6s; }
+
+.gf-feed        { flex-shrink: 0; aspect-ratio: 1; }
+.gf-feed[hidden] { display: none; }
+.gf-feed canvas { display: block; width: 100%; height: 100%; }
 
 .gf-title {
     margin: 0;
@@ -385,4 +391,5 @@ body.globe-focused #globeOverlay { transition-delay: 0.9s; }
 /* Narrow windows: the globe sits higher, the panel goes underneath */
 @media (max-width: 820px) {
     #globeFocus { left: 16px; right: 16px; top: auto; bottom: 6vh; transform: none; width: auto; }
+    .gf-feed    { width: min(100%, 28vh); align-self: center; }
 }
