@@ -395,6 +395,16 @@
             return anim.finished.then(() => { done?.(); anim.cancel(); }, () => {});
         }
 
+        // Where the line from (px, py) to the middle of rect `b` crosses its edge
+        // (the middle itself if the point is inside)
+        function edgeToward(px, py, b) {
+            const mx = b.left + b.width / 2, my = b.top + b.height / 2, dx = mx - px, dy = my - py;
+            const tx = dx ? ((dx > 0 ? b.left : b.right)  - px) / dx : -Infinity;
+            const ty = dy ? ((dy > 0 ? b.top  : b.bottom) - py) / dy : -Infinity;
+            const t  = Math.min(Math.max(tx, ty, 0), 1);
+            return [px + dx * t, py + dy * t];
+        }
+
         const rotated = (q, u) => { const m = new Float64Array(9); qMatrix(q, m); return [0, 1, 2].map(i => m[i * 3] * u[0] + m[i * 3 + 1] * u[1] + m[i * 3 + 2] * u[2]); };
 
         function focusOn(pin) {
@@ -534,25 +544,25 @@
                 ctx.globalAlpha = 1;
             }
 
-            // Pin lines grow from the (moving) globe point out to their box
+            // Pin lines grow from the (moving) globe point out to the edge of their box —
+            // or of the panel, once the box has grown into it. Focused, the other
+            // locations' lines hide.
+            const breathe = (1 + 0.02 * bass).toFixed(4);            // boxes breathe with the bass
             for (const pin of pins) {
                 if (pin.start === null) continue;
                 const progress = Math.min((now - pin.start) / PIN_DRAW_MS, 1);
                 const [px, py] = project(pin.unit, rot, r, cx, cy, persp);
-                let bx = pin.anchor.x * innerWidth, by = pin.anchor.y * innerHeight;
-                if (focus?.pin === pin && panel.classList.contains('visible')) {     // its box is the panel now: follow it
-                    const b = panel.getBoundingClientRect();
-                    bx = b.left + b.width / 2;
-                    by = b.top + b.height / 2;
-                }
+                const opened = focus?.pin === pin && panel.classList.contains('visible');
+                const [bx, by] = edgeToward(px, py, (opened ? panel : pin.box).getBoundingClientRect());
                 pin.line.setAttribute('x1', px + DOT_SIZE / 2);
                 pin.line.setAttribute('y1', py + DOT_SIZE / 2);
                 pin.line.setAttribute('x2', px + (bx - px) * progress);
                 pin.line.setAttribute('y2', py + (by - py) * progress);
-                pin.line.setAttribute('opacity', 1);
+                pin.line.setAttribute('opacity', focus?.dir === 'in' && focus.pin !== pin ? 0 : 1);
                 if (progress === 1 && !pin.box.classList.contains('live')) pin.box.classList.add('live');   // shown + clickable (background.css)
-                pin.box.style.scale = (1 + 0.02 * bass).toFixed(4);          // the boxes breathe with it
+                pin.box.style.scale = breathe;
             }
+            panel.style.scale = panel.classList.contains('open') ? breathe : '';   // the panel too, once it can be read
 
             if (!pinsDone && pins.every(pin => pin.start !== null && now - pin.start >= PIN_DRAW_MS)) {
                 pinsDone = true;

@@ -53,7 +53,6 @@
     z-index: 10;
     overflow: visible;
     pointer-events: none;
-    transition: opacity 0.8s ease;         /* fades while a location is focused (arg.css) */
 }
 
 /* A pin's box (globe.js): appears when its line arrives, opens its location on

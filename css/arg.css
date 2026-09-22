@@ -312,12 +312,11 @@
    box grows into the location's panel beside the zoomed globe.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-body.globe-focused :is(#argWelcome, #argLogout, #inventoryBtn, #cardEditorBtn, #signalBtn, #devStickerBtn, .scan-header, #globeOverlay, .pin-box) {
+/* (The pin line stays: globe.js runs it to the panel's edge) */
+body.globe-focused :is(#argWelcome, #argLogout, #inventoryBtn, #cardEditorBtn, #signalBtn, #devStickerBtn, .scan-header, .pin-box) {
     opacity: 0;
     pointer-events: none;
 }
-/* The pin line keeps tracing the growing panel, then fades (globe.js MORPH = 900ms) */
-body.globe-focused #globeOverlay { transition-delay: 0.9s; }
 
 #globeFocus {
     position: fixed;
