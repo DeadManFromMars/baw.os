@@ -197,6 +197,12 @@
     </div>
 
 
+    <!-- ERROR — the scan is refused (breakin.js); it stays on and gets knocked about -->
+    <div id="errorFlash">
+        <div id="errorWord">ERROR</div>
+        <svg id="errorRipples"></svg>
+    </div>
+
     <!-- SECURED FLASH — after the right passphrase (login.js) -->
     <div id="securedFlash">
         <div id="securedWord">SECURED</div>
@@ -408,6 +414,7 @@
            feed.js        live-feed image look  globe.js    globe, pins, dots
            sounds.js      UI sounds
            scan.js        the scan sequence     login.js    passphrase + SECURED
+           breakin.js     after the scan: the hands (being built; localhost only)
            inventory.js   inventory overlay     cardeditor.js  card editor
            arg.js         register / card login / welcome / button actions
            signal.js      signal viewer
@@ -429,6 +436,7 @@
     <script src="js/globe.js"></script>
     <script src="js/sounds.js"></script>
     <script src="js/scan.js"></script>
+    <script src="js/breakin.js"></script>
     <script src="js/login.js"></script>
     <script src="js/inventory.js"></script>
     <script src="js/cardeditor.js"></script>

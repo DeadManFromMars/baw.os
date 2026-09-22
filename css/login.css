@@ -145,4 +145,4 @@
     overflow: visible;
     pointer-events: none;
 }
-.secured-ripple { fill: none; stroke: var(--ink); stroke-width: 0.8; }
+#securedRipples .flash-ripple { fill: none; stroke: var(--ink); stroke-width: 0.8; }

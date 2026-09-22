@@ -28,5 +28,8 @@ const CONFIG = Object.freeze({
     scan: {
         maxVisible:         14,      // data rows kept in the panel (older ones fade out at the top)
         conductorThreshold: 0.5,     // fraction of rows done before the scripted sequence starts
+        /* What happens after the scan: 'breakin' (the hands, js/breakin.js — being
+           built, so only on this PC) or 'classic' (the terminal + box, scan.js) */
+        sequence: /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'breakin' : 'classic',
     },
 });

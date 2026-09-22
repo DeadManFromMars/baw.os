@@ -205,7 +205,10 @@ const Scan = (() => {
             if (!extra) {
                 completedRows++;
                 updateProgress();
-                if (!conductorOn && completedRows >= Math.floor(ROWS.length * CONFIG.scan.conductorThreshold)) {
+                if (CONFIG.scan.sequence === 'breakin') {
+                    // The hands' version: the scan runs to 100% and stops there (breakin.js)
+                    if (completedRows === ROWS.length) { stopped = true; BreakIn.start(); }
+                } else if (!conductorOn && completedRows >= Math.floor(ROWS.length * CONFIG.scan.conductorThreshold)) {
                     conductorOn = true;
                     setTimeout(runConductor, 2300);
                 }
