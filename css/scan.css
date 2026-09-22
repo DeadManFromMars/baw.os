@@ -399,8 +399,7 @@
 .debris-word  { position: fixed; white-space: nowrap; }
 .debris-rule  { position: fixed; height: 1px; background: var(--border2); }
 .debris-rule.red { height: 2px; background: var(--red); }
-.debris-fleck { position: fixed; width: 4px; height: 4px; background: var(--ink); }
-.debris-fleck.red { background: var(--red); }
+.debris-fleck { position: fixed; width: 4px; height: 4px; background: var(--ink); }   /* breakin.js colours them like what burst */
 
 
 /* ── The puppet hands (hand.js, breakin.js) ─────────────────────
