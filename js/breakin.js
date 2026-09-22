@@ -13,8 +13,11 @@
    4. EGG       a second hand joins; they lift the globe, tap it twice to
                 crack it and pull it open, and words pour out like a
                 yolk onto the heap.
-   (next)       the shell is tossed aside and the hands dig through the
-                heap, …
+   5. DIG       they close the shell and throw it away, tumbling, then
+                dig through the heap: pinch a word, hold it up and turn
+                it to read it, and flick it over the shoulder or toss it
+                aside — both hands at once, out of step.
+   (next)       they find the orphan DENIED, …
 
    The hands are hand.js puppets; everything knocked about is debris.js.
    BreakIn.start() is called by scan.js once every row is in.
@@ -267,6 +270,105 @@ const BreakIn = (() => {
     }
 
 
+    /* 5. The shell's thrown away; the hands dig through the heap */
+
+    const DIG = { picks: 5 };   // pieces each hand picks up and throws away
+
+    // A word near the top of the heap on one side of the screen — not one the
+    // hands will come back for (kept), nor one the other hand has gone for
+    function topPiece(onLeft, taken) {
+        const near = Debris.bodies
+            .filter(b => b.resting && !b.keep && !taken.has(b) && b.el.classList.contains('debris-word')
+                      && (b.cx < innerWidth / 2) === onLeft)
+            .sort((p, q) => p.cy - q.cy)
+            .slice(0, 4);
+        return near[Math.floor(Math.random() * near.length)];
+    }
+
+    // One pick: reach in, pinch a word, lift it, hold it up and turn it to read
+    // it — not it — then flick it over the shoulder or toss it aside.
+    // `side` is the hand's (-1 left, 1 right): offsets and angles mirror with it,
+    // so both hands share this.
+    async function pickOver(hand, onLeft, taken) {
+        const b = topPiece(onLeft, taken);
+        if (!b) return false;
+        taken.add(b);
+        const side = hand.flip;
+
+        hand.pose('pinch', 250);
+        const grabX = b.cx + side * b.w * 0.3;              // fingers on the word's near end
+        await hand.to({ x: grabX, y: b.cy - 2, rot: -side * 35 }, rand(550, 750), E.easeInOutCubic);
+        await Utils.sleep(90);
+
+        // It comes away in the fingers — whatever lay on it drops — and follows them
+        Debris.lift(b);
+        const offX = b.cx - grabX;
+        let held = true;
+        requestAnimationFrame(function follow() {
+            if (!held) return;
+            Debris.place(b, hand.x + offX, hand.y, hand.rot * 0.5);
+            requestAnimationFrame(follow);
+        });
+
+        // Held up to have a look, turned this way and that
+        const look = { x: innerWidth * (onLeft ? 0.3 : 0.7) + rand(-40, 40), y: innerHeight * rand(0.38, 0.5) };
+        await hand.to({ ...look, rot: -side * 6 }, 700, E.easeInOutCubic);
+        await hand.to({ rot: side * 10 }, 280, E.easeInOutQuad);
+        await hand.to({ rot: -side * 4 }, 320, E.easeInOutQuad);
+        await Utils.sleep(rand(150, 450));
+
+        // Not it
+        if (Math.random() < 0.5) {
+            // Over the shoulder: a cock, then a flick up and back — it sails off
+            await hand.to({ x: look.x - side * 40, y: look.y + 30, rot: -side * 20 }, 180, E.easeOutCubic);
+            await hand.to({ x: look.x + side * 120, y: look.y - 160, rot: side * 25 }, 140, E.easeInQuad);
+            held = false;
+            Debris.release(b, { vx: side * rand(700, 1000), vy: rand(-1700, -1300), spin: side * rand(500, 900) });
+        } else {
+            // Tossed aside, back onto the heap somewhere else
+            await hand.to({ x: look.x + side * 30, y: look.y + 10, rot: side * 10 }, 160, E.easeOutCubic);
+            await hand.to({ x: look.x - side * 90, y: look.y + 40, rot: -side * 15 }, 150, E.easeInQuad);
+            held = false;
+            Debris.release(b, { vx: -side * rand(500, 800), vy: rand(-450, -200), spin: -side * rand(200, 500) });
+        }
+        await Utils.sleep(rand(100, 300));
+        return true;
+    }
+
+    async function dig({ left, right }) {
+        const shell = window.globeShell;
+        let g = window.globeView();
+
+        // Close the shell back up…
+        await Promise.all([
+            Utils.tween(450, E.easeInOutCubic, e => { shell.tilt = 34 * (1 - e); shell.gap = 70 * (1 - e); }),
+            left.to({ ...grip(g, true), rot: 0 }, 450, E.easeInOutCubic),
+            right.to({ ...grip(g, false), rot: 0 }, 450, E.easeInOutCubic),
+        ]);
+        await Utils.sleep(200);
+
+        // …wind up, and throw it away: it tumbles off the top right
+        await carry(left, right, g.cx - 110, g.cy + 40, 380, E.easeInOutQuad);
+        g = window.globeView();
+        window.globeKick([2, -10, 4]);
+        await Promise.all([
+            window.startGlobeMove(135, -30, 700, t => t),
+            right.to({ x: g.cx + 300, y: g.cy - 220, rot: -25 }, 300, E.easeOutCubic),
+            left.to({ x: g.cx - 60, y: g.cy - 40, rot: 10 }, 400, E.easeOutCubic),
+        ]);
+
+        // Dig: both at once, out of step
+        const taken = new Set();
+        const worker = async (hand, onLeft, delay) => {
+            await Utils.sleep(delay);
+            for (let i = 0; i < DIG.picks; i++) if (!await pickOver(hand, onLeft, taken)) break;
+        };
+        await Promise.all([worker(left, true, 0), worker(right, false, 650)]);
+        await Debris.settled();
+        return { left, right };
+    }
+
+
     async function start() {
         await Utils.sleep(900);         // a beat at 100% before it's refused
         await denied();
@@ -274,7 +376,8 @@ const BreakIn = (() => {
         const hand = Hands.create('right');
         await slap(hand);
         await punch(hand);
-        await egg(hand);
+        const hands = await egg(hand);
+        await dig(hands);
     }
 
     return { start };

@@ -8,6 +8,8 @@
        landing — and `keep`: walls stop it leaving the window.
        Returns its body.
    await Debris.settled()    everything has come to rest
+   Debris.lift / place / release    a hand takes a piece out, carries
+                             it, throws it back in (see below)
 
    Things fall, spin, bounce, slide to a stop and lie flat — on the
    floor or on whatever landed there first, so they pile up. The floor
@@ -84,7 +86,7 @@ const Debris = (() => {
                     hw: r.width / 2, hh: r.height / 2, grounded: false, landed: Infinity, keep };
         draw(b);
         bodies.push(b);
-        if (!running) { running = true; last = performance.now(); requestAnimationFrame(step); }
+        start();
         return b;
     }
 
@@ -172,7 +174,38 @@ const Debris = (() => {
 
     const settled = () => running ? new Promise(r => waiters.push(r)) : Promise.resolve();
 
+    function start() {
+        if (!running) { running = true; last = performance.now(); requestAnimationFrame(step); }
+    }
+
+    /* Hands picking things out of the pile (breakin.js):
+         lift(b)                 takes it out of the physics — whatever was lying
+                                 on it loses its support and drops
+         place(b, cx, cy, deg)   puts it somewhere (while a hand carries it)
+         release(b, { vx, vy, spin })   back into the physics, thrown */
+    function lift(b) {
+        bodies.splice(bodies.indexOf(b), 1);
+        // Rebuild the pile bottom-up; anything left with nothing under it falls
+        surface.fill(innerHeight - PHYS.margin);
+        for (const o of bodies.filter(o => o.resting).sort((p, q) => (q.cy + q.h / 2) - (p.cy + p.h / 2))) {
+            if (groundUnder(o.cx, o.w / 2, o, true) - (o.cy + o.h / 2) > 2) {
+                Object.assign(o, { resting: false, grounded: false, landed: Infinity, still: 0, nudges: 0, vx: 0, vy: 0 });
+            } else addToPile(o);
+        }
+        start();
+        return b;
+    }
+    function place(b, cx, cy, a = b.a) {
+        Object.assign(b, { cx, cy, a });
+        draw(b);
+    }
+    function release(b, { vx = 0, vy = 0, spin = 0, keep = b.keep } = {}) {
+        Object.assign(b, { vx, vy, spin, keep, resting: false, grounded: false, landed: Infinity, still: 0, nudges: 0, wait: 0 });
+        bodies.push(b);
+        start();
+    }
+
     addEventListener('resize', () => { if (surface) rebuildPile(); });
 
-    return { fling, settled, bodies };
+    return { fling, settled, lift, place, release, bodies };
 })();

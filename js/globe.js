@@ -490,6 +490,9 @@
         window.globeUnmark   = () => { mark = markLink = null; markLine.setAttribute('opacity', 0); };
         window.globeHold     = on => { held = on; };
         window.globeView     = () => view();          // { cx, cy, r } in px — for things that handle it
+        // Set it tumbling (rad/s about the screen's x, y, z) — thrown (breakin.js);
+        // it coasts, slows and eases home like a flicked globe
+        window.globeKick     = w => { omega = w; turning = true; homing = false; rested = 0; };
 
 
         /* ── Egg shell (breakin.js) ──
