@@ -10,8 +10,11 @@
                 the scan's column of text: it bursts, words fly or are
                 destroyed, and the rest of the tower crumbles into a
                 heap at the bottom.
-   (next)       two hands pick up the globe and crack it like an egg;
-                words pour out like a yolk, …
+   4. EGG       a second hand joins; they lift the globe, tap it twice to
+                crack it and pull it open, and words pour out like a
+                yolk onto the heap.
+   (next)       the shell is tossed aside and the hands dig through the
+                heap, …
 
    The hands are hand.js puppets; everything knocked about is debris.js.
    BreakIn.start() is called by scan.js once every row is in.
@@ -52,7 +55,7 @@ const BreakIn = (() => {
 
         // Strike: fast, down and left into the word's right half
         await hand.to({ x: r.left + r.width * 0.72, y: cy - 6, rot: 22 }, 130, E.easeInQuad);
-        Debris.fling(word, { vx: -1300, vy: 420, spin: -110 });
+        Debris.fling(word, { vx: -1300, vy: 420, spin: -110, keep: true });   // ERROR stays, in the corner
         Utils.shakeScreen(9, 380);
 
         // Follow through and hang there a moment
@@ -67,10 +70,10 @@ const BreakIn = (() => {
     // (a copy placed exactly over it), and the column itself goes
     function shatter(column) {
         const layer = $('debrisLayer'), pieces = [];
-        const place = (el, r) => {
+        const place = (el, r, keep = false) => {
             Object.assign(el.style, { left: r.left + 'px', top: r.top + 'px' });
             layer.appendChild(el);
-            pieces.push({ el, x: r.left + r.width / 2, y: r.top + r.height / 2 });
+            pieces.push({ el, x: r.left + r.width / 2, y: r.top + r.height / 2, keep });
         };
 
         const TEXT = '.scan-panel-head span, .scan-line-key, .scan-line-val, .scan-line-check, .scan-progress span';
@@ -81,7 +84,10 @@ const BreakIn = (() => {
             piece.className = 'debris-word';
             piece.textContent = src.textContent;
             for (const p of ['fontFamily', 'fontSize', 'fontWeight', 'letterSpacing', 'textTransform', 'color', 'lineHeight']) piece.style[p] = cs[p];
-            place(piece, r);
+            // The orphaned row (ROUTE_DEPTH / ORPHANED) must survive: the hands come back for it
+            const orphan = !!src.closest('.is-orphan') && !src.matches('.scan-line-check');
+            if (orphan) piece.dataset.orphan = src.matches('.scan-line-key') ? 'key' : 'value';
+            place(piece, r, orphan);
         }
         // The rules between rows, and the progress bar
         for (const src of column.querySelectorAll('.scan-line, .scan-panel-head, .progress-track')) {
@@ -118,7 +124,7 @@ const BreakIn = (() => {
             const dx = p.x - at.x, dy = p.y - at.y, d = Math.hypot(dx, dy) || 1;
             const blast = 2400 * Math.exp(-d / 220);
             const mark = p.el.textContent === '✕', rule = p.el.classList.contains('debris-rule');
-            if (rule || (mark && Math.random() < 0.7) || (d < 160 && Math.random() < 0.5)) {
+            if (!p.keep && (rule || (mark && Math.random() < 0.7) || (d < 160 && Math.random() < 0.5))) {
                 const r = p.el.getBoundingClientRect();
                 flecks(p.x, p.y, Math.min(8, Math.max(2, Math.round(r.width / 30))), 300 + blast * 0.5,
                        getComputedStyle(p.el)[rule ? 'backgroundColor' : 'color'], dx / d * blast * 0.4 - 200, -250);
@@ -130,6 +136,7 @@ const BreakIn = (() => {
                 vy:    dy / d * blast - 450 * Math.exp(-d / 220) + rand(-120, 40),
                 spin:  rand(-1, 1) * (120 + blast * 0.4),
                 delay: dy < 0 && blast < 600 ? -dy * 0.3 + rand(0, 140) : rand(0, 30),
+                keep:  p.keep,
             });
         }
         // A puff from the hole itself
@@ -160,11 +167,103 @@ const BreakIn = (() => {
         Utils.shakeScreen(16, 620);
         await hand.to({ x: c.left + 10, y: cy + 8, rot: -6 }, 150, E.easeOutCubic);
 
-        // Holds there a moment, then pulls out and leaves
+        // Holds there a moment, then pulls back out (it stays for the egg)
         await Utils.sleep(450);
-        await hand.to({ x: innerWidth + 340, y: cy + 70, rot: 10 }, 1050, E.easeInOutCubic);
-        hand.show(false);
+        await hand.to({ x: c.right + 260, y: cy + 60, rot: 10 }, 700, E.easeInOutCubic);
+    }
+
+
+    /* 4. Two hands crack the globe like an egg; words pour out like a yolk */
+
+    const YOLK = { words: 36, ms: 2600 };   // how many pour out, over how long
+
+    // The globe's centre as the viewport % it moves in
+    const pct = (x, y) => [x / innerWidth * 100, y / innerHeight * 100];
+
+    // Where a hand holds the globe: its flank, on the shell's half once it opens
+    // (mirrors globe.js onHalf: swung about the top of the crack, pulled apart)
+    function grip(g, left, tilt = 0, gap = 0) {
+        const t = (left ? tilt : -tilt) * Math.PI / 180, dx = (left ? -1.02 : 1.02) * g.r, dy = g.r;
+        return { x: g.cx + dx * Math.cos(t) - dy * Math.sin(t) + (left ? -gap : gap) / 2,
+                 y: g.cy - g.r + dx * Math.sin(t) + dy * Math.cos(t) };
+    }
+
+    // Move the globe to (x, y) px with both hands on it
+    function carry(left, right, x, y, ms, ease) {
+        const r = window.globeView().r, g = { cx: x, cy: y, r };
+        return Promise.all([
+            window.startGlobeMove(...pct(x, y), ms, ease),
+            left.to(grip(g, true), ms, ease),
+            right.to(grip(g, false), ms, ease),
+        ]);
+    }
+
+    // One word dropping out of the opening, styled like the scan's labels
+    function yolkWord(text, x, y) {
+        const w = document.createElement('div');
+        w.className = 'debris-word';
+        w.textContent = text;
+        Object.assign(w.style, {
+            left: x + 'px', top: y + 'px',
+            fontFamily: "'Space Mono', monospace", fontSize: rand(11, 20).toFixed(1) + 'px',
+            letterSpacing: '0.08em', textTransform: 'uppercase',
+            color: Math.random() < 0.15 ? 'var(--red)' : 'var(--ink)',
+        });
+        $('debrisLayer').appendChild(w);
+        const r = w.getBoundingClientRect();
+        w.style.left = x - r.width / 2 + 'px';          // centred on the opening
+        return w;
+    }
+
+    async function egg(right) {
+        window.globeUnmark();
+        window.globeHold(true);
+        window.globeSetDraggable(false);
+        const shell = window.globeShell;
+        let g = window.globeView();
+
+        // A second hand comes in from the left; both take the globe by its flanks
+        const left = Hands.create('left').pose('grab');
+        right.pose('grab');
+        left.place({ x: -300, y: g.cy + 140, rot: -12 }).show(true);
+        await Promise.all([left.to(grip(g, true), 1000, E.easeOutCubic), right.to(grip(g, false), 1000, E.easeInOutCubic)]);
+        await Utils.sleep(250);
+
+        // Lift it up to the middle, like holding an egg over a bowl
+        const lift = { x: innerWidth / 2, y: innerHeight * 0.46 };
+        await carry(left, right, lift.x, lift.y, 900, E.easeInOutCubic);
+        await Utils.sleep(350);
+
+        // Two taps down: the first starts a crack, the second runs it through
+        for (const reach of [0.45, 1]) {
+            await carry(left, right, lift.x, lift.y + 46, 110, E.easeInQuad);
+            Utils.shakeScreen(6, 260);
+            const from = shell.crack;
+            Utils.tween(220, E.easeOutCubic, e => { shell.crack = from + (reach - from) * e; });
+            await carry(left, right, lift.x, lift.y, 260, E.easeOutCubic);
+            await Utils.sleep(420);
+        }
+
+        // Pull it open: each hand swings its half out, the opening facing down
+        g = window.globeView();
+        const OPEN = { tilt: 34, gap: 70 };
+        await Promise.all([
+            Utils.tween(950, E.easeInOutCubic, e => { shell.tilt = OPEN.tilt * e; shell.gap = OPEN.gap * e; }),
+            left.to({ ...grip(g, true, OPEN.tilt, OPEN.gap), rot: OPEN.tilt }, 950, E.easeInOutCubic),
+            right.to({ ...grip(g, false, OPEN.tilt, OPEN.gap), rot: -OPEN.tilt }, 950, E.easeInOutCubic),
+        ]);
+
+        // The yolk: a thick first glob, thinning to a drip
+        const words = Scan.words().sort(() => Math.random() - 0.5);
+        const mouth = { x: g.cx, y: g.cy + g.r * 0.45 };
+        for (let i = 0; i < YOLK.words; i++) {
+            const k = i / YOLK.words;
+            const w = yolkWord(words[i % words.length], mouth.x + rand(-OPEN.gap, OPEN.gap) * 0.4, mouth.y);
+            Debris.fling(w, { vx: rand(-240, 240), vy: rand(40, 220) * (1 - k * 0.5), spin: rand(-160, 160) });
+            await Utils.sleep(YOLK.ms / YOLK.words * (0.3 + k * 1.4));   // gaps grow as it thins
+        }
         await Debris.settled();
+        return { left, right };
     }
 
 
@@ -175,6 +274,7 @@ const BreakIn = (() => {
         const hand = Hands.create('right');
         await slap(hand);
         await punch(hand);
+        await egg(hand);
     }
 
     return { start };

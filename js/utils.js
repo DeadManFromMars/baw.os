@@ -5,6 +5,18 @@
 
 const Utils = Object.freeze({
 
+    /* Run step(eased 0–1) every frame for `ms`; resolves at the end */
+    tween(ms, ease, step) {
+        return new Promise(resolve => {
+            const start = performance.now();
+            requestAnimationFrame(function frame(now) {
+                const t = Math.min((now - start) / ms, 1);
+                step(ease(t));
+                t < 1 ? requestAnimationFrame(frame) : resolve();
+            });
+        });
+    },
+
     /* 75 → "1:15" (no hours) */
     formatTime(seconds) {
         const s = Math.floor(seconds || 0);

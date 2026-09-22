@@ -18,7 +18,7 @@
                                        fast, overshoots, settles (the log-on)
    window.globeShowNow()               session.js — returning visitors
 
-   window.startGlobeMove(xPct, yPct)   session.js
+   window.startGlobeMove(xPct, yPct[, ms, ease])   session.js, breakin.js
    window.startPinLines()              arg.js / session.js
    window.globeSetDraggable(on)        session.js / scan.js — grab-and-spin
                                        on the globe screens (see Drag to spin)
@@ -201,11 +201,14 @@
         /* ── Position tween ── */
 
         let pos  = { x: CONFIG.globe.initialX, y: CONFIG.globe.initialY };
-        let move = null;    // { from, to, start }
+        let move = null;    // { from, to, start, ms, ease, done }
 
-        window.startGlobeMove = (x, y) => {
-            move = { from: { ...pos }, to: { x, y }, start: performance.now() };
-        };
+        // Resolves on arrival. ms + ease let the break-in's hands carry it (breakin.js).
+        window.startGlobeMove = (x, y, ms = CONFIG.globe.moveDuration, ease = Utils.easing.easeInOutQuad) =>
+            new Promise(done => {
+                move?.done();
+                move = { from: { ...pos }, to: { x, y }, start: performance.now(), ms, ease, done };
+            });
 
         let zoom  = 1;      // > 1 while a location is focused
         let focus = null;   // { pin, dir: 'in' | 'out', start, fromQ, toQ, fromZoom } — see Focus
@@ -486,6 +489,36 @@
         window.globeMarkLink = el => { markLink = el; };
         window.globeUnmark   = () => { mark = markLink = null; markLine.setAttribute('opacity', 0); };
         window.globeHold     = on => { held = on; };
+        window.globeView     = () => view();          // { cx, cy, r } in px — for things that handle it
+
+
+        /* ── Egg shell (breakin.js) ──
+           The globe cracks down the middle like an egg and opens. breakin.js sets:
+             crack  0–1   how far the crack has run, top to bottom
+             gap    px    how far apart the two halves are
+             tilt   deg   how far each half swings open — about the top of the
+                          crack, so the opening faces down and whatever's
+                          inside can pour out
+           The crack is jagged: fixed offsets, in globe radii, top to bottom. */
+
+        window.globeShell = { crack: 0, gap: 0, tilt: 0 };
+        const CRACK = [0, 0.1, -0.08, 0.13, -0.05, 0.09, -0.12, 0.06, -0.04, 0.08, 0];
+
+        // The crack's x at height y (px), for a globe at (cx, cy) of radius r
+        function crackX(y, cx, cy, r) {
+            const f = Math.min(Math.max((y - (cy - r)) / (2 * r), 0), 1) * (CRACK.length - 1);
+            const i = Math.min(Math.floor(f), CRACK.length - 2);
+            return cx + (CRACK[i] + (CRACK[i + 1] - CRACK[i]) * (f - i)) * r;
+        }
+
+        // Where a point on one half ends up once the shell opens: swung about the
+        // top of the crack (left half clockwise, right half anticlockwise), then pulled apart
+        function onHalf(x, y, left, cx, cy, r) {
+            const { gap, tilt } = window.globeShell, px = cx, py = cy - r;
+            const t = (left ? tilt : -tilt) * Math.PI / 180, c = Math.cos(t), s = Math.sin(t);
+            const dx = x - px, dy = y - py;
+            return [px + dx * c - dy * s + (left ? -gap : gap) / 2, py + dx * s + dy * c];
+        }
 
         fitCanvas();
         addEventListener('resize', fitCanvas);
@@ -503,10 +536,10 @@
             lastNow = now;
 
             if (move) {
-                const t = Math.min((now - move.start) / CONFIG.globe.moveDuration, 1);
-                const e = Utils.easing.easeInOutQuad(t);
+                const t = Math.min((now - move.start) / move.ms, 1);
+                const e = move.ease(t);
                 pos = { x: Utils.lerp(move.from.x, move.to.x, e), y: Utils.lerp(move.from.y, move.to.y, e) };
-                if (t === 1) move = null;
+                if (t === 1) { move.done(); move = null; }
             }
             // The music (Pulse, music.js — loaded after this file): the globe swells a hair
             // with the bass and turns a little quicker when it's loud. Silence = as ever.
@@ -531,10 +564,13 @@
             const persp = PERSPECTIVE * zoom, dotSize = DOT_SIZE * Math.sqrt(zoom);   // zoomed: same shape, bigger dots
             ctx.globalAlpha = Math.min(1, scale / 0.4);     // fade in while it's still small
 
-            // Sort dots into depth levels, then draw each level with one fillStyle
+            // Sort dots into depth levels, then draw each level with one fillStyle.
+            // An opened shell (egg) moves each dot with its half.
+            const shell = window.globeShell, opened = shell.gap > 0 || shell.tilt > 0;
             levelCount.fill(0);
             for (const dot of DOTS) {
-                const [x, y, depth] = project(dot, rot, r, cx, cy, persp);
+                let [x, y, depth] = project(dot, rot, r, cx, cy, persp);
+                if (opened) [x, y] = onHalf(x, y, x < crackX(y, cx, cy, r), cx, cy, r);
                 const level = Math.min(ALPHA_LEVELS - 1, Math.floor(depth * ALPHA_LEVELS));
                 const n = levelCount[level]++ * 2;
                 levelXY[level][n]     = x;
@@ -544,6 +580,23 @@
                 ctx.fillStyle = LEVEL_STYLE[level];
                 const xy = levelXY[level];
                 for (let i = 0; i < levelCount[level] * 2; i += 2) ctx.fillRect(xy[i], xy[i + 1], dotSize, dotSize);
+            }
+
+            // The crack: runs down from the top; once open, each half keeps a jagged edge
+            if (shell.crack > 0) {
+                const steps = (CRACK.length - 1) * Math.min(shell.crack, 1);
+                ctx.strokeStyle = LEVEL_STYLE[ALPHA_LEVELS - 1];
+                ctx.lineWidth   = 1.5;
+                for (const side of opened ? [true, false] : [null]) {
+                    ctx.beginPath();
+                    for (let i = 0; i <= steps; i++) {
+                        const y = cy - r + 2 * r * i / (CRACK.length - 1);
+                        let x = crackX(y, cx, cy, r), py = y;
+                        if (side !== null) [x, py] = onHalf(x, y, side, cx, cy, r);
+                        i ? ctx.lineTo(x, py) : ctx.moveTo(x, py);
+                    }
+                    ctx.stroke();
+                }
             }
 
             // A ring + crosshair on a spot (the focused location, the scan mark)

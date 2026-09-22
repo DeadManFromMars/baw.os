@@ -549,5 +549,7 @@ const Scan = (() => {
 
     return {
         start() { startedAt = performance.now(); setTimeout(revealNextRow, 800); },
+        // Every label the scan knows — what pours out of the cracked globe (breakin.js)
+        words: () => [...new Set([...ROWS.map(r => r.key), ...EXTRA_KEYS, ...REWIND_ROWS.map(([key]) => key)])],
     };
 })();
