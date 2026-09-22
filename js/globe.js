@@ -525,7 +525,12 @@
                 if (pin.start === null) continue;
                 const progress = Math.min((now - pin.start) / PIN_DRAW_MS, 1);
                 const [px, py] = project(pin.unit, rot, r, cx, cy, persp);
-                const bx = pin.anchor.x * innerWidth, by = pin.anchor.y * innerHeight;
+                let bx = pin.anchor.x * innerWidth, by = pin.anchor.y * innerHeight;
+                if (focus?.pin === pin && panel.classList.contains('visible')) {     // its box is the panel now: follow it
+                    const b = panel.getBoundingClientRect();
+                    bx = b.left + b.width / 2;
+                    by = b.top + b.height / 2;
+                }
                 pin.line.setAttribute('x1', px + DOT_SIZE / 2);
                 pin.line.setAttribute('y1', py + DOT_SIZE / 2);
                 pin.line.setAttribute('x2', px + (bx - px) * progress);

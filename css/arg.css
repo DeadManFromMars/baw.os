@@ -316,6 +316,8 @@ body.globe-focused :is(#argWelcome, #argLogout, #inventoryBtn, #cardEditorBtn, #
     opacity: 0;
     pointer-events: none;
 }
+/* The pin line keeps tracing the growing panel, then fades (globe.js MORPH = 900ms) */
+body.globe-focused #globeOverlay { transition-delay: 0.9s; }
 
 #globeFocus {
     position: fixed;
