@@ -16,6 +16,8 @@ const Utils = Object.freeze({
         easeOutCubic:   t => 1 - Math.pow(1 - t, 3),                                            // lands softly
         easeInOutCubic: t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),      // glides
         easeInOutQuad:  t => (t < 0.5 ? 2 * t * t     : 1 - Math.pow(-2 * t + 2, 2) / 2),      // softer glide
+        easeInQuad:     t => t * t,                                                             // speeds up into a hit
+        easeOutBack:    t => 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2),          // overshoots a little, settles
     },
 
     /* a → b by t, with t clamped to 0–1 */
