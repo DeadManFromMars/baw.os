@@ -33,7 +33,8 @@
                 pause — then one points to where they threw it, and they
                 go off the sides; each comes back, slowly, with half.
                 They slam the halves together (the crack seals) and spin
-                it. ERROR is smacked until it says what it should.
+                it. ERROR is smacked until it says what it should — the
+                hands taking turns, the last smack both at once.
    10. TALK     a hand turns to the viewer and mouths a line as it
                 appears underneath, then goes. The word and the row
                 fade; the register / offer-token choice follows as
@@ -296,7 +297,8 @@ const BreakIn = (() => {
 
     // One word of the yolk: it wells up inside the shell (fading in), slides down
     // out of the opening upright — speeding up, like something thick pouring —
-    // and drops off the lip at that speed. APPROVED is buried in it, kept (7).
+    // and drops off the lip at that speed, tumbling over as it falls so it lands
+    // lying flat. APPROVED is buried in it, kept (7).
     async function pourOne(text, inside, lip) {
         const w = yolkWord(text, inside.x, inside.y);
         const approved = text === 'APPROVED';
@@ -309,8 +311,12 @@ const BreakIn = (() => {
             Debris.place(b, x + lean * e, inside.y + (lip.y - inside.y) * e, 90 + lean);
             w.style.opacity = Math.min(1, e / 0.35);
         });
-        // easeInQuad leaves at twice its average speed
-        Debris.release(b, { vx: rand(-40, 40), vy: 2 * (lip.y - inside.y) / (ms / 1000), spin: rand(-60, 60) });
+        // easeInQuad leaves at twice its average speed. Spun to be flat — one way
+        // over or the other — by about when it reaches the pile below.
+        const vy = 2 * (lip.y - inside.y) / (ms / 1000), drop = innerHeight * 0.88 - lip.y, g = 2600;
+        const fall = (-vy + Math.sqrt(vy * vy + 2 * g * drop)) / g;
+        const turn = Math.random() < 0.5 ? -(90 + lean) : 90 - lean;
+        Debris.release(b, { vx: rand(-170, 170), vy, spin: turn / fall });
     }
 
     async function egg(right) {
@@ -356,12 +362,26 @@ const BreakIn = (() => {
                                   .sort(() => Math.random() - 0.5).slice(0, YOLK.words - 1);
         words.splice(Math.floor(words.length * 0.55), 0, 'APPROVED');
         const inside = { x: g.cx, y: g.cy - g.r * 0.15 }, lip = { x: g.cx, y: g.cy + g.r * 0.6 };
+
+        // …the hands rocking the shell gently all the while, shaking it out
+        let rocking = true;
+        const rockFrom = performance.now();
+        requestAnimationFrame(function rock(now) {
+            if (!rocking) return;
+            const tilt = OPEN.tilt + 3 * Math.sin((now - rockFrom) / 160);
+            shell.tilt = tilt;
+            left.place({ ...grip(g, true, tilt, OPEN.gap), rot: tilt });
+            right.place({ ...grip(g, false, tilt, OPEN.gap), rot: -tilt });
+            requestAnimationFrame(rock);
+        });
         const pouring = [];
         for (let i = 0; i < words.length; i++) {
             pouring.push(pourOne(words[i], inside, lip));
             await Utils.sleep(YOLK.ms / words.length * (0.4 + 1.2 * i / words.length));   // gaps grow as it thins
         }
         await Promise.all(pouring);
+        rocking = false;
+        shell.tilt = OPEN.tilt;
         await Utils.sleep(350);          // no waiting for it all to settle: straight on
         return { left, right };
     }
@@ -576,6 +596,8 @@ const BreakIn = (() => {
         breakOff(held, val, { vx: rand(1000, 1300), vy: rand(-900, -700), spin: rand(700, 1000) });
         flecks(vr.left, vy, 8, 700, 'var(--red)', 200, -200);
         Utils.shakeScreen(7, 300);
+        const lx = left.x;                              // the holding hand jolts with the snap, and steadies
+        left.to({ x: lx - 36, rot: -9 }, 120, E.easeOutCubic).then(() => left.to({ x: lx, rot: 0 }, 320, E.easeOutBack));
         await right.to({ x: vr.right + 220, y: vy - 90, rot: 25 }, 220, E.easeOutCubic);
         return held;
     }
@@ -629,8 +651,18 @@ const BreakIn = (() => {
 
     async function wires({ left, right }, held) {
         const ap = Debris.bodies.find(b => 'approved' in b.el.dataset);
-        const other = await pickUp(right, ap, 'right', 650);
         const y = innerHeight * 0.4;
+
+        // The right digs it out while the left brings the row over and waits, impatient
+        const waiting = left.to({ x: innerWidth * 0.3, y, rot: 0 }, 700, E.easeInOutCubic).then(async () => {
+            for (let i = 0; i < 3; i++) {
+                await left.to({ y: y - 12, rot: -3 }, 140, E.easeOutQuad);
+                await left.to({ y, rot: 0 }, 180, E.easeInQuad);
+                await Utils.sleep(rand(80, 200));
+            }
+        });
+        const other = await pickUp(right, ap, 'right', 650);
+        await waiting;
         await Promise.all([right.to({ x: innerWidth * 0.64, y, rot: 0 }, 750, E.easeInOutCubic), turnTo(other, 0, 700)]);
 
         // That's the other one: held up with a shake, glowing; the left waggles the row at it
@@ -853,30 +885,54 @@ const BreakIn = (() => {
         flecks(g.cx, g.cy + g.r * 0.4, 8, 700, 'var(--ink)', 0, -200);
         Utils.tween(900, E.easeOutCubic, e => { shell.crack = 1 - e; });
         await Utils.sleep(500);
-        await left.to({ x: home.x - g.r - 260, y: home.y - g.r - 140, rot: -20 }, 550, E.easeInOutCubic);
 
-        // …and the right hand gives it a spin
+        // The left lets go and backs off as the right winds up — and gives it a spin
         right.pose('flick', 250);
-        await right.to({ x: home.x + g.r + 50, y: home.y + 30, rot: 20 }, 450, E.easeInOutCubic);
+        await Promise.all([
+            left.to({ x: home.x - g.r - 260, y: home.y - g.r - 140, rot: -20 }, 550, E.easeInOutCubic),
+            right.to({ x: home.x + g.r + 50, y: home.y + 30, rot: 20 }, 550, E.easeInOutCubic),
+        ]);
         await right.to({ x: home.x + g.r - 10, y: home.y - 70, rot: -10 }, 110, E.easeInQuad);
         window.globeKick([0, 8, 0]);
         window.globeHold(false);
         await right.to({ x: home.x + g.r + 240, y: home.y - 150, rot: 10 }, 400, E.easeOutCubic);
 
-        // ERROR — green since the route was approved, in the middle over the globe —
-        // is smacked until it says what it should
+        await smackRight([left, right]);
+    }
+
+    // ERROR — green since the route was approved, in the middle over the globe — is
+    // smacked until it says what it should: the hands taking turns from either side,
+    // the last one both at once
+    async function smackRight([left, right]) {
         const flash = $('errorFlash'), word = $('errorWord');
-        left.pose('palm', 250);
-        for (const [i, text] of SAYS.entries()) {
-            const r = word.getBoundingClientRect(), cy = r.top + r.height / 2;
-            await left.to({ x: r.left - 150 + rand(-25, 25), y: cy - 170 + rand(-25, 25), rot: -20 }, i ? 320 : 650, E.easeInOutCubic);
-            await left.to({ x: r.left + r.width * 0.3, y: cy - 8, rot: 10 }, 100, E.easeInQuad);
+        const at = () => { const r = word.getBoundingClientRect(); return { r, cy: r.top + r.height / 2 }; };
+        const edge = (hand, r, d) => hand.flip < 0 ? r.left - d : r.right + d;          // d out from the hand's own side
+        const wind = hand => { const { r, cy } = at();
+            return hand.to({ x: edge(hand, r, 150) + rand(-25, 25), y: cy - 170 + rand(-25, 25), rot: hand.flip * 20 }, 340, E.easeInOutCubic); };
+        const strike = hand => { const { r, cy } = at();
+            return hand.to({ x: edge(hand, r, -r.width * 0.3), y: cy - 8, rot: -hand.flip * 10 }, 100, E.easeInQuad); };
+        const recoil = hand => { const { r, cy } = at();
+            return hand.to({ x: edge(hand, r, 70), y: cy - 100, rot: hand.flip * 10 }, 180, E.easeOutCubic); };
+        const hit = (i, text) => {
             word.textContent = text;
             word.animate([{ transform: 'translate(0, 7px) rotate(-2deg)' }, { transform: 'none' }], { duration: 260, easing: 'ease-out' });
-            Utils.shakeScreen(8 + i * 2, 300);
-            await left.to({ x: r.left - 70, y: cy - 100, rot: -10 }, 180, E.easeOutCubic);
-            if (i < SAYS.length - 1) await Utils.sleep(rand(180, 320));
+            Utils.shakeScreen(8 + i * 3, 300);
+        };
+
+        left.pose('palm', 250);
+        right.pose('palm', 250);
+        await Promise.all([wind(left), wind(right)]);
+        for (let i = 0; i < SAYS.length - 1; i++) {
+            const hand = i % 2 ? right : left;
+            await strike(hand);
+            hit(i, SAYS[i]);
+            await recoil(hand);
+            await Promise.all([wind(hand), Utils.sleep(rand(120, 260))]);
         }
+        // Both at once — a clap from either side — and it's right
+        await Promise.all([strike(left), strike(right)]);
+        hit(SAYS.length, SAYS[SAYS.length - 1]);
+        await Promise.all([recoil(left), recoil(right)]);
         await Utils.flashWord(flash, word, $('errorRipples'), { stay: true });   // it says it: lit up like SECURED
     }
 

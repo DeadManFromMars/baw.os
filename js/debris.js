@@ -115,6 +115,7 @@ const Debris = (() => {
             moving = true;
             if (b.wait > 0) { b.wait -= dt; continue; }
 
+            const wasX = b.cx, wasBottom = b.cy + b.hh;
             b.vy += PHYS.gravity * dt;
             b.cx += b.vx * dt;
             b.cy += b.vy * dt;
@@ -131,7 +132,14 @@ const Debris = (() => {
             const [hw, hh] = half(b);
             b.hw = hw;
             b.hh = hh;
-            const ground = groundUnder(b.cx, hw, b), flat = Math.round(b.a / 180) * 180;
+            let ground = groundUnder(b.cx, hw, b);
+            // Sliding into something taller: it bumps and stops — it doesn't climb up onto it
+            if (b.grounded && ground < wasBottom - Math.max(6, b.h * 0.4)) {
+                b.cx = wasX;
+                b.vx *= -0.15;
+                ground = groundUnder(b.cx, hw, b);
+            }
+            const flat = Math.round(b.a / 180) * 180;
             const onGround = b.grounded = b.cy + hh >= ground;
             if (onGround && b.landed === Infinity) b.landed = ++landings;
             if (onGround) {
@@ -152,7 +160,7 @@ const Debris = (() => {
             }
 
             b.still = onGround && Math.abs(b.vx) < 5 && b.vy === 0 && Math.abs(flat - b.a) < 0.5 ? b.still + dt : 0;
-            if (b.still > PHYS.rest && b.nudges < 8) {
+            if (b.still > PHYS.rest && b.nudges < 10) {
                 // Can it stay here? Not if its middle has nothing under it (propped up by one
                 // end — it tips off), nor if the ground just past either end is much lower
                 // than where it's lying (a slope limit, like sand). Either way it slides off
@@ -164,8 +172,8 @@ const Debris = (() => {
                 const dropL = groundUnder(b.cx - b.w / 2 - s, s, b) - bottom, dropR = groundUnder(b.cx + b.w / 2 + s, s, b) - bottom;
                 if (hollow || Math.max(dropL, dropR) > b.h * PHYS.steep) {
                     const right = hollow ? groundUnder(b.cx + b.w / 4, b.w / 4, b) >= groundUnder(b.cx - b.w / 4, b.w / 4, b) : dropR >= dropL;
-                    // fast enough to slide about half its length — clear of the edge it was sitting on
-                    b.vx = (right ? 1 : -1) * (b.w / 2 + s) * -Math.log(PHYS.slide);
+                    // an easy push — about a third of its length, a few times if need be
+                    b.vx = (right ? 1 : -1) * (b.w * 0.35 + s) * -Math.log(PHYS.slide);
                     b.still = 0;
                     b.nudges++;
                 }
