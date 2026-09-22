@@ -420,7 +420,9 @@
     will-change: transform;
 }
 .hand-puppet.shown { opacity: 1; }
-.hand-puppet img {
+.hand-puppet img {                         /* two stacked: a pose change fades one into the other */
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     filter: drop-shadow(0 16px 16px rgba(26, 26, 24, 0.28)) sepia(0.18) saturate(0.85) contrast(0.95);

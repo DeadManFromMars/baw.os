@@ -149,11 +149,11 @@ const BreakIn = (() => {
         const c = column.getBoundingClientRect(), cy = c.top + c.height * 0.55;
         const hit = { x: c.left + c.width * 0.55, y: cy };
 
-        // Straight on from the slap: pulls back a touch, clenching into a fist,
-        // and squares up beside the column
-        await hand.to({ x: hand.x + 60, y: hand.y - 20, rot: 20 }, 160, E.easeOutCubic);
-        hand.pose('fist');
-        await hand.to({ x: c.right + 230, y: cy, rot: 0 }, 900, E.easeInOutCubic);
+        // Straight on from the slap: draws back, clenching into a fist as it goes
+        // (one movement, no swap), and squares up beside the column
+        hand.pose('fist', 450);
+        await hand.to({ x: hand.x + 70, y: hand.y - 30, rot: 18 }, 450, E.easeOutCubic);
+        await hand.to({ x: c.right + 230, y: cy, rot: 0 }, 850, E.easeInOutCubic);
         await Utils.sleep(320);
 
         // Draws back
@@ -224,7 +224,7 @@ const BreakIn = (() => {
 
         // A second hand comes in from the left; both take the globe by its flanks
         const left = Hands.create('left').pose('grab');
-        right.pose('grab');
+        right.pose('grab', 400);                         // the fist opens to take hold
         left.place({ x: -300, y: g.cy + 140, rot: -12 }).show(true);
         await Promise.all([left.to(grip(g, true), 1000, E.easeOutCubic), right.to(grip(g, false), 1000, E.easeInOutCubic)]);
         await Utils.sleep(250);
