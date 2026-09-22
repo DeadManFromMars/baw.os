@@ -59,6 +59,7 @@
 /* Drawn boxes open their location (globe.js) */
 #globeOverlay rect.live       { pointer-events: auto; cursor: pointer; transition: fill 0.2s; }
 #globeOverlay rect.live:hover { fill: rgba(255, 238, 232, 0.95); }
+#globeOverlay rect.opened     { opacity: 0; }       /* grown into the location panel (arg.css) */
 
 /* Drag-to-spin (globe.js): a hand over the globe, a fist anywhere while it's held.
    The canvas never takes clicks, so the cursor is set on the page instead. */

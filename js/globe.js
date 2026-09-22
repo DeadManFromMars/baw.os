@@ -368,6 +368,22 @@
            turnQ home, with the spin running again underneath. */
 
         const panel = document.getElementById('globeFocus');
+        const MORPH = { duration: 900, easing: 'cubic-bezier(0.65, 0, 0.35, 1)' };
+
+        const rectOf = el => {
+            const r = el.getBoundingClientRect();
+            return { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' };
+        };
+
+        // Move + resize the panel from one screen rectangle to another. It holds
+        // the end until `done` has run (so hiding it can't flash its CSS layout).
+        function morph(from, to, done) {
+            panel.getAnimations().forEach(a => a.cancel());      // mid-morph? start from where it is
+            const free = { right: 'auto', bottom: 'auto', transform: 'none' };
+            const anim = panel.animate([{ ...from, ...free }, { ...to, ...free }], { ...MORPH, fill: 'forwards' });
+            return anim.finished.then(() => { done?.(); anim.cancel(); }, () => {});
+        }
+
         const rotated = (q, u) => { const m = new Float64Array(9); qMatrix(q, m); return [0, 1, 2].map(i => m[i * 3] * u[0] + m[i * 3 + 1] * u[1] + m[i * 3 + 2] * u[2]); };
 
         function focusOn(pin) {
@@ -383,13 +399,25 @@
             document.getElementById('gfTitle').textContent = pin.loc.title;
             document.getElementById('gfText').textContent  = pin.loc.text;
             document.body.classList.add('globe-focused');       // the welcome screen steps back (arg.css)
-            setTimeout(() => focus?.dir === 'in' && panel.classList.add('visible'), FOCUS.ms * 0.6);
+
+            // The box grows into the panel, then the text fades in
+            const from = rectOf(pin.box);
+            pin.box.classList.add('opened');                    // the panel stands in for it (background.css)
+            panel.classList.add('visible');
+            morph(from, rectOf(panel)).then(() => focus?.dir === 'in' && panel.classList.add('open'));
         }
 
         function unfocus() {
             if (focus?.dir !== 'in') return;
             SFX.hover();
-            panel.classList.remove('visible');
+            const { pin } = focus;
+
+            // The text fades while the panel shrinks back into the box
+            panel.classList.remove('open');
+            morph(rectOf(panel), rectOf(pin.box), () => {
+                panel.classList.remove('visible');
+                pin.box.classList.remove('opened');
+            });
             document.body.classList.remove('globe-focused');
             focus = { ...focus, dir: 'out', start: performance.now(), fromZoom: zoom };
             turning = homing = true;                            // spring home from here

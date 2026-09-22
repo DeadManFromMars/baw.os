@@ -309,8 +309,7 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    LOCATION FOCUS (globe.js)
    A pin's box was clicked: the welcome screen steps back and the
-   location's panel opens beside the zoomed globe — styled like the
-   box it came from.
+   box grows into the location's panel beside the zoomed globe.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 body.globe-focused :is(#argWelcome, #argLogout, #inventoryBtn, #cardEditorBtn, #signalBtn, #devStickerBtn, .scan-header, #globeOverlay) {
@@ -332,11 +331,12 @@ body.globe-focused :is(#argWelcome, #argLogout, #inventoryBtn, #cardEditorBtn, #
     border: 1.5px solid rgba(255, 0, 0, 0.7);
     border-radius: 2px;
     background: rgba(245, 242, 236, 0.92);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.8s ease;
+    visibility: hidden;
 }
-#globeFocus.visible { opacity: 1; pointer-events: all; }
+/* globe.js grows it out of the box (.visible), then fades the contents in (.open) */
+#globeFocus.visible { visibility: visible; }
+#globeFocus > *      { opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+#globeFocus.open > * { opacity: 1; pointer-events: all;  transition-duration: 0.6s; }
 
 .gf-title {
     margin: 0;
