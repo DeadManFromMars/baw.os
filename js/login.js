@@ -6,17 +6,71 @@
    message + city glitch. Right: city music fades, SECURED flashes,
    and the scan phase starts (scan.js).
 
+   The passphrase only works once this browser has been through
+   password recovery (the first puzzle, backend app/recovery.py):
+   after 3 wrong guesses "forgot your password?" appears, which
+   emails a link to Member Services (members/recover/).
+
    The city intro + revealing this screen is session.js's job.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const Login = (() => {
 
+    const $ = id => document.getElementById(id);
+    const FORGOT_AFTER = 3;   // wrong guesses before "forgot your password?" shows (and stays)
+
     let busy = false;   // one attempt at a time — and never twice after success
 
-    function showMessage(text, type) {
-        const el = document.getElementById('msg');
+    function showMessage(text, type, id = 'msg') {
+        const el = $(id);
         el.textContent = text;
         el.className   = `msg ${type}`;
+    }
+
+    // Wrong guesses, remembered per browser — once it's earned, the link stays
+    function wrongGuesses(add = 0) {
+        let n = 0;
+        try {
+            n = Number(localStorage.getItem('baw_wrong_guesses')) || 0;
+            if (add) localStorage.setItem('baw_wrong_guesses', String(n += add));
+        } catch { n += add; }
+        $('lpForgot').hidden = n < FORGOT_AFTER;
+        return n;
+    }
+
+
+    /* ── Password reset ── */
+
+    function showReset(on) {
+        $('lpSignIn').hidden = on;
+        $('lpReset').hidden  = !on;
+        (on ? $('resetEmail') : $('password')).focus();
+    }
+
+    let sending = false;
+    async function requestReset() {
+        const email = $('resetEmail').value.trim();
+        if (sending || !email) return;
+        sending = true;
+        showMessage('Sending…', 'info', 'resetMsg');
+        try {
+            const res  = await fetch(`${CONFIG.apiBase}/recovery/request`, {
+                method: 'POST', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                showMessage('Check your email. The link works for 24 hours.', 'success', 'resetMsg');
+                $('resetEmail').value = '';
+                if (data.dev_link) console.info('[Login] dev reset link:', data.dev_link);   // local only
+            } else {
+                showMessage(data.error || 'Something went wrong. Please try again.', 'error', 'resetMsg');
+            }
+        } catch {
+            showMessage('Connection error. Please try again.', 'error', 'resetMsg');
+        }
+        sending = false;
     }
 
     async function attemptLogin() {
@@ -41,6 +95,7 @@ const Login = (() => {
 
         if (!ok) {
             showMessage('Invalid credentials. This attempt has been logged.', 'error');
+            wrongGuesses(1);
             CITY.corruptEffect();
             input.value = '';
             input.focus();
@@ -143,9 +198,11 @@ const Login = (() => {
 
 
     document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('password').addEventListener('keydown', e => {
-            if (e.key === 'Enter') attemptLogin();
-        });
+        $('password').addEventListener('keydown', e => { if (e.key === 'Enter') attemptLogin(); });
+        $('resetEmail').addEventListener('keydown', e => { if (e.key === 'Enter') requestReset(); });
+        $('lpForgot').addEventListener('click', () => { SFX.hover(); showReset(true); });
+        $('lpResetBack').addEventListener('click', () => { SFX.hover(); showReset(false); });
+        wrongGuesses();                   // earned before? the link is already there
     });
 
     return { attemptLogin };

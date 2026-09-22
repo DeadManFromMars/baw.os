@@ -5,10 +5,12 @@
 
 const CONFIG = Object.freeze({
 
-    /* Backend base URL. Locally the backend serves the site itself,
-       so the API is on the same origin. For the live site this must
-       become the public API address (e.g. https://api.bawsome.online). */
-    apiBase: location.port === '5000' ? '' : 'http://localhost:5000',
+    /* Backend base URL:
+         live site (bawsome.online)     the public API, through the Cloudflare tunnel
+         http://localhost:5000          the backend serves the site itself: same origin
+         anything else (Live Server…)   the local backend */
+    apiBase: /(^|\.)bawsome\.online$/.test(location.hostname) ? 'https://api.bawsome.online'
+           : location.port === '5000' ? '' : 'http://localhost:5000',
 
     /* Globe position in viewport %. It starts where it ends up, so the
        scan dissolves into the welcome screen without anything jumping. */

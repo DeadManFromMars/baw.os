@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- The link token is in the address: never pass it on, never index this page -->
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<title>BAWSOME ONLINE - Member Services</title>
+<link rel="stylesheet" href="recover.css">
+</head>
+<body>
+<!--
+    Member Services › Password Reset — the ARG's first puzzle (backend: app/recovery.py).
+    The emailed link lands here with ?ref=<token>. Deliberately NOT the baw.os look:
+    a small online service's members area from around 2001.
+-->
+
+<div class="top">
+    <b>BAWSOME ONLINE</b><span>Member Services</span>
+    <span class="links"><a href="../../">Home</a> &nbsp;|&nbsp; <a href="#" data-soon>Help</a></span>
+</div>
+<div class="crumbs">Home &gt; Member Services &gt; Password Reset</div>
+
+<div class="body">
+    <div class="side">
+        <div class="head">Member Services</div>
+        <a href="#" data-soon>My Account</a><br>
+        <a href="#" class="on">Password Reset</a><br>
+        <a href="#" data-soon>Dial-Up Numbers</a><br>
+        <div class="head">Help</div>
+        <a href="#" data-soon>FAQ</a><br>
+        <a href="#" data-soon>Network Status</a>
+    </div>
+
+    <div class="main">
+        <h1>Password Reset</h1>
+        <div class="step" id="steps"></div>
+        <p class="notice" id="soon" hidden>This service is temporarily unavailable. Please try again later.</p>
+
+        <div id="loading"><p>Loading&hellip;</p></div>
+
+        <!-- Step 2: the security questions -->
+        <div id="ask" hidden>
+            <p class="err" id="askErr" role="alert"></p>
+            <p>Please answer the security questions you chose when you opened your account. Answers are not case sensitive.</p>
+            <form id="askForm" autocomplete="off">
+                <table><tbody id="askRows"></tbody>
+                    <tr><td></td><td class="go"><input type="submit" class="btn" id="askBtn" value="Continue &gt;&gt;"></td><td></td></tr>
+                </table>
+            </form>
+
+            <!-- After 3 wrong submits: type the characters to get 3 more -->
+            <div class="cap" id="cap" hidden>
+                <b>Security check</b>
+                <p>Type the characters you see in the picture below.</p>
+                <div class="cap-row">
+                    <canvas id="capImg" width="200" height="56" aria-label="Security check image"></canvas>
+                    <a href="#" id="capNew">Try a different image</a>
+                </div>
+                <p class="err" id="capErr" role="alert"></p>
+                <input type="text" id="capInput" maxlength="12" autocomplete="off" spellcheck="false" aria-label="Characters in the picture">
+                <input type="button" class="btn" id="capBtn" value="Verify">
+            </div>
+        </div>
+
+        <!-- Step 3: verified — the password -->
+        <div id="done" hidden>
+            <p>Thank you. Your identity has been verified.</p>
+            <p>Your password is:<br><span class="pw" id="pw"></span></p>
+            <p>Please keep your password in a safe place. BAWSOME ONLINE staff will never ask you for it.</p>
+            <p><a href="../../">&laquo; Return to sign in</a></p>
+        </div>
+
+        <!-- A dead, used-up or locked link -->
+        <div id="dead" hidden>
+            <p class="err" id="deadMsg"></p>
+            <p>To try again, request a new password reset from the sign-in screen.</p>
+            <p><a href="../../">&laquo; Return to sign in</a></p>
+        </div>
+    </div>
+</div>
+
+<div class="foot">&copy; 2001 BAWSOME ONLINE. All rights reserved. &nbsp;|&nbsp; <a href="#" data-soon>Privacy Policy</a></div>
+
+<script src="../../js/config.js"></script>
+<script src="recover.js"></script>
+</body>
+</html>

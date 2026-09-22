@@ -1,0 +1,107 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   recover.css — Member Services › Password Reset
+   A small online service around 2001: Verdana, a thin top strip
+   over the red rule, plain text links, grey bevelled buttons.
+   Nothing from the baw.os look on purpose — you've left the OS.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+    margin: 0;
+    background: #fff;
+    color: #222;
+    font: 12px/1.55 Verdana, Geneva, sans-serif;
+}
+a { color: #1a44a8; }
+a:visited { color: #5a2f8e; }
+
+.top {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 12px 18px 9px;
+    border-bottom: 3px solid #e8372a;
+}
+.top b { font: bold 18px Arial, Helvetica, sans-serif; color: #111; }
+.top span { color: #777; }
+.top .links { margin-left: auto; }
+
+.crumbs { padding: 5px 18px; font-size: 11px; color: #666; border-bottom: 1px solid #e2e2e2; }
+
+.body { display: flex; }
+.side { width: 150px; flex-shrink: 0; padding: 14px 18px; font-size: 11px; line-height: 1.9; }
+.side .head { color: #888; margin-top: 10px; }
+.side .head:first-child { margin-top: 0; }
+.side .on { color: #111; font-weight: bold; text-decoration: none; }
+
+.main { flex: 1; min-width: 0; padding: 14px 22px 26px 8px; max-width: 620px; }
+h1 { font: bold 16px Arial, Helvetica, sans-serif; margin: 0 0 2px; color: #111; }
+.step { color: #777; font-size: 11px; margin-bottom: 14px; }
+.step b { color: #111; }
+p { margin: 0 0 11px; }
+.err { color: #b3261e; font-weight: bold; }
+.err:empty { display: none; }
+.notice { padding: 6px 9px; border: 1px solid #e0d38a; background: #fffbe0; }
+
+table { border-collapse: collapse; margin: 4px 0 10px; }
+td { padding: 4px 6px 4px 0; vertical-align: middle; }
+td.l { text-align: right; font-weight: bold; color: #333; padding-right: 10px; }
+td.go { padding-top: 10px; }
+input[type=text] {
+    width: 220px;
+    padding: 2px 4px;
+    font: 12px Verdana, Geneva, sans-serif;
+    border: 2px inset #eee;
+    background: #fff;
+}
+/* A right answer: locked in, greyed, a green check beside it (until a refresh) */
+input.locked { background: #eeeeea; color: #777; border-color: #e2e2de; }
+td.ok { width: 22px; padding-left: 4px; color: #1d8a2b; font: bold 15px Arial, sans-serif; }
+
+/* The security check */
+.cap { max-width: 380px; margin: 6px 0 12px; padding: 10px 12px 12px; border: 1px solid #ccc; background: #f7f7f4; }
+.cap b { display: block; margin-bottom: 4px; color: #111; }
+.cap p { margin-bottom: 8px; }
+.cap-row { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 8px; }
+#capImg { border: 1px solid #aaa; background: #eee; }
+#capNew { font-size: 11px; }
+#capInput { width: 140px; padding: 2px 4px; font: 14px 'Courier New', monospace; letter-spacing: 0.15em; text-transform: uppercase;
+            border: 2px inset #eee; }
+
+input.ssn { width: 110px; font-family: 'Courier New', Courier, monospace; letter-spacing: 0.05em; }
+input.ssn::placeholder { color: #aaa; }
+
+.btn {
+    padding: 2px 12px;
+    font: 13px Arial, Helvetica, sans-serif;
+    color: #000;
+    background: #ddd;
+    border: 2px outset #eee;
+    cursor: pointer;
+}
+.btn:active   { border-style: inset; }
+.btn:disabled { color: #888; cursor: default; }
+
+.pw {
+    display: inline-block;
+    margin: 4px 0 8px;
+    padding: 6px 10px;
+    border: 1px dashed #999;
+    font: bold 16px 'Courier New', Courier, monospace;
+    letter-spacing: 0.06em;
+    color: #111;
+    user-select: all;                  /* one click selects it all */
+}
+
+.foot { padding: 10px 18px; border-top: 1px solid #e2e2e2; font-size: 10px; color: #888; }
+
+/* Phones — the email is often opened on one */
+@media (max-width: 640px) {
+    .side { display: none; }
+    .main { padding-left: 18px; padding-right: 18px; }
+    td, td.l { display: block; text-align: left; padding-right: 0; }
+    td.l { padding-bottom: 0; }
+    input[type=text] { width: 100%; font-size: 16px; }   /* 16px stops iOS zooming in */
+}

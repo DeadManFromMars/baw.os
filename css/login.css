@@ -78,6 +78,27 @@
     color: var(--muted);
 }
 
+.lp-input-email { width: 300px; font-family: 'Space Mono', monospace; font-size: 0.95rem; letter-spacing: 0.04em; }   /* addresses are long + need reading */
+
+/* "forgot your password?" / "← back" — quiet text links */
+.lp-link {
+    margin-top: 4px;
+    padding: 2px 0;
+    border: none;
+    border-bottom: 1px solid var(--muted2);
+    background: none;
+    font: 0.72rem 'Space Mono', monospace;
+    letter-spacing: 0.1em;
+    color: var(--text2);
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+    animation: lpLinkIn 0.8s ease both;
+}
+.lp-link:hover,
+.lp-link:focus-visible { color: var(--ink); border-bottom-color: var(--red); outline: none; }
+@keyframes lpLinkIn { from { opacity: 0; } }
+#lpSignIn[hidden], #lpReset[hidden], .lp-link[hidden] { display: none; }
+
 /* Status line under the input (login.js sets .error / .success / .info) */
 .msg {
     min-height: 18px;
