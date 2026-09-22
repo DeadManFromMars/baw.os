@@ -40,11 +40,13 @@
          box        box centre as fractions of the viewport — free corners:
                     { x: 0.18, y: 0.22 }, { x: 0.18, y: 0.78 }, { x: 0.82, y: 0.78 }
          feed       image shown in the box as a live camera feed (feed.js), or null
-         title, text  shown in the panel when it's focused
+         title, text  shown in the panel when it's focused (\n in text = line break)
          next       where the panel's Continue button goes (null = nowhere yet) */
     const LOCATIONS = [
         { lat: 0.9, lon: 2.3, box: { x: 0.82, y: 0.22 }, feed: 'Images/locations/SeattleView.webp',
-          title: 'Location 01', text: 'Description of the area goes here.', next: null },
+          title: 'White Hell',
+          text: "You know what? Maybe it's not even the location that's bad but the mind. I always struggled to see the forest through the trees. All it takes is one bad tree to ruin my day. Quite frankly, it's an issue of attitude.\n\n\nIt still fucking sucks though.",
+          next: null },
     ];
 
     // Focusing a location (click its box)

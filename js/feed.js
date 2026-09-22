@@ -3,8 +3,8 @@
 
    Feed.start(canvas, src) draws `src` into `canvas` every frame like
    an analog camera on an old TV: soft picture, smeared tape colour,
-   jittering lines, a rolling tracking band, streaky noise, bowed
-   edges and dark rounded tube corners (details at FRAG).
+   jittering lines, a rolling tracking band, streaky noise and a
+   bowed picture (details at FRAG).
    Nothing blinks. Used by the globe's location boxes (globe.js).
    Without WebGL it just draws the image.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -56,9 +56,7 @@ const Feed = (() => {
         c += inBand * 0.18 * amt * hash(vec2(floor(uv.x * 60.0), line + frame)); // the band's snow
         c *= 1.0 + 0.05 * amt * smoothstep(0.1, 0.0, abs(fract(uv.y * 0.6 - t * 0.08) - 0.5));   // rolling brightness
 
-        vec2 e = abs(q);                                                         // softly rounded tube corners, thin dark rim
-        float edge = smoothstep(1.0, 0.97, max(e.x, e.y)) * smoothstep(2.0, 1.85, e.x * e.x + e.y * e.y);
-        c *= mix(0.0, 1.0 - 0.08 * amt * r2, edge);                              // light vignette
+        c *= 1.0 - 0.08 * amt * r2;                                              // light vignette
         gl_FragColor = vec4(c, 1.0);
     }`;
 

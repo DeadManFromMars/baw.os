@@ -361,6 +361,7 @@ body.globe-focused #globeOverlay { transition-delay: 0.9s; }
     font-family: 'Space Mono', monospace;
     font-size: 0.85rem;
     line-height: 1.6;
+    white-space: pre-line;                 /* keeps the text's line breaks (globe.js LOCATIONS) */
     color: var(--ink2);
 }
 
