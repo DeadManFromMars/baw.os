@@ -469,6 +469,24 @@
             if (e.key === 'Escape' && focus?.dir === 'in' && !document.querySelector(BLOCKERS)) unfocus();
         });
 
+        /* ── Scan mark (scan.js) ──
+           The scan "finds" the visitor: a ring on the spot of the globe facing
+           us (up and left of centre). It turns with the globe. globeMarkLink(el)
+           runs a line from it to an element's edge, globeHold(true) stops the
+           globe turning (the scan's freeze). */
+
+        let mark = null, markLink = null, held = false;
+        const markLine = svg('line', { stroke: 'rgba(255,0,0,0.7)', 'stroke-width': 1.5, opacity: 0 });
+
+        window.globeMark = () => {
+            const toGlobe = qConj(qMul(turnQ, qMul(TILT_Q, qAxis(1, -spin))));   // screen → globe
+            const facing  = [-0.34, -0.28, -0.9].map(v => v / Math.hypot(0.34, 0.28, 0.9));
+            mark = { unit: rotated(toGlobe, facing) };
+        };
+        window.globeMarkLink = el => { markLink = el; };
+        window.globeUnmark   = () => { mark = markLink = null; markLine.setAttribute('opacity', 0); };
+        window.globeHold     = on => { held = on; };
+
         fitCanvas();
         addEventListener('resize', fitCanvas);
 
@@ -498,8 +516,8 @@
             const boost = stepLogOn(now);
             const focusE = focus ? stepFocus(now) : 0;
             const marker = focus?.dir === 'in' ? focusE : 0;     // the focused spot's ring fades in with the zoom
-            // Held and focused globes don't turn by themselves
-            if (!drag && focus?.dir !== 'in') spin += dt * CONFIG.globe.speed * (1 + boost) * (1 + 0.25 * level);
+            // Held, focused and scan-held globes don't turn by themselves
+            if (!drag && !held && focus?.dir !== 'in') spin += dt * CONFIG.globe.speed * (1 + boost) * (1 + 0.25 * level);
             if (turning) for (let t = dt; t > 1e-6; t -= TURN_STEP) stepTurn(Math.min(t, TURN_STEP));
 
             // This frame's rotation: the user's turn on top of the normal pose
@@ -528,20 +546,35 @@
                 for (let i = 0; i < levelCount[level] * 2; i += 2) ctx.fillRect(xy[i], xy[i + 1], dotSize, dotSize);
             }
 
-            // Focused: a ring + crosshair on the spot
-            if (marker > 0) {
-                const [px, py] = project(focus.pin.unit, rot, r, cx, cy, persp);
-                ctx.globalAlpha = marker;
+            // A ring + crosshair on a spot (the focused location, the scan mark)
+            const target = (px, py, alpha, size = 1) => {
+                ctx.globalAlpha = alpha;
                 ctx.strokeStyle = LEVEL_STYLE[ALPHA_LEVELS - 1];
                 ctx.lineWidth   = 1.5;
                 ctx.beginPath();
-                ctx.arc(px, py, 14, 0, Math.PI * 2);
+                ctx.arc(px, py, 14 * size, 0, Math.PI * 2);
                 for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-                    ctx.moveTo(px + dx * 20, py + dy * 20);
-                    ctx.lineTo(px + dx * 30, py + dy * 30);
+                    ctx.moveTo(px + dx * 20 * size, py + dy * 20 * size);
+                    ctx.lineTo(px + dx * 30 * size, py + dy * 30 * size);
                 }
                 ctx.stroke();
                 ctx.globalAlpha = 1;
+            };
+            if (marker > 0) target(...project(focus.pin.unit, rot, r, cx, cy, persp), marker);
+
+            // The scan mark, dimmer round the back; its line runs to the linked element
+            if (mark) {
+                const [px, py, depth] = project(mark.unit, rot, r, cx, cy, persp);
+                target(px, py, 0.25 + 0.75 * (1 - depth), 0.6);
+                const b = markLink?.getBoundingClientRect();
+                if (b?.width) {
+                    const [bx, by] = edgeToward(px, py, b);
+                    markLine.setAttribute('x1', px);
+                    markLine.setAttribute('y1', py);
+                    markLine.setAttribute('x2', bx);
+                    markLine.setAttribute('y2', by);
+                }
+                markLine.setAttribute('opacity', b?.width ? 1 : 0);
             }
 
             // Pin lines grow from the (moving) globe point out to the edge of their box —

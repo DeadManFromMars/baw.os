@@ -6,9 +6,10 @@
                   endless extra rows.
    2. CONDUCTOR   once half the rows are done, a scripted sequence
                   runs (read runConductor() top to bottom): terminal
-                  connects → hand draws a box → typed messages →
-                  VHS freeze → rewind → hand fixes the "orphaned" row
-                  → "Try again..." → dissolve.
+                  connects → hand draws a box (a screen, tied to the
+                  globe's mark) → typed messages → freeze → rewind →
+                  hand fixes the "orphaned" row → "Try again..." →
+                  dissolve.
    3. DISSOLVE    the side panels fade (wordmark + globe are already
                   in place), the register / offer-token choice
                   appears (arg.js).
@@ -107,6 +108,7 @@ const Scan = (() => {
     const REWIND_SPEEDS = [1.0, 0.88, 0.74, 0.61, 0.49, 0.38, 0.28, 0.20, 0.13, 0.08, 0.04, 0.01, 0.00];
 
     const HAND_TIP = { x: 36, y: 76 };     // px from the hand image's corner to its fingertip
+    const GLITCH   = { every: [2500, 6000], ms: [70, 150] };   // how often the box's picture breaks up, and for how long
     const REAL_ROWS = 9;                   // the first 9 ROWS are the visitor's real data — shown at a steady pace
 
     /* Timing once the fake rows start: faster, and uneven so it never
@@ -135,7 +137,8 @@ const Scan = (() => {
     let rowIndex      = 0;       // next row to reveal (past ROWS.length = extra rows)
     let completedRows = 0;       // ROWS whose value has appeared
     let conductorOn   = false;
-    let stopped       = false;   // true from the VHS freeze onward — no more rows
+    let stopped       = false;   // true from the freeze onward — no more rows, no more break-ups
+    let startedAt     = 0;       // performance.now() when the scan began — the freeze's timecode counts from it
 
 
     /* ════════════════════════════════════════════════════════
@@ -196,6 +199,7 @@ const Scan = (() => {
             valEl.textContent = value ?? '—';
             valEl.classList.remove('pending');
             line.classList.add('done');
+            if (row.id === 'loc')         window.globeMark();      // the globe finds you (globe.js)
             if (row.id === 'route_depth') line.classList.add('is-orphan');
 
             if (!extra) {
@@ -276,8 +280,9 @@ const Scan = (() => {
         await Utils.animateXY(hand, offRight, y0 - HAND_TIP.y, x0 - HAND_TIP.x, y0 - HAND_TIP.y, 950, Utils.easing.easeOutCubic);
         await Utils.sleep(200);
 
-        // Drag: box corner follows the fingertip
+        // Drag: box corner follows the fingertip; the globe's scan mark lines up to it
         box.style.opacity = '1';
+        window.globeMarkLink(box);
         await new Promise(resolve => {
             const start = performance.now();
             (function drag(now) {
@@ -317,11 +322,74 @@ const Scan = (() => {
             valEl.textContent += char;
             await Utils.sleep(90);
         }
-        row.classList.add('is-resolved');                 // turns green (scan.css)
+        row.classList.add('is-resolved');                 // ink (scan.css), with a red ✓
+        row.querySelector('.scan-line-check').textContent = '✓';
+        linkRowToBox(row);
 
         await Utils.sleep(600);
         await Utils.animateXY(hand, x, y, -180, y, 700);
         hand.style.opacity = '0';
+    }
+
+
+    /* ════════════════════════════════════════════════════════
+       THE BOX'S SCREEN, THE FREEZE, THE FIX'S LINE
+    ════════════════════════════════════════════════════════ */
+
+    const rand = ([lo, hi]) => lo + Math.random() * (hi - lo);
+
+    // One break-up: a few blocks of the picture (copies of the text, shifted
+    // sideways) and a stuck block or two, gone again after a moment
+    function glitchOnce() {
+        const screen = $('dbScreen'), text = $('dbText');
+        const W = screen.clientWidth, H = screen.clientHeight, top = text.offsetTop;
+        const made = [];
+        const block = (x, y, w, h, stuck) => {
+            const b = document.createElement('div');
+            b.className = 'db-glitch' + (stuck ? ' stuck' : '');
+            Object.assign(b.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
+            made.push(screen.appendChild(b));
+            return b;
+        };
+        for (let i = 2 + Math.floor(Math.random() * 3); i > 0; i--) {
+            const w = 40 + Math.random() * W * 0.5, h = 8 * (1 + Math.floor(Math.random() * 3));   // stream blocks come in 8s
+            const x = Math.random() * (W - w), y = top + Math.random() * Math.max(0, H - top - h);
+            const copy = text.cloneNode(true);
+            copy.removeAttribute('id');
+            copy.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+            Object.assign(copy.style, { left: (rand([-14, 14]) - x) + 'px', top: (top - y) + 'px', width: text.offsetWidth + 'px' });
+            block(x, y, w, h).appendChild(copy);
+        }
+        for (let i = 1 + Math.floor(Math.random() * 2); i > 0; i--) {
+            block(Math.random() * (W - 16), top + Math.random() * (H - top - 8), 8 * (1 + Math.floor(Math.random() * 2)), 8, true);
+        }
+        setTimeout(() => made.forEach(b => b.remove()), rand(GLITCH.ms));
+    }
+
+    // Break up now and then, until the freeze
+    async function glitchLoop() {
+        while (!stopped) {
+            await Utils.sleep(rand(GLITCH.every));
+            if (!stopped) glitchOnce();
+        }
+    }
+
+    // Timecode for the hold tag: hh:mm:ss:ff (30 frames a second)
+    function timecode(ms) {
+        const f = Math.floor(ms / (1000 / 30)), pad = n => String(n).padStart(2, '0');
+        return [Math.floor(f / 108000), Math.floor(f / 1800) % 60, Math.floor(f / 30) % 60, f % 30].map(pad).join(':');
+    }
+    const setHold = (label, ms) => { $('holdTag').textContent = `${label} · ${timecode(ms)}`; };
+
+    // The fix's dashed line: from the fixed row to the box (removed at the dissolve)
+    function linkRowToBox(row) {
+        const r = row.getBoundingClientRect(), b = $('drawnBox').getBoundingClientRect();
+        const y = r.top + r.height / 2;
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        Object.entries({ x1: r.right, y1: y, x2: b.left, y2: Math.min(Math.max(y, b.top), b.bottom),
+                         stroke: 'rgba(255,0,0,0.7)', 'stroke-width': 1.5, 'stroke-dasharray': '5 5', id: 'fixLine' })
+            .forEach(([k, v]) => line.setAttribute(k, v));
+        $('globeOverlay').appendChild(line);
     }
 
 
@@ -337,7 +405,7 @@ const Scan = (() => {
         return { row: line, valEl };
     }
 
-    async function runRewind() {
+    async function runRewind(heldAt) {
         $('scanLines').replaceChildren();
 
         let lastSpeed = 0;
@@ -354,6 +422,7 @@ const Scan = (() => {
             $('progressFill').style.width  = Math.round(100 - progress * 55) + '%';
             $('progressPct').textContent   = Math.round(100 - progress * 55) + '%';
             $('progressLabel').textContent = 'REVERSING';
+            setHold('◀◀ REVERSING', heldAt * (1 - progress * 0.55));   // the timecode runs back with it
 
             await Utils.sleep(25 + Math.pow(progress, 3) * 975);     // slows down exponentially
         }
@@ -361,6 +430,7 @@ const Scan = (() => {
         const orphan = rewindRow('route_depth', 'orphaned', 1, true);
         addRow(orphan.row);
         terminalShowSpeed('0.00x');
+        setHold('■ HALTED', heldAt * 0.45);
         $('progressLabel').textContent = 'HALTED';
         $('progressFill').style.width  = '45%';
         $('progressPct').textContent   = '45%';
@@ -387,6 +457,7 @@ const Scan = (() => {
         await showTerminalBar();
         await Utils.sleep(800);
         await handDrawsBox();
+        glitchLoop();                            // the box's picture breaks up now and then
 
         // Messages in the drawn box
         await Utils.sleep(1500);
@@ -394,28 +465,32 @@ const Scan = (() => {
         await Utils.sleep(900);
         await typewrite($('twText2'), 'Let me help you. You seem lost.', 75);
 
-        // Freeze
+        // Freeze: a last break-up, then everything stops dead — globe included
         await terminalType('session.pause()', 'execution halted — all processes frozen', 70);
-        $('vhsOverlay').classList.add('active');
-        $('scanPhase').classList.add('vhs');
+        glitchOnce();
+        await Utils.sleep(120);
+        glitchOnce();
         stopped = true;
+        const heldAt = performance.now() - startedAt;
+        setHold('■ HALTED', heldAt);
+        $('holdOverlay').classList.add('active');
+        window.globeHold(true);
         await Utils.sleep(4000);
 
         // Rewind to the orphaned row
         await terminalType('session.reverse()', null, 70);
         $('progressLabel').textContent = 'REVERSING';
-        const orphan = await runRewind();
+        const orphan = await runRewind(heldAt);
         await Utils.sleep(600);
 
-        $('vhsOverlay').classList.remove('active');
-        $('scanPhase').classList.remove('vhs');
+        $('holdOverlay').classList.remove('active');
+        window.globeHold(false);
         await Utils.sleep(600);
 
         // Fix it
         await terminalType('session.set(route_depth, "resolved")', 'patching entry point...', 65);
         await Utils.sleep(1200);
         await handFixesRow(orphan.row, orphan.valEl);
-        $('progressFill').classList.add('green');
         $('progressFill').style.width  = '100%';
         $('progressPct').textContent   = '100%';
         $('progressLabel').textContent = 'RESOLVED';
@@ -450,11 +525,13 @@ const Scan = (() => {
         await Utils.sleep(600);
         $('termBar').classList.remove('visible');
 
-        for (const el of document.querySelectorAll('.scan-left, #drawnBox')) {
+        for (const el of document.querySelectorAll('.scan-left, #drawnBox, #fixLine')) {
             el.style.transition = 'opacity 1.6s ease';
             el.style.opacity    = '0';
         }
         await Utils.sleep(2000);
+        window.globeUnmark();
+        $('fixLine')?.remove();
         window.globeSetDraggable(true);         // the scan's over — the globe can be spun now
         Arg.showArgChoice();
     }
@@ -465,6 +542,6 @@ const Scan = (() => {
         () => document.querySelector('.scan-tagline').classList.add('gone'), { once: true });
 
     return {
-        start() { setTimeout(revealNextRow, 800); },
+        start() { startedAt = performance.now(); setTimeout(revealNextRow, 800); },
     };
 })();

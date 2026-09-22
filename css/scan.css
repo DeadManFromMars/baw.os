@@ -163,7 +163,7 @@
 .scan-line.s-xl .scan-line-key { color: var(--ink); }
 .scan-line.s-xl .scan-line-val { font-size: clamp(1.35rem, 2.2vw, 2.1rem); line-height: 1.15; }
 
-/* route_depth: red when orphaned, green once the hand fixes it */
+/* route_depth: red when orphaned; once the hand fixes it, ink with a red ✓ (scan.js) */
 .scan-line.is-orphan {
     padding-left: 12px;
     border-left: 3px solid var(--red);
@@ -171,9 +171,9 @@
 }
 .scan-line.is-orphan .scan-line-key,
 .scan-line.is-orphan .scan-line-val   { color: var(--red); }
-.scan-line.is-resolved                { border-left-color: var(--green); background: rgba(0, 200, 83, 0.08); }
+.scan-line.is-resolved                { border-left-color: var(--ink); background: rgba(26, 26, 24, 0.05); }
 .scan-line.is-resolved .scan-line-key,
-.scan-line.is-resolved .scan-line-val { color: var(--green); }
+.scan-line.is-resolved .scan-line-val { color: var(--ink); }
 
 
 /* ── Progress ───────────────────────────────────────────────── */
@@ -187,35 +187,63 @@
     color: var(--text2);
 }
 .progress-track { height: 2px; margin-bottom: 8px; overflow: hidden; background: var(--border2); }
-.progress-fill  { width: 0; height: 100%; background: var(--red); transition: width 0.25s ease, background 0.6s ease; }
-.progress-fill.green { background: var(--green); }
+.progress-fill  { width: 0; height: 100%; background: var(--red); transition: width 0.25s ease; }
 
 
 /* ── Drawn box ──────────────────────────────────────────────────
-   scan.js grows it from zero size into .scan-right's rectangle.
-   Padding sits on the text (not the box) so it can start at 0×0. */
+   scan.js grows it from zero size into .scan-right's rectangle, and the
+   globe's scan mark runs a line to it (globe.js). A red-line frame like
+   the location boxes, holding a crisp dark screen. Padding sits on the
+   screen's text (not the box) so it can start at 0×0. */
 
 #drawnBox {
     position: fixed;
     z-index: 50;
     overflow: hidden;
-    border: 2px solid var(--ink);
-    background: rgba(253, 252, 250, 0.96);
+    border: 1.5px solid rgba(255, 0, 0, 0.7);
+    border-radius: 2px;
+    background: rgba(245, 242, 236, 0.94);
     opacity: 0;
     transition: opacity 0.3s ease;
 }
 
+.db-screen {
+    position: absolute;
+    inset: 6px;
+    overflow: hidden;
+    background: #0e1116;
+}
+.db-status {
+    height: 20px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.16em;
+    white-space: nowrap;
+    color: #9aa3ad;
+}
+
 .tw-text {
-    margin: 0 30px 0.7em;
+    margin: 0 26px 0.6em;
     font-family: 'DeadPostman', monospace;
     font-style: italic;
-    font-size: clamp(1.6rem, 2.8vw, 2.8rem);    /* DeadPostman draws small for its size */
-    line-height: 1.4;
+    font-size: clamp(1.3rem, 2.2vw, 2.2rem);    /* DeadPostman draws small for its size */
+    line-height: 1.35;
     letter-spacing: -0.01em;
-    color: var(--ink);
+    color: #f2f4f7;
 }
-.tw-text:first-child { margin-top: 26px; }
-.tw-text-last        { margin-top: 1.2em; }
+.tw-text:first-child { margin-top: 20px; }
+.tw-text-last        { margin-top: 1em; }
+
+/* Break-up (scan.js): blocks of the picture slip sideways for a moment, a few
+   get stuck — a video stream dropping frames. No colour split. */
+.db-glitch       { position: absolute; overflow: hidden; background: #0e1116; pointer-events: none; }
+.db-glitch > *   { position: absolute; left: 0; top: 0; }
+.db-glitch.stuck { background: #2a3a55; }
 
 /* Blinking text cursor while typing */
 .cursor {
@@ -229,7 +257,8 @@
 }
 
 
-/* ── Terminal bar ───────────────────────────────────────────── */
+/* ── Terminal bar ───────────────────────────────────────────────
+   The site's own line: ink on white, a red prompt. */
 
 #termBar {
     position: fixed;
@@ -242,8 +271,8 @@
     align-items: center;
     gap: 12px;
     padding: 0 var(--scan-side);
-    background: #0b0b0a;
-    border-top: 1px solid #1f3a1f;
+    background: var(--white);
+    border-top: 1px solid var(--ink);
     font-family: 'Space Mono', monospace;
     font-size: clamp(0.68rem, 1.05vw, 0.85rem);   /* the connect line is ~95 characters */
     white-space: nowrap;
@@ -252,10 +281,10 @@
 }
 #termBar.visible { bottom: 0; }
 
-.term-prompt   { flex-shrink: 0; color: #4f9a4f; }
-.term-line     { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: #3ddc6a; }
-.term-response { margin-left: 16px; color: #a3a39a; }     /* "→ …" after a command */
-.term-speed    { color: #ffb257; }                        /* rewind speed readout */
+.term-prompt   { flex-shrink: 0; color: var(--red); }
+.term-line     { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+.term-response { margin-left: 16px; color: var(--text2); }  /* "→ …" after a command */
+.term-speed    { color: var(--red); }                       /* rewind speed readout */
 
 .term-cursor {
     display: inline-block;
@@ -263,41 +292,53 @@
     height: 1em;
     margin-left: 2px;
     vertical-align: text-bottom;
-    background: #3ddc6a;
+    background: var(--ink);
     animation: blink 0.8s step-end infinite;
 }
 
 
-/* ── VHS freeze ─────────────────────────────────────────────────
-   While frozen: a slight jitter, scanlines, and the room dims. */
+/* ── Freeze ─────────────────────────────────────────────────────
+   Digital, not tape: everything under the overlay drains to ink, a red
+   hold frame sits inside the window edge, and a timecode tag in the
+   corner (scan.js sets it: HALTED, then counting back while reversing). */
 
-#scanPhase.vhs { animation: vhsShake 0.2s steps(2) infinite; }
-
-@keyframes vhsShake {
-    0%, 100% { transform: translate(0, 0); }
-    25%      { transform: translate(-2px, 1px); }
-    50%      { transform: translate(2px, -1px); }
-    75%      { transform: translate(-1px, -1px); }
-}
-
-.vhs-overlay {
+.hold-overlay {
     position: fixed;
     inset: 0;
-    z-index: 99;
+    z-index: 150;
     pointer-events: none;
     opacity: 0;
-    transition: opacity 0.4s ease;
-    background:
-        repeating-linear-gradient(0deg, transparent 0 2px, rgba(0, 0, 0, 0.05) 2px 4px),
-        rgba(20, 18, 16, 0.3);
-    box-shadow: inset 0 0 160px rgba(0, 0, 0, 0.35);
+    transition: opacity 0.25s ease;
+    -webkit-backdrop-filter: grayscale(1) contrast(1.05);
+            backdrop-filter: grayscale(1) contrast(1.05);
 }
-.vhs-overlay.active { opacity: 1; }
+.hold-overlay::before {                    /* the hold frame */
+    content: '';
+    position: absolute;
+    inset: 14px;
+    border: 2px solid var(--red);
+}
+.hold-overlay.active { opacity: 1; }
+
+.hold-tag {
+    position: absolute;
+    top: 26px;
+    right: 28px;
+    padding: 4px 10px;
+    background: var(--red);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    font-variant-numeric: tabular-nums;
+    color: var(--white);
+}
 
 
 /* ── Hands ──────────────────────────────────────────────────────
    Moved by scan.js. Solid (the PNG is transparent around the hand),
-   so it passes over the text rather than the text showing through. */
+   so it passes over the text rather than the text showing through.
+   Graded to sit on the page: a soft shadow under it, a touch warmer
+   and flatter than the raw photo. */
 
 #handImg,
 #handImgFlipped {
@@ -308,6 +349,7 @@
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.5s ease;
+    filter: drop-shadow(0 12px 12px rgba(26, 26, 24, 0.28)) sepia(0.18) saturate(0.85) contrast(0.95);
 }
 #handImgFlipped { transform: scaleX(-1); }
 
@@ -321,6 +363,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    #scanPhase.vhs { animation: none; }
-    .scan-line     { transition: opacity 0.3s ease; transform: none; }
+    .scan-line { transition: opacity 0.3s ease; transform: none; }
 }

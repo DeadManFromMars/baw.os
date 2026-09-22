@@ -6,6 +6,7 @@
      passed the passphrase before   → card prompt ("offer token")
      seen the intro before          → passphrase screen
      first visit                    → city intro → passphrase screen
+     localhost/#scan (dev)          → the scan sequence, to watch it again
 
    localStorage only skips animations — access is always decided by
    the backend. Every path starts with a "click to begin" screen,
@@ -30,7 +31,8 @@
             if (res.ok) user = await res.json();
         } catch { /* backend unreachable — treat as logged out */ }
 
-        if (user)                                startLoggedIn(user);
+        if (DEV_SCAN)                            startScanReplay();
+        else if (user)                           startLoggedIn(user);
         else if (remembered('baw_gate_passed'))  startAtCardPrompt();
         else if (remembered('baw_seen_intro'))   startAtPassphrase();
         else                                     startFirstVisit();
@@ -69,6 +71,15 @@
             remember('baw_seen_intro');
             CITY.start();
         });
+    }
+
+    // DEV: localhost/#scan replays the scan sequence straight away (skips the passphrase)
+    const DEV_SCAN = ['localhost', '127.0.0.1'].includes(location.hostname) && location.hash === '#scan';
+    function startScanReplay() {
+        DataStore.lookupNetwork();
+        $('cityCanvas').style.display = 'none';
+        Object.assign($('loginPhase').style, { display: 'none' });
+        clickToBegin(() => Login.revealScanPhase());
     }
 
     function startAtPassphrase() {

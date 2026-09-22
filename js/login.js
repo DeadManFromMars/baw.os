@@ -205,5 +205,5 @@ const Login = (() => {
         wrongGuesses();                   // earned before? the link is already there
     });
 
-    return { attemptLogin };
+    return { attemptLogin, revealScanPhase };
 })();

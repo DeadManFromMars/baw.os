@@ -73,11 +73,12 @@
 
     <!-- ─────────────────────────────────────────────────────────
          BACKGROUND — decorative only (background.css). The dots are
-         drawn by globe.js; the VHS overlay dims the scan's freeze.
+         drawn by globe.js; the hold overlay is the scan's freeze.
     ───────────────────────────────────────────────────────────── -->
     <canvas id="dotCanvas"></canvas>
     <div class="haze"></div>
-    <div class="vhs-overlay" id="vhsOverlay"></div>
+    <!-- The scan's freeze (scan.js): drains the colour, a red hold frame + timecode -->
+    <div class="hold-overlay" id="holdOverlay"><div class="hold-tag" id="holdTag"></div></div>
     <div class="geo-top"></div>
     <div class="geo-left"></div>
     <div class="geo-corner"></div>
@@ -180,10 +181,17 @@
 
         <div class="scan-panel scan-right" id="scanRight"></div>
 
+        <!-- The intruder's box: a red-line frame holding a dark screen (scan.css).
+             scan.js breaks the picture up now and then (.db-glitch). -->
         <div id="drawnBox">
-            <div class="tw-text" id="twText1"></div>
-            <div class="tw-text" id="twText2"></div>
-            <div class="tw-text tw-text-last" id="twText3"></div>
+            <div class="db-screen" id="dbScreen">
+                <div class="db-status">LINK OK</div>
+                <div class="db-text" id="dbText">
+                    <div class="tw-text" id="twText1"></div>
+                    <div class="tw-text" id="twText2"></div>
+                    <div class="tw-text tw-text-last" id="twText3"></div>
+                </div>
+            </div>
         </div>
 
     </div>
