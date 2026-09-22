@@ -229,7 +229,8 @@ const CardEditor = (() => {
                 <!-- LEFT: profile picture -->
                 <section class="ced-avatar-panel" aria-labelledby="cedAvatarTitle">
                     <h3 class="ced-section-label" id="cedAvatarTitle">Profile picture</h3>
-                    <p class="ced-section-sub">Drag or use arrow keys to move. Scroll or + − to zoom.</p>
+                    <p class="ced-section-sub mouse-only">Drag or use arrow keys to move. Scroll or + − to zoom.</p>
+                    <p class="ced-section-sub touch-only">Drag to move. Pinch to zoom.</p>
                     <div class="ced-crop-area" id="cedCropArea">
                         <button type="button" class="ced-crop-placeholder" id="cedCropPlaceholder">Click to upload</button>
                     </div>
@@ -248,15 +249,17 @@ const CardEditor = (() => {
                     </div>
 
                     <ul class="ced-help" id="cedHelp">
-                        <li><kbd>Click</kbd> stamp</li>
+                        <li class="mouse-only"><kbd>Click</kbd> stamp</li>
+                        <li class="touch-only"><kbd>Tap</kbd> stamp</li>
                         <li><kbd>Drag</kbd> sticker onto card</li>
                         <li><kbd>Drag</kbd> empty space to turn</li>
-                        <li><kbd>Scroll</kbd> <kbd>+</kbd><kbd>−</kbd> size</li>
-                        <li><kbd>Q</kbd><kbd>E</kbd> rotate</li>
-                        <li><kbd>←↑↓→</kbd> move</li>
-                        <li><kbd>Enter</kbd> stamp</li>
-                        <li><kbd>Del</kbd> remove</li>
-                        <li><kbd>Ctrl</kbd><kbd>Z</kbd> undo</li>
+                        <li class="touch-only"><kbd>Pinch</kbd> size + rotate</li>
+                        <li class="mouse-only"><kbd>Scroll</kbd> <kbd>+</kbd><kbd>−</kbd> size</li>
+                        <li class="mouse-only"><kbd>Q</kbd><kbd>E</kbd> rotate</li>
+                        <li class="mouse-only"><kbd>←↑↓→</kbd> move</li>
+                        <li class="mouse-only"><kbd>Enter</kbd> stamp</li>
+                        <li class="mouse-only"><kbd>Del</kbd> remove</li>
+                        <li class="mouse-only"><kbd>Ctrl</kbd><kbd>Z</kbd> undo</li>
                     </ul>
 
                     <div class="ced-card-preview-wrap" id="cedCardWrap">
@@ -882,12 +885,13 @@ const CardEditor = (() => {
     //   'scale'  amount = multiplier
     //   'rotate' amount = degrees (positive = clockwise)
     //   'move'   amount = { dx, dy } in card fractions
-    function _adjust(action, amount) {
+    // `tag` groups mixed adjustments (a pinch both scales and rotates) into one undo step.
+    function _adjust(action, amount, tag = action) {
         const target = _target();
         if (!target) return false;
 
         // Rapid repeats (scroll, held keys) merge into one undo step
-        if (target !== _tool) _pushHistory(`${action}:${_selected}`);
+        if (target !== _tool) _pushHistory(`${tag}:${_selected}`);
         const wasFace = target.face;
 
         if (action === 'scale') {
@@ -1139,8 +1143,19 @@ const CardEditor = (() => {
         const t = _three;
         const canvas = t.canvas;
 
+        // Touch: pinch resizes, twist rotates the stamp tool or selected sticker.
+        // The first finger's drag stops; if it landed on empty space (which
+        // deselects), the sticker selected before is picked back up.
+        const pinching = Utils.twoFingers(canvas, _abort.signal, {
+            onStart: () => {
+                if (t.drag?.kind === 'rotate' && t.drag.wasSelected >= 0) _select(t.drag.wasSelected);
+                t.drag = null;
+            },
+            onChange: (scale, turn) => { _adjust('scale', scale, 'pinch'); _adjust('rotate', turn, 'pinch'); },
+        });
+
         _on(canvas, 'pointerdown', e => {
-            if (e.button !== 0) return;
+            if (e.button !== 0 || pinching()) return;
             canvas.focus({ preventScroll: true });
 
             // Stamp mode: click places the sticker on the face you're looking at
@@ -1169,12 +1184,14 @@ const CardEditor = (() => {
                 canvas.style.cursor = 'grabbing';
             } else {
                 // Empty space: deselect and spin the card
+                const wasSelected = _selected;
                 if (_selected >= 0) _select(-1);
-                t.drag = { kind: 'rotate', lastX: e.clientX, lastY: e.clientY };
+                t.drag = { kind: 'rotate', lastX: e.clientX, lastY: e.clientY, wasSelected };
             }
         });
 
         _on(canvas, 'pointermove', e => {
+            if (pinching()) return;
             const drag = t.drag;
 
             if (drag?.kind === 'rotate') {
@@ -1333,9 +1350,14 @@ const CardEditor = (() => {
             _onLayoutChanged({ layers: false });
         };
 
-        // Drag to pan
+        // Drag to pan; on touch, pinch to zoom (stops the pan)
         let last = null;
+        const pinching = Utils.twoFingers(canvas, _abort.signal, {
+            onStart:  () => { last = null; },
+            onChange: scale => { _avatar.scale = _clamp(_avatar.scale * scale, 0.2, 5); changed(); },
+        });
         _on(canvas, 'pointerdown', e => {
+            if (pinching()) return;
             canvas.setPointerCapture(e.pointerId);
             last = { x: e.clientX, y: e.clientY };
         });

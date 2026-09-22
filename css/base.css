@@ -55,6 +55,15 @@ html, body {
 }
 
 
+/* ── Mouse vs touch hints ──
+   Keyboard/scroll instructions are .mouse-only; their phone wording is .touch-only. */
+.touch-only { display: none !important; }
+@media (hover: none) and (pointer: coarse) {
+    .mouse-only { display: none !important; }
+    .touch-only { display: revert !important; }
+}
+
+
 /* ── Shared keyframes ── */
 
 @keyframes riseIn {                 /* fade + rise: wordmark, tagline */

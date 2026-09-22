@@ -802,7 +802,8 @@ const Mixtape = (() => {
                         <div class="mix-wheel-selector" aria-hidden="true"></div>
                         <div class="mix-wheel" id="mixWheel" role="listbox" aria-label="Library" tabindex="0"></div>
                     </div>
-                    <p class="mix-hint">↑ ↓ or scroll to browse · Enter or click again to add / remove</p>
+                    <p class="mix-hint mouse-only">↑ ↓ or scroll to browse · Enter or click again to add / remove</p>
+                    <p class="mix-hint touch-only">Swipe to browse · tap again to add / remove</p>
                 </section>
 
                 <section class="mix-col mix-col-record" aria-label="Selected track">
@@ -843,7 +844,8 @@ const Mixtape = (() => {
                         <button type="button" class="mix-text-btn" data-act="clear" id="mixClearBtn">Clear</button>
                     </div>
                     <ol class="mix-queue-list" id="mixQueueList"></ol>
-                    <p class="mix-hint">Click to play · drag or Alt + ↑ ↓ to reorder</p>
+                    <p class="mix-hint mouse-only">Click to play · drag or Alt + ↑ ↓ to reorder</p>
+                    <p class="mix-hint touch-only">Tap to play</p>
                     <footer class="mix-footer">
                         <p class="mix-msg" id="mixMsg" role="status" aria-live="polite"></p>
                         <button type="button" class="mix-save-btn" data-act="save" id="mixSaveBtn">Save mixtape</button>
@@ -868,6 +870,7 @@ const Mixtape = (() => {
             clearTimeout(snapTimer);
             snapTimer = setTimeout(() => glideTo(Math.round(tpos)), C.SNAP_MS);
         }, { passive: false });
+        Utils.swipeAsWheel(wrap, abort.signal);
         const ro = new ResizeObserver(() => { wrapH = wrap.clientHeight; draw(); });
         ro.observe(wrap);
         abort.signal.addEventListener('abort', () => ro.disconnect());
@@ -1392,7 +1395,7 @@ const Mixtape = (() => {
         $('mixQueueCount').textContent = `${tape.length} song${tape.length === 1 ? '' : 's'}`;
 
         if (!tape.length) {
-            list.innerHTML = '<li class="mix-empty">Empty — the whole library plays. Pick tracks on the left and press Add.</li>';
+            list.innerHTML = '<li class="mix-empty">Empty — the whole library plays. Pick tracks from the library and press Add.</li>';
             return;
         }
         list.innerHTML = tape.map((t, i) => `

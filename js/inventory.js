@@ -238,7 +238,8 @@ const Inventory = (() => {
                     </div>
                 </div>
 
-                <p class="inv-key-hint">↑ ↓ or scroll to browse · Esc to close</p>
+                <p class="inv-key-hint mouse-only">↑ ↓ or scroll to browse · Esc to close</p>
+                <p class="inv-key-hint touch-only">Swipe to browse</p>
             </div>
 
             <div class="inv-right" id="invRight">
@@ -246,7 +247,8 @@ const Inventory = (() => {
                     <h3 class="inv-viewer-label" id="invViewerLabel"></h3>
                     <p class="inv-viewer-sub" id="invViewerSub"></p>
                     <canvas id="invCanvas" role="img"></canvas>
-                    <p class="inv-viewer-hint">Drag to rotate · scroll to zoom · double-click to reset</p>
+                    <p class="inv-viewer-hint mouse-only">Drag to rotate · scroll to zoom · double-click to reset</p>
+                    <p class="inv-viewer-hint touch-only">Drag to rotate · pinch to zoom</p>
                 </div>
 
                 <div class="inv-locked" id="invLocked" hidden>
@@ -267,6 +269,7 @@ const Inventory = (() => {
         // Wheel: scroll steps it, clicks jump to a row (delegated)
         const wrap = _el('invWheelWrap');
         _on(wrap, 'wheel', _onWheelScroll, { passive: false });
+        Utils.swipeAsWheel(wrap, _abort.signal);
         _on(_el('invWheel'), 'click', _onListClick);
         _on(_el('invWheel'), 'mouseover', _onListHover);
 

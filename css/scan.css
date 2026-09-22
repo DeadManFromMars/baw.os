@@ -44,7 +44,7 @@
     display: inline-block;
     margin-bottom: 6px;
     font-weight: 700;
-    font-size: clamp(2.4rem, 5.5vw, 4.8rem);
+    font-size: clamp(1.8rem, 5.5vw, 4.8rem);     /* the minimum still fits a phone */
     letter-spacing: -0.03em;
     line-height: 1;
     color: var(--ink);

@@ -41,7 +41,7 @@
     function clickToBegin(onStart) {
         const overlay = document.createElement('div');
         overlay.id = 'initOverlay';
-        overlay.innerHTML = '<div class="init-title">Initialise sequence</div><div class="init-sub">Click anywhere to begin</div>';
+        overlay.innerHTML = '<div class="init-title">Initialise sequence</div><div class="init-sub mouse-only">Click anywhere to begin</div><div class="init-sub touch-only">Tap anywhere to begin</div>';
         document.body.appendChild(overlay);
         overlay.addEventListener('click', () => {
             overlay.classList.add('gone');

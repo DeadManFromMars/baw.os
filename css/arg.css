@@ -258,7 +258,7 @@
    scales with the window width, hence the vw offset. */
 #argWelcome {
     position: fixed;
-    top: calc(12% + clamp(1.2rem, 2.75vw, 2.4rem));
+    top: calc(12% + clamp(0.9rem, 2.75vw, 2.4rem));
     left: 50%;
     transform: translateX(-50%);
     font-family: 'Vipnagorgialla Rg', sans-serif;

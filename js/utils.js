@@ -100,6 +100,54 @@ const Utils = Object.freeze({
         }
     },
 
+    /* Touchscreens: a vertical finger drag on `el` sends it wheel events, so
+       lists that only scroll by wheel (inventory, mixtape) can be swiped.
+       Pair with `touch-action: none` on `el`. `signal` removes the listeners. */
+    swipeAsWheel(el, signal) {
+        let lastY = null;
+        el.addEventListener('pointerdown', e => { if (e.pointerType === 'touch') lastY = e.clientY; }, { signal });
+        el.addEventListener('pointermove', e => {
+            if (lastY === null || e.pointerType !== 'touch') return;
+            const deltaY = lastY - e.clientY;                   // finger up = scroll down
+            lastY = e.clientY;
+            if (deltaY) el.dispatchEvent(new WheelEvent('wheel', { deltaY, cancelable: true }));
+        }, { signal });
+        for (const type of ['pointerup', 'pointercancel']) el.addEventListener(type, () => { lastY = null; }, { signal });
+    },
+
+    /* Two-finger touch gestures on `el`. onChange(scale, turnDeg) gets the change
+       since the last move: pinch as a size ratio, twist in degrees (clockwise +).
+       onStart runs as the second finger lands. Register this BEFORE the element's
+       own pointer handlers; they can ask the returned function whether two
+       fingers are down and stand aside. `signal` removes the listeners. */
+    twoFingers(el, signal, { onStart, onChange }) {
+        const fingers = new Map();
+        let last = null;
+        const measure = () => {
+            const [a, b] = [...fingers.values()];
+            return { dist: Math.hypot(b.x - a.x, b.y - a.y), angle: Math.atan2(b.y - a.y, b.x - a.x) };
+        };
+        el.addEventListener('pointerdown', e => {
+            if (e.pointerType !== 'touch') return;
+            fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (fingers.size === 2) { last = measure(); onStart?.(); }
+        }, { signal });
+        el.addEventListener('pointermove', e => {
+            const f = fingers.get(e.pointerId);
+            if (!f) return;
+            f.x = e.clientX;
+            f.y = e.clientY;
+            if (fingers.size !== 2 || !last) return;
+            const now  = measure();
+            const turn = ((now.angle - last.angle) * 180 / Math.PI + 540) % 360 - 180;   // shortest way round
+            if (last.dist > 0 && now.dist > 0) onChange(now.dist / last.dist, turn);
+            last = now;
+        }, { signal });
+        const lift = e => { fingers.delete(e.pointerId); if (fingers.size < 2) last = null; };
+        for (const type of ['pointerup', 'pointercancel']) el.addEventListener(type, lift, { signal });
+        return () => fingers.size >= 2;
+    },
+
     /* Per-frame spring factor made frame-rate independent: `perFrame` is
        the fraction closed per frame at 60fps, dtMs the real frame time. */
     springStep(perFrame, dtMs) {
