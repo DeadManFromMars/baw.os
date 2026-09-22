@@ -87,7 +87,7 @@ const Arg = (() => {
         const { ok, data } = await api('/auth/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, email: $('argEmail').value.trim() }),   // email optional
+            body: JSON.stringify({ username }),
         });
 
         if (!ok) {
@@ -224,9 +224,7 @@ const Arg = (() => {
     });
 
     document.addEventListener('DOMContentLoaded', () => {
-        $('argUsername').addEventListener('keydown', e => { if (e.key === 'Enter') register(); });
-        $('argEmail').addEventListener('keydown', e => { if (e.key === 'Enter') register(); });
-        $('argCardFile').addEventListener('change', e => uploadCard(e.target));
+        $('argUsername').addEventListener('keydown', e => { if (e.key === 'Enter') register(); });        $('argCardFile').addEventListener('change', e => uploadCard(e.target));
     });
 
     return { showArgChoice, showCardPrompt, showWelcome, downloadCard };
