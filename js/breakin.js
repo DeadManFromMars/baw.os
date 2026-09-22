@@ -18,17 +18,20 @@
                 it over (each time differently), and get rid of it —
                 over the shoulder, aside, dropped, flicked off.
    6. SNAP      the left hand finds ROUTE_DEPTH·ORPHANED; the right
-                flicks ORPHANED off it — it snaps away.
+                flicks ORPHANED off it — it snaps away — then fishes
+                ERROR out of the corner and sets it back in the middle.
    7. WIRES     the right hand digs out APPROVED; the two ends are
                 smashed together like live wires: sparks, a flash,
                 everything lights up — ROUTE_DEPTH APPROVED, green,
-                which is set back where the row was, and stays.
+                which is set back where the row was, and stays. ERROR
+                goes green.
    8. SWEEP     palms flat on the table, from the middle out: the lot
                 goes over the edges.
-   9. REBUILD   off the sides, each hand finds half of the globe; they
-                slam the halves together (the crack seals) and spin it.
-                ERROR is carried back, green, and smacked until it says
-                what it should.
+   9. REBUILD   the hands look about the empty table for the globe,
+                pause, then go off the sides; each comes back, slowly,
+                with half. They slam the halves together (the crack
+                seals) and spin it. ERROR is smacked until it says what
+                it should.
    10. TALK     a hand turns to the viewer and mouths a line as it
                 appears underneath, then goes. The word and the row
                 fade; the register / offer-token choice follows as
@@ -550,6 +553,21 @@ const BreakIn = (() => {
     }
 
 
+    /* ERROR, set back in the middle — where it first appeared — for what's to come */
+
+    async function centreError(hand) {
+        const b = Debris.bodies.find(o => o.el.id === 'errorWord');
+        const held = await pickUp(hand, b, 'right', 700);
+        const mid = { x: innerWidth / 2, y: innerHeight / 2 };
+        await Promise.all([hand.to({ x: mid.x - held.offX, y: mid.y, rot: 0 }, 1000, E.easeInOutCubic), turnTo(held, 0, 900)]);
+        await hand.to({ y: mid.y + 5, scale: 0.97 }, 110, E.easeOutQuad);       // pressed into place
+        held.on = false;
+        // Back to how it sat at the start: centred in its layer by layout, out of the physics
+        for (const p of ['position', 'left', 'top', 'width', 'height', 'margin', 'transform', 'transformOrigin']) b.el.style[p] = '';
+        await hand.to({ x: hand.x + 120, y: mid.y - 140, rot: 15, scale: 1 }, 400, E.easeOutCubic);
+    }
+
+
     /* 7. APPROVED dug out, and the two smashed together like live wires */
 
     // The ends touch: sparks, a flash of light, a jolt, and for a moment
@@ -584,7 +602,7 @@ const BreakIn = (() => {
     async function wires({ left, right }, held) {
         const ap = Debris.bodies.find(b => 'approved' in b.el.dataset);
         const other = await pickUp(right, ap, 'right', 650);
-        const y = innerHeight * 0.42;
+        const y = innerHeight * 0.3;                    // above ERROR, now back in the middle
         await Promise.all([right.to({ x: innerWidth * 0.64, y, rot: 0 }, 750, E.easeInOutCubic), turnTo(other, 0, 700)]);
         await Utils.sleep(250);
 
@@ -598,6 +616,7 @@ const BreakIn = (() => {
         await Promise.all([left.to({ x: lx, rot: 0 }, 110, E.easeInQuad), right.to({ x: rx, rot: 0 }, 110, E.easeInQuad)]);
         weld(held, other);
         lightUp({ x: mid, y });
+        $('errorFlash').classList.add('green');         // the route's approved: ERROR goes green (scan.css)
         await right.to({ x: rx + 140, y: y - 60, rot: 15 }, 300, E.easeOutCubic);
         await Utils.sleep(700);
 
@@ -659,15 +678,46 @@ const BreakIn = (() => {
 
     const SAYS = ['ERR0R', 'E#R?R', 'A?PR█V?D', FINAL_WORD];   // what ERROR shows after each smack
 
+    // Looking for the globe on the cleared table: patting along it, peering about
+    async function pat(hand) {
+        for (const x of [0, 70, 150]) {
+            await hand.to({ x: hand.x + x * -hand.flip * 0.5, y: hand.y + 20 }, 150, E.easeInQuad);
+            await hand.to({ y: hand.y - 20 }, 200, E.easeOutQuad);
+            await Utils.sleep(rand(80, 200));
+        }
+    }
+    async function peer(hand) {
+        await hand.to({ scale: 1.14, rot: 12 }, 420, E.easeInOutCubic);
+        await Utils.sleep(rand(250, 400));
+        await hand.to({ x: hand.x - hand.flip * 120, rot: -10 }, 600, E.easeInOutCubic);
+        await Utils.sleep(rand(250, 400));
+        await hand.to({ scale: 1, rot: 0 }, 380, E.easeInOutCubic);
+    }
+
     async function rebuild({ left, right }) {
         const shell = window.globeShell;
         const home = { x: innerWidth * CONFIG.globe.centerX / 100, y: innerHeight * CONFIG.globe.centerY / 100 };
 
-        // The hands are off the sides after the sweep: out there, each finds half
-        // of the globe. (Out of sight, it's put back home, split far apart — a half
-        // off each side, cracked, square on.)
+        // Back in from the sides after the sweep: where did the globe go? One pats
+        // along the empty table, the other peers about…
+        right.pose('point', 300);
+        await Promise.all([
+            left.to({ x: innerWidth * 0.18, y: innerHeight - 110, rot: 0 }, 900, E.easeOutCubic),
+            right.to({ x: innerWidth * 0.78, y: innerHeight * 0.3, rot: 0 }, 1000, E.easeOutCubic),
+        ]);
+        await Promise.all([pat(left), peer(right)]);
+
+        // …a pause, as if it's dawned on them…
+        await Utils.sleep(1100);
+
+        // …and off they go, each its own way, to fetch a half. (Out of sight, the
+        // globe's put back home, split far apart — a half off each side, cracked.)
         left.pose('grab', 300);
         right.pose('grab', 300);
+        await Promise.all([
+            left.to({ x: -340, y: home.y, rot: 0 }, 650, E.easeInCubic),
+            right.to({ x: innerWidth + 340, y: home.y, rot: 0 }, 650, E.easeInCubic),
+        ]);
         await window.startGlobeMove(CONFIG.globe.centerX, CONFIG.globe.centerY, 1);
         window.globeKick([0, 0, 0]);
         let g = window.globeView();
@@ -675,16 +725,16 @@ const BreakIn = (() => {
         Object.assign(shell, { crack: 1, tilt: 0, gap: wide });
         left.place({ ...grip(g, true, 0, wide), rot: 0 });
         right.place({ ...grip(g, false, 0, wide), rot: 0 });
-        await Utils.sleep(600);
+        await Utils.sleep(1000);                         // rummaging, out of sight
 
-        // They bring them in, one each, and line them up…
+        // They bring them back in, slowly, one each, and line them up…
         const hold = g.r * 1.6;
         await Promise.all([
-            Utils.tween(1200, E.easeOutCubic, e => { shell.gap = wide + (hold - wide) * e; }),
-            left.to(grip(g, true, 0, hold), 1200, E.easeOutCubic),
-            right.to(grip(g, false, 0, hold), 1200, E.easeOutCubic),
+            Utils.tween(2300, E.easeInOutCubic, e => { shell.gap = wide + (hold - wide) * e; }),
+            left.to(grip(g, true, 0, hold), 2300, E.easeInOutCubic),
+            right.to(grip(g, false, 0, hold), 2300, E.easeInOutCubic),
         ]);
-        await Utils.sleep(350);
+        await Utils.sleep(600);
 
         // …and slam them together. The crack seals.
         await Promise.all([
@@ -707,25 +757,9 @@ const BreakIn = (() => {
         window.globeHold(false);
         await right.to({ x: home.x + g.r + 240, y: home.y - 150, rot: 10 }, 400, E.easeOutCubic);
 
-        // ERROR, carried back to where it was — green now
-        const flash = $('errorFlash');
-        $('errorWord')?.remove();
-        const word = flash.insertBefore(document.createElement('div'), flash.firstChild);
-        word.id = 'errorWord';
-        word.textContent = 'ERROR';
-        flash.classList.add('green');
-        flash.style.opacity = 1;
-        const wr = word.getBoundingClientRect(), wy = wr.top + wr.height / 2, far = innerWidth - wr.left + 80;
-        word.style.transform = `translateX(${far}px)`;
-        right.pose('pinch', 250);
-        await right.to({ x: wr.right + far - 12, y: wy, rot: 0 }, 450, E.easeInOutCubic);
-        await Promise.all([
-            Utils.tween(1000, E.easeInOutCubic, e => { word.style.transform = `translateX(${far * (1 - e)}px)`; }),
-            right.to({ x: wr.right - 12, y: wy, rot: 0 }, 1000, E.easeInOutCubic),
-        ]);
-        await right.to({ x: wr.right + 230, y: wy - 130, rot: 15 }, 450, E.easeOutCubic);
-
-        // …and smacked until it says what it should
+        // ERROR — green since the route was approved, in the middle over the globe —
+        // is smacked until it says what it should
+        const flash = $('errorFlash'), word = $('errorWord');
         left.pose('palm', 250);
         for (const [i, text] of SAYS.entries()) {
             const r = word.getBoundingClientRect(), cy = r.top + r.height / 2;
@@ -797,6 +831,7 @@ const BreakIn = (() => {
         const hands = await egg(hand);
         await dig(hands);
         const held = await snap(hands);
+        await centreError(hands.right);
         const row = await wires(hands, held);
         await sweep(hands);
         await rebuild(hands);
