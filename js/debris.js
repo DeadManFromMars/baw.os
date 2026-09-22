@@ -11,7 +11,6 @@
    Debris.lift / place / release    a hand takes a piece out, carries
                              it, throws it back in (see below)
    Debris.shove(b, { vx, vy, spin })   knock a piece moving, resting or not
-   Debris.clear()            fade out whatever's left
 
    Things fall, spin, bounce, slide to a stop and lie flat — on the
    floor or on whatever landed there first, so they pile up. The floor
@@ -217,14 +216,7 @@ const Debris = (() => {
         Object.assign(unsettle(b), { vx, vy, spin });
         was ? repile() : start();
     }
-    function clear() {
-        for (const b of bodies.splice(0)) {
-            b.el.animate([{ opacity: getComputedStyle(b.el).opacity }, { opacity: 0 }], { duration: 400 }).finished.then(() => b.el.remove());
-        }
-        if (surface) surface.fill(innerHeight - PHYS.margin);
-    }
-
     addEventListener('resize', () => { if (surface) rebuildPile(); });
 
-    return { fling, settled, lift, place, release, shove, clear, bodies };
+    return { fling, settled, lift, place, release, shove, bodies };
 })();

@@ -17,21 +17,23 @@
                 dig through the heap: pinch a word, hold it up and look
                 it over (each time differently), and get rid of it —
                 over the shoulder, aside, dropped, flicked off.
-   6. SNAP      the left hand finds ROUTE_DEPTH·ORPHANED; the right
-                flicks ORPHANED off it — it snaps away — then fishes
-                ERROR out of the corner and sets it back in the middle.
-   7. WIRES     the right hand digs out APPROVED; the two ends are
-                smashed together like live wires: sparks, a flash,
-                everything lights up — ROUTE_DEPTH APPROVED, green,
-                which is set back where the row was, and stays. ERROR
-                goes green.
-   8. SWEEP     palms flat on the table, from the middle out: the lot
+   6. SNAP      the left hand finds ROUTE_DEPTH·ORPHANED (a double take,
+                held up high and shaken; the other hand points and nods);
+                the right flicks ORPHANED off it — it snaps away.
+   7. WIRES     the right hand digs out APPROVED (a smaller "that's it");
+                the two ends are smashed together like live wires:
+                sparks, a flash, everything lights up — ROUTE_DEPTH
+                APPROVED, green. Down in the corner ERROR flickers green;
+                the hands notice. The right sets it back in the middle,
+                the left sets the row back where it sat; both stay.
+   8. SWEEP     palms flat on the table, from the middle out: every word
                 goes over the edges.
-   9. REBUILD   the hands look about the empty table for the globe,
-                pause, then go off the sides; each comes back, slowly,
-                with half. They slam the halves together (the crack
-                seals) and spin it. ERROR is smacked until it says what
-                it should.
+   9. REBUILD   where's the globe? The hands search: pat all along the
+                table, lift the wordmark and look under it, shrug. A
+                pause — then one points to where they threw it, and they
+                go off the sides; each comes back, slowly, with half.
+                They slam the halves together (the crack seals) and spin
+                it. ERROR is smacked until it says what it should.
    10. TALK     a hand turns to the viewer and mouths a line as it
                 appears underneath, then goes. The word and the row
                 fade; the register / offer-token choice follows as
@@ -528,16 +530,42 @@ const BreakIn = (() => {
         held.offX += Math.sign(held.offX) * (b.w - oldW) / 2;
     }
 
+    // A word lights up warm for a moment — the one they were after
+    const glow = el => el.animate([{ textShadow: '0 0 0 transparent' }, { textShadow: '0 0 14px rgba(255, 205, 90, 1)', offset: 0.3 },
+                                   { textShadow: '0 0 0 transparent' }], { duration: 1500, easing: 'ease-out' });
+
+    // Finding the one it was looking for: it freezes, does a double take, then
+    // holds it up high and close and shakes it, the word glowing; the other hand
+    // comes over, points at it and nods
+    async function eureka(hand, held, other) {
+        const s = hand.flip, at = { x: hand.x, y: hand.y };
+        await Utils.sleep(380);
+        await hand.to({ x: at.x + s * 70, rot: s * 10 }, 200, E.easeOutCubic);         // looks away…
+        await Utils.sleep(160);
+        await hand.to({ x: at.x, rot: 0 }, 150, E.easeOutBack);                          // …and back
+        const up = { x: innerWidth * 0.4, y: innerHeight * 0.28 };
+        await hand.to({ ...up, scale: 1.35, rot: -4 }, 420, E.easeOutBack);
+        glow(held.b.el);
+        for (let i = 0; i < 5; i++) await hand.to({ x: up.x + (i % 2 ? 16 : -16), rot: i % 2 ? 7 : -7 }, 70, E.easeInOutQuad);
+        other.pose('point', 200);
+        await other.to({ x: up.x + other.flip * 280, y: up.y + 90, rot: other.flip * 15, scale: 1.1 }, 450, E.easeOutCubic);
+        for (let i = 0; i < 2; i++) {                                                    // nods
+            await other.to({ y: other.y + 14 }, 110, E.easeOutQuad);
+            await other.to({ y: other.y - 14 }, 130, E.easeInOutQuad);
+        }
+        await Promise.all([
+            hand.to({ x: innerWidth * 0.38, y: innerHeight * 0.42, rot: 0, scale: 1 }, 500, E.easeInOutCubic),
+            other.to({ scale: 1 }, 300, E.easeInOutCubic),
+        ]);
+    }
+
     async function snap({ left, right }) {
         const row = Debris.bodies.find(b => b.el.dataset.orphan === 'row');
 
-        // The left hand goes straight for it — this is the one
+        // The left hand digs it out — and knows it at once
         const held = await pickUp(left, row, 'left', 650);
-        const at = { x: innerWidth * 0.38, y: innerHeight * 0.42 };
-        await Promise.all([left.to({ ...at, rot: 0 }, 750, E.easeInOutCubic), turnTo(held, 0, 700)]);
-        await left.to({ scale: 1.15, rot: -5 }, 380, E.easeInOutCubic);     // a close look
-        await Utils.sleep(300);
-        await left.to({ scale: 1, rot: 0 }, 320, E.easeInOutCubic);
+        await Promise.all([left.to({ x: innerWidth * 0.38, y: innerHeight * 0.42, rot: 0 }, 750, E.easeInOutCubic), turnTo(held, 0, 700)]);
+        await eureka(left, held, right);
 
         // The right hand lines up on ORPHANED… and flicks it off
         const val = row.el.querySelector('.row-val'), vr = val.getBoundingClientRect(), vy = vr.top + vr.height / 2;
@@ -553,7 +581,7 @@ const BreakIn = (() => {
     }
 
 
-    /* ERROR, set back in the middle — where it first appeared — for what's to come */
+    /* ERROR, set back in the middle — where it first appeared — once it's green (7) */
 
     async function centreError(hand) {
         const b = Debris.bodies.find(o => o.el.id === 'errorWord');
@@ -602,9 +630,19 @@ const BreakIn = (() => {
     async function wires({ left, right }, held) {
         const ap = Debris.bodies.find(b => 'approved' in b.el.dataset);
         const other = await pickUp(right, ap, 'right', 650);
-        const y = innerHeight * 0.3;                    // above ERROR, now back in the middle
+        const y = innerHeight * 0.4;
         await Promise.all([right.to({ x: innerWidth * 0.64, y, rot: 0 }, 750, E.easeInOutCubic), turnTo(other, 0, 700)]);
-        await Utils.sleep(250);
+
+        // That's the other one: held up with a shake, glowing; the left waggles the row at it
+        await right.to({ y: y - 50, scale: 1.22 }, 320, E.easeOutBack);
+        glow(other.b.el);
+        for (let i = 0; i < 3; i++) await right.to({ x: right.x + (i % 2 ? 14 : -14), rot: i % 2 ? 6 : -6 }, 75, E.easeInOutQuad);
+        for (let i = 0; i < 2; i++) {
+            await left.to({ x: left.x + 22, rot: 6 }, 110, E.easeOutQuad);
+            await left.to({ x: left.x - 22, rot: 0 }, 130, E.easeInOutQuad);
+        }
+        await right.to({ y, scale: 1, rot: 0 }, 320, E.easeInOutCubic);
+        await Utils.sleep(200);
 
         // Where each hand must be for the free ends to meet in the middle
         const mid = innerWidth / 2;
@@ -616,19 +654,37 @@ const BreakIn = (() => {
         await Promise.all([left.to({ x: lx, rot: 0 }, 110, E.easeInQuad), right.to({ x: rx, rot: 0 }, 110, E.easeInQuad)]);
         weld(held, other);
         lightUp({ x: mid, y });
-        $('errorFlash').classList.add('green');         // the route's approved: ERROR goes green (scan.css)
         await right.to({ x: rx + 140, y: y - 60, rot: 15 }, 300, E.easeOutCubic);
+        await Utils.sleep(500);
+
+        // Down in the corner, ERROR flickers — green now (scan.css). The hands notice:
+        // the right points at it, the left turns to look…
+        const flash = $('errorFlash'), eb = Debris.bodies.find(o => o.el.id === 'errorWord');
+        flash.classList.add('green');
+        flash.animate([{ opacity: 1 }, { opacity: 0.15 }, { opacity: 1 }, { opacity: 0.3 }, { opacity: 1 }], { duration: 650 });
+        await Utils.sleep(350);
+        right.pose('point', 200);
+        await Promise.all([
+            right.to({ x: eb.cx + 260, y: eb.cy - 170, rot: -20 }, 480, E.easeOutBack),
+            left.to({ rot: -14 }, 420, E.easeInOutCubic),
+        ]);
         await Utils.sleep(700);
 
-        // The mended row is set back where it was in the column — a press, and it
-        // stays put (out of the physics, so nothing that follows can move it)
+        // …then the right fetches it back to the middle while the left sets the
+        // mended row back where it was in the column
+        await Promise.all([centreError(right), placeRow(left, held)]);
+        return held.b.el;
+    }
+
+    // The mended row is set back where it sat in the column — a press, and it stays
+    // put (out of the physics, so nothing that follows can move it)
+    async function placeRow(hand, held) {
         const home = rowHome ?? { x: innerWidth * 0.06, y: innerHeight * 0.6 };
         const spot = { x: home.x + held.b.w / 2 - held.offX, y: home.y };
-        await left.to({ ...spot, rot: 0 }, 800, E.easeInOutCubic);
-        await left.to({ y: spot.y + 5, scale: 0.97 }, 110, E.easeOutQuad);
+        await hand.to({ ...spot, rot: 0 }, 900, E.easeInOutCubic);
+        await hand.to({ y: spot.y + 5, scale: 0.97 }, 110, E.easeOutQuad);
         held.on = false;
-        await left.to({ x: spot.x - 60, y: spot.y - 90, rot: -10, scale: 1 }, 380, E.easeOutCubic);
-        return held.b.el;
+        await hand.to({ x: spot.x - 60, y: spot.y - 90, rot: -10, scale: 1 }, 380, E.easeOutCubic);
     }
 
 
@@ -647,17 +703,19 @@ const BreakIn = (() => {
         ]);
         await Utils.sleep(200);
 
-        // …and out, each driving whatever's in front of it over its edge
+        // …and out, each driving everything in front of it — however high it's
+        // piled — over its edge. Whatever slows down gets caught up with and
+        // pushed again, so nothing's left behind.
         let sweeping = true;
-        requestAnimationFrame(function push() {
+        requestAnimationFrame(function push(now) {
             if (!sweeping) return;
             for (const b of [...Debris.bodies]) {
-                if (b.life || b.swept) continue;
+                if (b.life || now - (b.pushed ?? -1e9) < 120) continue;
                 for (const h of [left, right]) {
                     const ahead = (b.cx - h.x) * h.flip;         // how far in front of the palm, the way it's going
-                    if (b.cy > h.y - 260 && ahead > -40 && ahead < 70) {
-                        b.swept = true;
-                        Debris.shove(b, { vx: h.flip * rand(1100, 1500), vy: -rand(100, 350), spin: rand(-300, 300) });
+                    if (ahead > -80 && ahead < 70) {                // (-80: nothing slips between the two palms)
+                        b.pushed = now;
+                        Debris.shove(b, { vx: h.flip * rand(1200, 1600), vy: -rand(100, 350), spin: rand(-300, 300) });
                         break;
                     }
                 }
@@ -669,8 +727,7 @@ const BreakIn = (() => {
             right.to({ x: innerWidth + 320, y, rot: 0 }, 1000, E.easeInQuad),
         ]);
         sweeping = false;
-        await Utils.sleep(900);
-        Debris.clear();                  // stragglers fade
+        await Debris.settled();          // the last of it goes over the edges
     }
 
 
@@ -678,40 +735,89 @@ const BreakIn = (() => {
 
     const SAYS = ['ERR0R', 'E#R?R', 'A?PR█V?D', FINAL_WORD];   // what ERROR shows after each smack
 
-    // Looking for the globe on the cleared table: patting along it, peering about
-    async function pat(hand) {
-        for (const x of [0, 70, 150]) {
-            await hand.to({ x: hand.x + x * -hand.flip * 0.5, y: hand.y + 20 }, 150, E.easeInQuad);
-            await hand.to({ y: hand.y - 20 }, 200, E.easeOutQuad);
-            await Utils.sleep(rand(80, 200));
+    // Where did the globe go? Looked for all over the cleared screen.
+
+    // Patting the whole way along the table, from one x to another
+    async function patAlong(hand, fromX, toX, y) {
+        const n = 7;
+        for (let i = 0; i <= n; i++) {
+            await hand.to({ x: fromX + (toX - fromX) * i / n, y: y + 18, rot: rand(-4, 4) }, 110, E.easeInQuad);
+            await hand.to({ y: y - 14 }, 130, E.easeOutQuad);
         }
     }
-    async function peer(hand) {
-        await hand.to({ scale: 1.14, rot: 12 }, 420, E.easeInOutCubic);
-        await Utils.sleep(rand(250, 400));
-        await hand.to({ x: hand.x - hand.flip * 120, rot: -10 }, 600, E.easeInOutCubic);
-        await Utils.sleep(rand(250, 400));
-        await hand.to({ scale: 1, rot: 0 }, 380, E.easeInOutCubic);
+
+    // The wordmark, lifted by its right-hand corner (it pivots on its left) — deg
+    const tipWordmark = deg => {
+        const header = document.querySelector('.scan-header');
+        header.style.transformOrigin = deg ? 'left bottom' : '';
+        header.style.transform = deg ? `translate(-50%, -50%) rotate(${-deg}deg)` : '';
+    };
+
+    async function search({ left, right }) {
+        const hb = document.querySelector('.scan-header').getBoundingClientRect();
+        const LIFT = 10, corner = deg => ({ x: hb.left + hb.width * Math.cos(deg * Math.PI / 180),
+                                            y: hb.bottom - hb.width * Math.sin(deg * Math.PI / 180) });
+
+        // Back in from the sides to an empty table. The left pats its way along it,
+        // the whole way…
+        left.pose('palm', 250);
+        right.pose('pinch', 250);
+        const tableY = innerHeight - 100;
+        const patting = left.to({ x: innerWidth * 0.08, y: tableY, rot: 0 }, 700, E.easeOutCubic)
+            .then(() => patAlong(left, innerWidth * 0.08, innerWidth * 0.55, tableY));
+
+        // …while the right takes the wordmark by the corner and lifts it, to look under it
+        await right.to({ ...corner(0), rot: 10 }, 900, E.easeInOutCubic);
+        await Promise.all([
+            Utils.tween(550, E.easeOutCubic, e => tipWordmark(LIFT * e)),
+            right.to({ ...corner(LIFT), rot: 0 }, 550, E.easeOutCubic),
+        ]);
+        await patting;
+
+        // The left comes up and has a good look underneath — along, and back. Nothing.
+        left.pose('point', 250);
+        await left.to({ x: hb.left + hb.width * 0.3, y: hb.bottom + 20, rot: -15, scale: 1.15 }, 650, E.easeInOutCubic);
+        await left.to({ x: hb.left + hb.width * 0.62, rot: 10 }, 650, E.easeInOutQuad);
+        await Utils.sleep(300);
+        await left.to({ y: hb.bottom + 170, scale: 1, rot: 0 }, 420, E.easeInOutCubic);
+
+        // It's let drop back down with a bump
+        await Promise.all([
+            Utils.tween(170, E.easeInQuad, e => tipWordmark(LIFT * (1 - e))),
+            right.to({ x: right.x + 40, y: right.y - 50, rot: 12 }, 260, E.easeOutCubic),
+        ]);
+        tipWordmark(0);
+        Utils.shakeScreen(7, 260);
+
+        // Both to the middle: palms up, a shrug — two
+        left.pose('palm', 250);
+        right.pose('palm', 250);
+        const mid = innerWidth / 2, sy = innerHeight * 0.62;
+        await Promise.all([left.to({ x: mid - 170, y: sy, rot: -15 }, 650, E.easeInOutCubic), right.to({ x: mid + 170, y: sy, rot: 15 }, 650, E.easeInOutCubic)]);
+        for (let i = 0; i < 2; i++) {
+            await Promise.all([left.to({ y: sy - 30, rot: -30 }, 170, E.easeOutQuad), right.to({ y: sy - 30, rot: 30 }, 170, E.easeOutQuad)]);
+            await Promise.all([left.to({ y: sy, rot: -15 }, 230, E.easeInQuad), right.to({ y: sy, rot: 15 }, 230, E.easeInQuad)]);
+        }
+
+        // …a pause…
+        await Utils.sleep(1100);
+
+        // …then it dawns: the right snaps a point up to where they threw it, the left looks
+        right.pose('point', 150);
+        await right.to({ x: innerWidth * 0.72, y: innerHeight * 0.3, rot: 145 }, 220, E.easeOutBack);
+        await left.to({ rot: 12, x: left.x + 30 }, 260, E.easeOutCubic);
+        await Utils.sleep(550);
     }
 
-    async function rebuild({ left, right }) {
+    async function rebuild(hands) {
+        const { left, right } = hands;
         const shell = window.globeShell;
         const home = { x: innerWidth * CONFIG.globe.centerX / 100, y: innerHeight * CONFIG.globe.centerY / 100 };
 
-        // Back in from the sides after the sweep: where did the globe go? One pats
-        // along the empty table, the other peers about…
-        right.pose('point', 300);
-        await Promise.all([
-            left.to({ x: innerWidth * 0.18, y: innerHeight - 110, rot: 0 }, 900, E.easeOutCubic),
-            right.to({ x: innerWidth * 0.78, y: innerHeight * 0.3, rot: 0 }, 1000, E.easeOutCubic),
-        ]);
-        await Promise.all([pat(left), peer(right)]);
+        await search(hands);
 
-        // …a pause, as if it's dawned on them…
-        await Utils.sleep(1100);
-
-        // …and off they go, each its own way, to fetch a half. (Out of sight, the
-        // globe's put back home, split far apart — a half off each side, cracked.)
+        // Off they go, each its own way, to fetch a half. (Out of sight, the globe's
+        // put back home, split far apart — a half off each side, cracked.)
         left.pose('grab', 300);
         right.pose('grab', 300);
         await Promise.all([
@@ -831,7 +937,6 @@ const BreakIn = (() => {
         const hands = await egg(hand);
         await dig(hands);
         const held = await snap(hands);
-        await centreError(hands.right);
         const row = await wires(hands, held);
         await sweep(hands);
         await rebuild(hands);
