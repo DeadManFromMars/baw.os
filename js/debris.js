@@ -10,6 +10,8 @@
    await Debris.settled()    everything has come to rest
    Debris.lift / place / release    a hand takes a piece out, carries
                              it, throws it back in (see below)
+   Debris.shove(b, { vx, vy, spin })   knock a piece moving, resting or not
+   Debris.clear()            fade out whatever's left
 
    Things fall, spin, bounce, slide to a stop and lie flat — on the
    floor or on whatever landed there first, so they pile up. The floor
@@ -26,7 +28,8 @@ const Debris = (() => {
         bounce:  0.35,      // share of the fall speed kept per landing bounce…
         grip:    0.6,       // …and of the sideways speed (so things can't skip away along the floor)
         wall:    0.12,      // share kept bouncing off a side wall — they thud, not ping
-        slide:   0.03,      // share of the sliding speed kept per second on the ground
+        slide:   0.02,      // share of the sliding speed kept per second on the ground
+        rest:    0.15,      // s still before it counts as settled
         reach:   48,        // a slope's too steep (it slides off) if the ground this far past an end…
         steep:   1.0,       // …being more than this many of its heights lower
         tilt:    8,         // degrees of random lean once it's lying in the pile
@@ -72,6 +75,18 @@ const Debris = (() => {
     function rebuildPile() {
         surface = new Array(Math.floor((innerWidth - PHYS.edge) / BIN) + 1).fill(innerHeight - PHYS.margin);
         bodies.filter(b => b.resting).sort((p, q) => q.cy - p.cy).forEach(addToPile);
+    }
+    const unsettle = b => Object.assign(b, { resting: false, grounded: false, landed: Infinity, still: 0, nudges: 0 });
+
+    // Something's been taken out of the pile or knocked loose: rebuild it bottom-up,
+    // and anything left with nothing under it falls
+    function repile() {
+        surface.fill(innerHeight - PHYS.margin);
+        for (const o of bodies.filter(o => o.resting).sort((p, q) => (q.cy + q.h / 2) - (p.cy + p.h / 2))) {
+            if (groundUnder(o.cx, o.w / 2, o, true) - (o.cy + o.h / 2) > 2) Object.assign(unsettle(o), { vx: 0, vy: 0 });
+            else addToPile(o);
+        }
+        start();
     }
 
     const draw = b => { b.el.style.transform = `translate(${b.cx - b.w / 2}px, ${b.cy - b.h / 2}px) rotate(${b.a}deg)`; };
@@ -126,7 +141,7 @@ const Debris = (() => {
                 b.vy = Math.abs(b.vy) > 90 ? -b.vy * PHYS.bounce : 0;
                 b.vx *= Math.pow(PHYS.slide, dt);
                 b.spin = 0;
-                b.a += (flat - b.a) * Utils.springStep(0.2, dt * 1000);   // tips over flat (gravity then lowers it)
+                b.a += (flat - b.a) * Utils.springStep(0.25, dt * 1000);  // tips over flat (gravity then lowers it)
             }
             if (b.keep) {                                   // kept on screen by walls
                 if (b.cx - hw < PHYS.margin)              { b.cx = PHYS.margin + hw;              b.vx = -b.vx * PHYS.wall; }
@@ -138,7 +153,7 @@ const Debris = (() => {
             }
 
             b.still = onGround && Math.abs(b.vx) < 5 && b.vy === 0 && Math.abs(flat - b.a) < 0.5 ? b.still + dt : 0;
-            if (b.still > 0.3 && b.nudges < 12) {
+            if (b.still > PHYS.rest && b.nudges < 8) {
                 // Can it stay here? Not if its middle has nothing under it (propped up by one
                 // end — it tips off), nor if the ground just past either end is much lower
                 // than where it's lying (a slope limit, like sand). Either way it slides off
@@ -157,8 +172,8 @@ const Debris = (() => {
                 }
             }
             // Only settle on settled things: if what it's lying on is still sliding, wait
-            if (b.still > 0.3 && groundUnder(b.cx, b.w / 2, b, true) - (b.cy + b.h / 2) > 2) b.still = 0.3;
-            else if (b.still > 0.3) {                       // at rest: on the pile, very nearly flat
+            if (b.still > PHYS.rest && groundUnder(b.cx, b.w / 2, b, true) - (b.cy + b.h / 2) > 2) b.still = PHYS.rest;
+            else if (b.still > PHYS.rest) {                 // at rest: on the pile, very nearly flat
                 b.a = flat + (Math.random() - 0.5) * PHYS.tilt;
                 b.cy = groundUnder(b.cx, b.w / 2, b, true) - b.h / 2;
                 b.resting = true;
@@ -185,14 +200,7 @@ const Debris = (() => {
          release(b, { vx, vy, spin })   back into the physics, thrown */
     function lift(b) {
         bodies.splice(bodies.indexOf(b), 1);
-        // Rebuild the pile bottom-up; anything left with nothing under it falls
-        surface.fill(innerHeight - PHYS.margin);
-        for (const o of bodies.filter(o => o.resting).sort((p, q) => (q.cy + q.h / 2) - (p.cy + p.h / 2))) {
-            if (groundUnder(o.cx, o.w / 2, o, true) - (o.cy + o.h / 2) > 2) {
-                Object.assign(o, { resting: false, grounded: false, landed: Infinity, still: 0, nudges: 0, vx: 0, vy: 0 });
-            } else addToPile(o);
-        }
-        start();
+        repile();
         return b;
     }
     function place(b, cx, cy, a = b.a) {
@@ -200,12 +208,23 @@ const Debris = (() => {
         draw(b);
     }
     function release(b, { vx = 0, vy = 0, spin = 0, keep = b.keep } = {}) {
-        Object.assign(b, { vx, vy, spin, keep, resting: false, grounded: false, landed: Infinity, still: 0, nudges: 0, wait: 0 });
+        Object.assign(unsettle(b), { vx, vy, spin, keep, wait: 0 });
         bodies.push(b);
         start();
+    }
+    function shove(b, { vx = 0, vy = 0, spin = 0 } = {}) {
+        const was = b.resting;
+        Object.assign(unsettle(b), { vx, vy, spin });
+        was ? repile() : start();
+    }
+    function clear() {
+        for (const b of bodies.splice(0)) {
+            b.el.animate([{ opacity: getComputedStyle(b.el).opacity }, { opacity: 0 }], { duration: 400 }).finished.then(() => b.el.remove());
+        }
+        if (surface) surface.fill(innerHeight - PHYS.margin);
     }
 
     addEventListener('resize', () => { if (surface) rebuildPile(); });
 
-    return { fling, settled, lift, place, release, bodies };
+    return { fling, settled, lift, place, release, shove, clear, bodies };
 })();

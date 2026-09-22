@@ -4,8 +4,9 @@
    const hand = Hands.create('right')    a hand; 'left' is the mirror image
    hand.pose('palm'[, ms])               change pose (POSES below) — with ms, a
                                          smooth blend rather than a swap
-   hand.place({ x, y, rot })             jump there (px, px, degrees)
-   await hand.to({ x, y, rot }, ms, ease)   glide there
+   hand.place({ x, y, rot, scale })      jump there (px, px, degrees, × size —
+                                         bigger reads as nearer the viewer)
+   await hand.to({ x, y, rot, scale }, ms, ease)   glide there
    hand.show(true / false)               fade in / out
 
    (x, y) is where the pose's `anchor` goes: the part of the hand
@@ -59,7 +60,7 @@ const Hands = (() => {
 
         const hand = {
             el, flip: side === 'left' ? -1 : 1,
-            x: innerWidth + SIZE, y: innerHeight / 2, rot: 0,
+            x: innerWidth + SIZE, y: innerHeight / 2, rot: 0, scale: 1,
             anchor: [0.5, 0.5], turn: 0, lean: 0, lastX: null, tween: null, blend: null,
             seed: Math.random() * 10,
 
@@ -94,7 +95,8 @@ const Hands = (() => {
             to(spot, ms, ease = Utils.easing.easeInOutCubic) {
                 return new Promise(resolve => {
                     hand.tween?.resolve();
-                    hand.tween = { from: { x: hand.x, y: hand.y, rot: hand.rot }, to: { x: hand.x, y: hand.y, rot: hand.rot, ...spot },
+                    const now = { x: hand.x, y: hand.y, rot: hand.rot, scale: hand.scale };
+                    hand.tween = { from: now, to: { ...now, ...spot },
                                    start: performance.now(), ms, ease, resolve };
                 });
             },
@@ -115,6 +117,7 @@ const Hands = (() => {
                 h.x = lerp(from.x, to.x, e);
                 h.y = lerp(from.y, to.y, e);
                 h.rot = lerp(from.rot, to.rot, e);
+                h.scale = lerp(from.scale, to.scale, e);
                 if (t === 1) { h.tween = null; resolve(); }
             }
             // Lean into sideways movement (smoothed), and drift a little when still
@@ -134,9 +137,9 @@ const Hands = (() => {
                 if (t === 1) h.blend = null;
             }
 
-            const [ax, ay] = h.anchor;
+            const [ax, ay] = h.anchor, s = squeeze * h.scale;
             h.el.style.transform = `translate(${h.x}px, ${h.y + drift}px) rotate(${h.rot + h.lean + h.turn * h.flip}deg) `
-                                 + `scale(${h.flip * squeeze}, ${squeeze}) translate(${-ax * SIZE}px, ${-ay * SIZE}px)`;
+                                 + `scale(${h.flip * s}, ${s}) translate(${-ax * SIZE}px, ${-ay * SIZE}px)`;
         }
         requestAnimationFrame(frame);
     }

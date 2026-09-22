@@ -385,6 +385,10 @@
 }
 #errorRipples .flash-ripple { fill: none; stroke: var(--red); stroke-width: 0.8; }
 
+/* Put back at the end, green, and smacked until it says the right thing */
+#errorFlash.green #errorWord                 { color: var(--green); border-color: var(--green); }
+#errorFlash.green #errorRipples .flash-ripple { stroke: var(--green); }
+
 
 /* ── Debris (breakin.js, debris.js) ─────────────────────────────
    Loose pieces knocked out of the page: words copied from what they
@@ -396,7 +400,23 @@
     z-index: 58;                           /* over the scan + globe, under ERROR and the hands */
     pointer-events: none;
 }
-.debris-word  { position: fixed; white-space: nowrap; }
+.debris-word  { position: fixed; white-space: nowrap; transition: color 0.6s ease, text-shadow 0.6s ease; }
+.debris-row   { display: flex; align-items: baseline; gap: 0.9em; }           /* ROUTE_DEPTH·ORPHANED, one piece */
+.debris-row.welded,
+.debris-row.welded span { color: var(--green) !important; }                  /* …ROUTE_DEPTH APPROVED */
+
+/* The wires touch (breakin.js lightUp): a burst of light from the contact
+   point, and for a moment the loose words glow green */
+.lit-flash {
+    position: fixed;
+    inset: 0;
+    z-index: 205;
+    pointer-events: none;
+    background: radial-gradient(circle at var(--x) var(--y),
+                rgba(255, 255, 240, 0.95), rgba(255, 248, 200, 0.5) 22%, transparent 60%);
+}
+body.lit .debris-word  { color: var(--green) !important; text-shadow: 0 0 8px rgba(0, 200, 83, 0.55); transition-duration: 0.15s; }
+body.lit .scan-wordmark { text-shadow: 0 0 22px rgba(0, 200, 83, 0.5); }
 .debris-rule  { position: fixed; height: 1px; background: var(--border2); }
 .debris-rule.red { height: 2px; background: var(--red); }
 .debris-fleck { position: fixed; width: 4px; height: 4px; background: var(--ink); }   /* breakin.js colours them like what burst */
