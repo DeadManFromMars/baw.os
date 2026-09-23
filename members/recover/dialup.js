@@ -171,7 +171,7 @@
         $('peanut').hidden = false;
         const music = $('peanutMusic');
         music.currentTime = 0;                       // always from the top, looping
-        music.volume = 0.2;
+        music.volume = $('peanutVol').value / 100;  // the slider, bottom right (starts at 20%)
         music.play().catch(() => {});
         say(HELLO);
         $('peanutInput').value = '';
@@ -194,6 +194,7 @@
         $('peanut').hidden = true;
     }
     $('peanutHang').addEventListener('click', leavePeanut);
+    $('peanutVol').addEventListener('input', e => { $('peanutMusic').volume = e.target.value / 100; });
     addEventListener('keydown', e => {
         if (e.key !== 'Escape') return;
         if (!$('peanut').hidden) leavePeanut();
