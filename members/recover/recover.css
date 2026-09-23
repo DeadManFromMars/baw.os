@@ -117,9 +117,13 @@ table.numbers { width: 100%; margin-top: 8px; }
 .peanut h2 { margin: 0 0 8px; font: bold 26px 'Comic Sans MS', 'Comic Sans', cursive; text-shadow: 2px 2px 0 #2f5f50; }
 .peanut-elf { width: min(240px, 50vw); height: auto; margin: 10px 0 6px;
               transform-origin: 50% 170%;            /* a pivot well below him: the sway runs along an arc */
-              animation: peanutSway 0.9s ease-in-out infinite alternate; }
-@keyframes peanutSway { from { transform: rotate(-10deg); } to { transform: rotate(10deg); } }
-@media (prefers-reduced-motion: reduce) { .peanut-elf { animation-duration: 3s; } }
+              /* sway side to side, and hop twice as often — one bounce at each end of the swing */
+              animation: peanutSway 0.7s ease-in-out infinite alternate, peanutHop 0.35s ease-out infinite alternate; }
+@keyframes peanutSway { from { rotate: -14deg; } to { rotate: 14deg; } }
+/* squashed as he lands, stretched at the top (ease-out up, so he eases in coming down) */
+@keyframes peanutHop  { from { translate: 0 0;     scale: 1.06 0.94; }
+                        to   { translate: 0 -34px; scale: 0.97 1.04; } }
+@media (prefers-reduced-motion: reduce) { .peanut-elf { animation-duration: 3s, 1.5s; } }
 .peanut-says { min-height: 2.8em; max-width: 520px; margin: 8px 0 14px; padding: 10px 16px; border-radius: 14px;
                background: #fff; color: #111; font: 18px/1.4 'Comic Sans MS', 'Comic Sans', cursive; }
 .peanut-says:empty { visibility: hidden; }
