@@ -20,23 +20,38 @@
     <b>BAWSOME ONLINE</b><span>Member Services</span>
     <span class="links"><a href="../../">Home</a> &nbsp;|&nbsp; <a href="#" data-soon>Help</a></span>
 </div>
-<div class="crumbs">Home &gt; Member Services &gt; Password Reset</div>
+<div class="crumbs">Home &gt; Member Services &gt; <span id="crumb">Password Reset</span></div>
 
 <div class="body">
+    <!-- data-page links switch the page in place (dialup.js), so typed answers stay put -->
     <div class="side">
         <div class="head">Member Services</div>
         <a href="#" data-soon>My Account</a><br>
-        <a href="#" class="on">Password Reset</a><br>
-        <a href="#" data-soon>Dial-Up Numbers</a><br>
+        <a href="#" data-page="pageReset" class="on">Password Reset</a><br>
+        <a href="#" data-page="pageDialup">Dial-Up Numbers</a><br>
         <div class="head">Help</div>
         <a href="#" data-soon>FAQ</a><br>
         <a href="#" data-soon>Network Status</a>
     </div>
 
     <div class="main">
+        <p class="notice" id="soon" hidden>This service is temporarily unavailable. Please try again later.</p>
+
+    <!-- DIAL-UP NUMBERS (dialup.js) -->
+    <div id="pageDialup" hidden>
+        <h1>Dial-Up Access Numbers</h1>
+        <div class="step">Find a local number to avoid long-distance charges.</div>
+        <table class="numbers">
+            <thead><tr><th>Location</th><th>Number</th><th>Speed</th><th></th></tr></thead>
+            <tbody id="numbers"></tbody>
+        </table>
+        <p class="small">Not all numbers support all speeds. Check with your local telephone company for calling charges.</p>
+    </div>
+
+    <!-- PASSWORD RESET (recover.js) -->
+    <div id="pageReset">
         <h1>Password Reset</h1>
         <div class="step" id="steps"></div>
-        <p class="notice" id="soon" hidden>This service is temporarily unavailable. Please try again later.</p>
 
         <div id="loading"><p>Loading&hellip;</p></div>
 
@@ -79,11 +94,34 @@
             <p><a href="../../">&laquo; Return to sign in</a></p>
         </div>
     </div>
+    </div>
 </div>
 
 <div class="foot">&copy; 2001 BAWSOME ONLINE. All rights reserved. &nbsp;|&nbsp; <a href="#" data-soon>Privacy Policy</a></div>
 
+<!-- The dialer: a "Connecting…" box while a number rings (dialup.js) -->
+<div class="dialer" id="dialer" hidden role="dialog" aria-labelledby="dialerTitle">
+    <div class="dialer-bar" id="dialerTitle">Connecting to BAWSOME ONLINE</div>
+    <div class="dialer-body">
+        <p id="dialerStatus"></p>
+        <div class="dialer-go"><input type="button" class="btn" id="dialerBtn" value="Cancel"></div>
+    </div>
+</div>
+
+<!-- The one number that answers -->
+<div class="peanut" id="peanut" hidden role="dialog" aria-labelledby="peanutTitle">
+    <h2 id="peanutTitle">Peanut The Bawsome Brand&trade; Support Elf</h2>
+    <img class="peanut-elf" src="../../Images/peanut.png" alt="Peanut, grinning in a black pointed hood">
+    <p class="peanut-says" id="peanutSays" aria-live="polite"></p>
+    <form class="peanut-ask" id="peanutAsk" autocomplete="off">
+        <input type="text" id="peanutInput" maxlength="200" aria-label="Ask Peanut">
+        <input type="submit" class="btn" value="Send">
+    </form>
+    <input type="button" class="btn peanut-hang" id="peanutHang" value="Hang up">
+</div>
+
 <script src="../../js/config.js"></script>
 <script src="recover.js"></script>
+<script src="dialup.js"></script>
 </body>
 </html>

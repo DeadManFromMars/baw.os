@@ -95,6 +95,38 @@ input.ssn::placeholder { color: #aaa; }
     user-select: all;                  /* one click selects it all */
 }
 
+/* ── Dial-Up Numbers (dialup.js) ── */
+table.numbers { width: 100%; margin-top: 8px; }
+.numbers th { text-align: left; font-size: 11px; color: #555; background: #eeeeea; padding: 4px 8px; border-bottom: 1px solid #ccc; }
+.numbers td { padding: 4px 8px; border-bottom: 1px solid #eee; }
+.numbers td.num { font-family: 'Courier New', Courier, monospace; font-size: 13px; white-space: nowrap; }
+.numbers tr:nth-child(even) td { background: #fafaf7; }
+.small { font-size: 10px; color: #777; }
+
+/* The "Connecting…" box — a Windows 98 dialog */
+.dialer { position: fixed; left: 50%; top: 38%; transform: translate(-50%, -50%); z-index: 10; width: 330px;
+          background: #d4d0c8; border: 2px outset #eee; box-shadow: 1px 1px 0 #000; font: 11px Tahoma, Verdana, sans-serif; }
+.dialer-bar { padding: 3px 6px; color: #fff; font-weight: bold; background: linear-gradient(90deg, #0a246a, #a6caf0); }
+.dialer-body { padding: 14px 14px 12px; }
+.dialer-body p { min-height: 32px; margin: 0 0 12px; }
+.dialer-go { text-align: center; }
+
+/* Peanut — liberty green, a happy floating elf, Comic Sans like the era's help desks */
+.peanut { position: fixed; inset: 0; z-index: 20; overflow-y: auto; background: #5f9f8a; color: #fff;
+          display: flex; flex-direction: column; align-items: center; padding: 28px 16px 40px; text-align: center; }
+.peanut h2 { margin: 0 0 8px; font: bold 26px 'Comic Sans MS', 'Comic Sans', cursive; text-shadow: 2px 2px 0 #2f5f50; }
+.peanut-elf { width: min(240px, 50vw); height: auto; margin: 10px 0 6px;
+              transform-origin: 50% 170%;            /* a pivot well below him: the sway runs along an arc */
+              animation: peanutSway 0.9s ease-in-out infinite alternate; }
+@keyframes peanutSway { from { transform: rotate(-10deg); } to { transform: rotate(10deg); } }
+@media (prefers-reduced-motion: reduce) { .peanut-elf { animation-duration: 3s; } }
+.peanut-says { min-height: 2.8em; max-width: 520px; margin: 8px 0 14px; padding: 10px 16px; border-radius: 14px;
+               background: #fff; color: #111; font: 18px/1.4 'Comic Sans MS', 'Comic Sans', cursive; }
+.peanut-says:empty { visibility: hidden; }
+.peanut-ask { display: flex; gap: 6px; width: min(420px, 100%); }
+.peanut-ask input[type=text] { flex: 1; width: auto; font-size: 14px; padding: 4px 6px; }
+.peanut-hang { margin-top: 18px; }
+
 .foot { padding: 10px 18px; border-top: 1px solid #e2e2e2; font-size: 10px; color: #888; }
 
 /* Phones — the email is often opened on one */
