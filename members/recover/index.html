@@ -110,7 +110,20 @@
 
 <!-- The one number that answers -->
 <div class="peanut" id="peanut" hidden role="dialog" aria-labelledby="peanutTitle">
-    <h2 id="peanutTitle">Peanut The Bawsome Brand&trade; Support Elf</h2>
+    <!-- The title as early-2000s WordArt: arched along a curve, gold with a thick outline -->
+    <h2 id="peanutTitle" class="peanut-title" aria-label="Peanut The Bawsome Brand™ Support Elf">
+        <svg viewBox="0 0 1000 250" aria-hidden="true">
+            <defs>
+                <path id="peanutArc" d="M 30 235 Q 500 -70 970 235"/>
+                <linearGradient id="peanutGold" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#fff6a8"/><stop offset="0.5" stop-color="#ffd21f"/><stop offset="1" stop-color="#e88a00"/>
+                </linearGradient>
+            </defs>
+            <text class="shadow"><textPath href="#peanutArc" startOffset="50%" text-anchor="middle">Peanut The Bawsome Brand™ Support Elf</textPath></text>
+            <text class="face"><textPath href="#peanutArc" startOffset="50%" text-anchor="middle">Peanut The Bawsome Brand™ Support Elf</textPath></text>
+        </svg>
+    </h2>
+    <audio id="peanutMusic" src="../../Audio/Peanut/untitled.mp3" loop preload="none"></audio>
     <img class="peanut-elf" src="../../Images/peanut.png" alt="Peanut, grinning in a black pointed hood">
     <p class="peanut-says" id="peanutSays" aria-live="polite"></p>
     <form class="peanut-ask" id="peanutAsk" autocomplete="off">

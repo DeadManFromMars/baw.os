@@ -114,7 +114,11 @@ table.numbers { width: 100%; margin-top: 8px; }
 /* Peanut — liberty green, a happy floating elf, Comic Sans like the era's help desks */
 .peanut { position: fixed; inset: 0; z-index: 20; overflow-y: auto; background: #5f9f8a; color: #fff;
           display: flex; flex-direction: column; align-items: center; padding: 28px 16px 40px; text-align: center; }
-.peanut h2 { margin: 0 0 8px; font: bold 26px 'Comic Sans MS', 'Comic Sans', cursive; text-shadow: 2px 2px 0 #2f5f50; }
+.peanut-title { margin: 0 0 -9%; width: min(1000px, 100%); }   /* Peanut tucks up under the arch */
+.peanut-title svg { display: block; width: 100%; height: auto; overflow: visible; }
+.peanut-title text { font: bold 46px 'Comic Sans MS', 'Comic Sans', cursive; }
+.peanut-title .face   { fill: url(#peanutGold); stroke: #1f4a3c; stroke-width: 3px; paint-order: stroke; }
+.peanut-title .shadow { fill: #1f4a3c; transform: translate(5px, 6px); }
 .peanut-elf { width: min(240px, 50vw); height: auto; margin: 10px 0 6px;
               transform-origin: 50% 170%;            /* a pivot well below him: the sway runs along an arc */
               /* sway side to side, and hop twice as often — one bounce at each end of the swing */

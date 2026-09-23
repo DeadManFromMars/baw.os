@@ -151,12 +151,28 @@
         "i'm just an elf",
         'try again later. or never',
     ];
-    let lastReply = -1, replyTimer = null;
+    const TYPE_MS = 45;               // per letter as he types a reply out
+    let lastReply = -1, typing = null;
+
+    // Type `text` into his bubble a letter at a time (a new one cuts off the last)
+    function say(text) {
+        clearInterval(typing);
+        const el = $('peanutSays');
+        let n = 0;
+        el.textContent = '';
+        typing = setInterval(() => {
+            el.textContent = text.slice(0, ++n);
+            if (n >= text.length) clearInterval(typing);
+        }, TYPE_MS);
+    }
 
     function answer() {
         hangUp();
         $('peanut').hidden = false;
-        $('peanutSays').textContent = HELLO;
+        const music = $('peanutMusic');
+        music.currentTime = 0;                       // always from the top, looping
+        music.play().catch(() => {});
+        say(HELLO);
         $('peanutInput').value = '';
         $('peanutInput').focus();
     }
@@ -165,18 +181,15 @@
         e.preventDefault();
         if (!$('peanutInput').value.trim()) return;
         $('peanutInput').value = '';
-        $('peanutSays').textContent = '…';
-        clearTimeout(replyTimer);
-        replyTimer = setTimeout(() => {
-            let i;
-            do i = Math.floor(Math.random() * REPLIES.length); while (i === lastReply);   // never the same twice running
-            lastReply = i;
-            $('peanutSays').textContent = REPLIES[i];
-        }, 700 + Math.random() * 600);
+        let i;
+        do i = Math.floor(Math.random() * REPLIES.length); while (i === lastReply);   // never the same twice running
+        lastReply = i;
+        say(REPLIES[i]);
     });
 
     function leavePeanut() {
-        clearTimeout(replyTimer);
+        clearInterval(typing);
+        $('peanutMusic').pause();
         $('peanut').hidden = true;
     }
     $('peanutHang').addEventListener('click', leavePeanut);
