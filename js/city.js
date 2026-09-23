@@ -1,5 +1,6 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   city.js — HEX CITY intro (Three.js via three-loader.js), first visit only
+   city.js — HEX CITY intro (Three.js via three-loader.js); returning
+             visitors skip straight to the cruise
 
    Phases:  pre → wave → hold → swoop → cruise
      pre     black screen, bird's-eye camera
@@ -568,8 +569,9 @@ const CITY = (() => {
     return {
         onLoginReveal: null,
 
-        // Single use: stop() releases the WebGL context for good
-        start() {
+        // Single use: stop() releases the WebGL context for good.
+        // skipIntro (returning visitors): straight into the cruise, already behind the login box
+        start({ skipIntro = false } = {}) {
             if (renderer) return;
             const canvas = document.getElementById('cityCanvas');
             bgA = new THREE.Color(BG_BLACK); bgB = new THREE.Color(BG_CREAM); bgNow = new THREE.Color();
@@ -588,6 +590,14 @@ const CITY = (() => {
             buildSky();
 
             canvas.style.zIndex = '500';    // above everything during the intro
+            if (skipIntro) {
+                for (const t of tiles) t.hit = true;
+                for (const p of pillars) if (-p.z < 16) p.shattered = true;   // none rising in the camera's face
+                phase = 'cruise'; swoopT = 1; loginFired = true;
+                renderer.setClearColor(bgB);
+                canvas.style.zIndex = '18';
+                startMusic();
+            }
             addEventListener('resize', onResize);
             tick();
         },

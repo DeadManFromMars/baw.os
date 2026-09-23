@@ -84,10 +84,17 @@
         clickToBegin(() => Login.revealScanPhase());
     }
 
+    // The city without its intro: already cruising behind the passphrase box
     function startAtPassphrase() {
         DataStore.lookupNetwork();
-        $('cityCanvas').style.display = 'none';
-        clickToBegin(() => showLogin(1.2));
+        const login = $('loginPhase');
+        login.style.opacity       = '0';
+        login.style.pointerEvents = 'none';
+        $('cityCanvas').style.display = 'block';
+        clickToBegin(() => {
+            CITY.start({ skipIntro: true });
+            showLogin(1.2);
+        });
     }
 
     function startAtCardPrompt() {

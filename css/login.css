@@ -6,7 +6,7 @@
    renders through the transparent background.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-/* The hex city (city.js). Hidden until session.js shows it for a first visit;
+/* The hex city (city.js). Hidden until session.js shows it;
    city.js raises it to 500 during the intro, then drops it behind the login. */
 #cityCanvas {
     position: fixed;
@@ -41,17 +41,19 @@
 .lp-hud-tl { top: 28px; left: 36px; }
 .lp-hud-br { bottom: 28px; right: 36px; }     /* session id, filled in by data.js */
 
+/* A thin cream outline on the letters, so they read over the grey pillars */
 .lp-center {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 14px;
+    text-shadow: 1px 0 #f5f2ec, -1px 0 #f5f2ec, 0 1px #f5f2ec, 0 -1px #f5f2ec;
 }
 
 .lp-label {
-    font-size: 0.72rem;
+    font-size: 0.85rem;
     letter-spacing: 0.35em;
-    color: var(--text2);
+    color: var(--ink);
 }
 
 .lp-input {
@@ -73,9 +75,9 @@
 .lp-input::placeholder { color: var(--muted); letter-spacing: 0.1em; }
 
 .lp-hint {
-    font-size: 0.68rem;
-    letter-spacing: 0.3em;
-    color: var(--muted);
+    font-size: 0.75rem;
+    letter-spacing: 0.25em;
+    color: var(--text2);
 }
 
 .lp-input-email { width: 300px; font-family: 'Space Mono', monospace; font-size: 0.95rem; letter-spacing: 0.04em; }   /* addresses are long + need reading */
@@ -87,9 +89,9 @@
     border: none;
     border-bottom: 1px solid var(--muted2);
     background: none;
-    font: 0.72rem 'Space Mono', monospace;
-    letter-spacing: 0.1em;
-    color: var(--text2);
+    font: 0.85rem 'Space Mono', monospace;
+    letter-spacing: 0.08em;
+    color: var(--ink);
     cursor: pointer;
     transition: color 0.2s, border-color 0.2s;
     animation: lpLinkIn 0.8s ease both;
@@ -99,11 +101,74 @@
 @keyframes lpLinkIn { from { opacity: 0; } }
 #lpSignIn[hidden], #lpReset[hidden], .lp-link[hidden] { display: none; }
 
+/* "come back soon" — a black screen over everything (login.js, backend GATE_CLOSED) */
+#comeBack {
+    position: fixed;
+    inset: 0;
+    z-index: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    color: #f5f2ec;
+    font: 1rem 'Space Mono', monospace;
+    letter-spacing: 0.1em;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.6s ease;
+}
+#comeBack.on { opacity: 1; pointer-events: all; }
+
+/* "about the creator" — bottom left, opposite the session id */
+.lp-about {
+    position: absolute;
+    bottom: 24px;
+    left: 36px;
+    padding: 2px 0;
+    border: none;
+    border-bottom: 1px solid var(--muted2);
+    background: none;
+    font: 0.8rem 'Space Mono', monospace;
+    letter-spacing: 0.08em;
+    color: var(--ink);
+    cursor: pointer;
+}
+.lp-about:hover, .lp-about:focus-visible { border-bottom-color: var(--red); outline: none; }
+
+/* The bio (a <dialog>, so Esc closes it) — set like a contributor's note in a
+   printed magazine: a plain sheet, the photocopied photo beside the text, Times */
+#aboutPanel {
+    margin: auto;                  /* base.css zeroes margins; a dialog centres with auto */
+    width: min(700px, calc(100vw - 32px));
+    max-height: calc(100vh - 48px);
+    padding: 30px 32px 24px 250px;
+    position: relative;
+    border: none;
+    background: #fbfaf6;
+    color: #161616;
+    font: 16px/1.5 'Times New Roman', Times, serif;
+    box-shadow: 0 3px 18px rgba(0, 0, 0, 0.35);
+}
+#aboutPanel * { font-family: inherit; }      /* base.css gives every element the brand font */
+#aboutPanel::backdrop { background: rgba(20, 20, 18, 0.6); }
+#aboutPanel img { position: absolute; left: 32px; top: 34px; width: 190px; height: auto; }
+#aboutPanel h2 { margin: 0 0 10px; font-size: 26px; font-weight: 700; line-height: 1.1; }
+#aboutPanel p { margin: 0 0 11px; text-align: justify; hyphens: auto; }
+#aboutPanel .about-ig { font-style: italic; text-align: left; }
+#aboutPanel a { color: inherit; }
+#aboutClose { position: absolute; top: 10px; right: 14px; border: none; background: none; font-size: 14px; color: #555; text-decoration: underline; cursor: pointer; }
+#aboutClose:hover { color: #161616; }
+@media (max-width: 620px) {
+    #aboutPanel { padding: 24px 20px 18px; }
+    #aboutPanel img { position: static; width: 150px; margin-bottom: 14px; }
+}
+
 /* Status line under the input (login.js sets .error / .success / .info) */
 .msg {
     min-height: 18px;
-    font-size: 0.72rem;
-    letter-spacing: 0.1em;
+    max-width: 340px;
+    font-size: 0.85rem;
+    letter-spacing: 0.06em;
     text-align: center;
 }
 .msg.error   { color: var(--red); }

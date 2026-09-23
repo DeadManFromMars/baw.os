@@ -78,14 +78,16 @@ const Login = (() => {
         busy = true;
         const input = document.getElementById('password');
 
-        let ok = false;
+        let ok = false, closed = false;
         try {
             const res = await fetch(`${CONFIG.apiBase}/api/verify`, {
                 method: 'POST', credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ code: input.value.trim() }),
             });
-            ok = (await res.json()).ok === true;
+            const data = await res.json();
+            ok = data.ok === true;
+            closed = data.closed === true;
         } catch (err) {
             console.error('[Login] /api/verify failed:', err);
             showMessage('Connection error. Please try again.', 'error');
@@ -103,12 +105,19 @@ const Login = (() => {
             return;
         }
 
-        // Correct — returning visits skip straight to the card prompt (session.js)
-        try { localStorage.setItem('baw_gate_passed', 'true'); } catch {}
-
         const loginPhase = document.getElementById('loginPhase');
         loginPhase.style.transition = 'opacity 0.6s ease';
         loginPhase.style.opacity    = '0';
+
+        // Right, but the site isn't open yet (backend GATE_CLOSED): fade to "come back soon"
+        if (closed) {
+            $('comeBack').classList.add('on');
+            CITY.fadeOutMusic(() => CITY.stop());
+            return;
+        }
+
+        // Correct — returning visits skip straight to the card prompt (session.js)
+        try { localStorage.setItem('baw_gate_passed', 'true'); } catch {}
 
         CITY.fadeOutMusic(async () => {
             await Utils.sleep(200);
@@ -149,6 +158,8 @@ const Login = (() => {
         $('resetEmail').addEventListener('keydown', e => { if (e.key === 'Enter') requestReset(); });
         $('lpForgot').addEventListener('click', () => { SFX.hover(); showReset(true); });
         $('lpResetBack').addEventListener('click', () => { SFX.hover(); showReset(false); });
+        $('lpAbout').addEventListener('click', () => $('aboutPanel').showModal());
+        $('aboutClose').addEventListener('click', () => $('aboutPanel').close());
         wrongGuesses();                   // earned before? the link is already there
     });
 
