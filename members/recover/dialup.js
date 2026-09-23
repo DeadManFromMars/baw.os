@@ -171,6 +171,7 @@
         $('peanut').hidden = false;
         const music = $('peanutMusic');
         music.currentTime = 0;                       // always from the top, looping
+        music.volume = 0.2;
         music.play().catch(() => {});
         say(HELLO);
         $('peanutInput').value = '';
