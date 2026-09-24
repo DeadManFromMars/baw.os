@@ -21,7 +21,7 @@ const Face = (() => {
 
     const img = new Image();
     const ready = new Promise(r => { img.onload = r; });
-    img.src = '../../Images/chicago/head.png';
+    img.src = '../../Images/chicago/head.webp';
 
     const make = () => document.createElement('canvas');
     const raw = make(), lit = make(), mask = make(), small = make(), out = make();
