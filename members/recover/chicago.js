@@ -28,6 +28,7 @@ const Chicago = (() => {
     const GROW = 0.6;                              // his face starts at this × its size, growing as it appears
     const SIZE = 0.36;                             // face height, × the window's
     const TYPE_S = 0.035, PAUSE_S = 0.7;           // per letter · between lines (mouth shut)
+    const COMMA_S = 0.22, STOP_S = 0.45, DOT_S = 0.3;   // a beat after , ; : · after . ! ? ending a sentence · each dot of an ellipsis
     const SPEED = 20;                              // mouth flaps
     const WARBLE = { amp: 16, copies: [[0.3, 1], [0.2, -1.6], [0.12, 2.3]] };   // his outline rippling: image px · [opacity, speed]
     const BANG = { volume: 0.08, ceiling: 0.35 };  // each explosion's bang · the most they can ever add up to
@@ -163,14 +164,37 @@ const Chicago = (() => {
     // Where his lines are at `t` s into speaking: the text so far, and whether his mouth moves.
     // *Starred* words are bold: the stars aren't typed out (or timed), just kept for boldHtml.
     const typed = (line, n) => { let out = '', k = 0; for (const ch of line) { if (ch !== '*' && k++ >= n) break; out += ch; } return out; };
+
+    // When each letter of a line appears: TYPE_S apiece, but a comma holds a beat, the end of a
+    // sentence longer, and an ellipsis comes out a dot at a time. His mouth is shut for those.
+    const beatsOf = new Map();                     // line → { at, step, talk, dur }, worked out once
+    function beats(line) {
+        if (beatsOf.has(line)) return beatsOf.get(line);
+        const v = line.replace(/\*/g, ''), b = { at: [], step: [], talk: [], dur: 0 };
+        for (let k = 0; k < v.length; k++) {
+            const ch = v[k], dot = ch === '.' && (v[k - 1] === '.' || v[k + 1] === '.');
+            const step = dot ? DOT_S : TYPE_S;
+            const hold = v[k + 1] !== ' ' ? 0 : ',;:'.includes(ch) ? COMMA_S : '.!?'.includes(ch) ? STOP_S : 0;   // (only before a space)
+            b.at.push(b.dur); b.step.push(step); b.talk.push(!dot);
+            b.dur += step + hold;
+        }
+        beatsOf.set(line, b);
+        return b;
+    }
+
     function script(t, lines) {
         if (t < 0) return { text: '', talking: false, done: false };
         let text = '';
-        for (const line of lines) {
-            const dur = line.replace(/\*/g, '').length * TYPE_S;
-            if (t < dur) return { text: text + typed(line, Math.floor(t / TYPE_S)), talking: true, done: false };
+        for (const raw of lines) {
+            const line = raw.replace(/…/g, '...'), b = beats(line);
+            if (t < b.dur) {
+                let n = 0;
+                while (n < b.at.length && b.at[n] <= t) n++;
+                const k = n - 1;                   // the letter appearing now (or just before a pause)
+                return { text: text + typed(line, n), talking: k >= 0 && b.talk[k] && t < b.at[k] + b.step[k], done: false };
+            }
             text += line + '\n';
-            t -= dur;
+            t -= b.dur;
             if (t < PAUSE_S) return { text, talking: false, done: false };
             t -= PAUSE_S;
         }
