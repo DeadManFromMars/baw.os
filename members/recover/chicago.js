@@ -1,7 +1,7 @@
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    chicago.js — the Chicago call (Dial-Up Numbers; backend: app/calls.py)
 
-   Dialling (312) 555-0168 asks the server if he picks up (dialup.js).
+   Dialling (312) 939-2257 asks the server if he picks up (dialup.js).
    If he does: black, a faint hum, stars trickle in, his face dissolves
    in block by block (face.js), then he talks — one box at a time from
    the server, which alone knows the conversation. The player picks a
