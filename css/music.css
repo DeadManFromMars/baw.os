@@ -635,13 +635,13 @@
     transition: background-position 0.34s ease-out, filter 0.34s ease-out;
 }
 
-.mix-cd-slot {                           /* in the tray, under the lid, until it pops out */
+.mix-cd-slot {                           /* in the tray, under the lid, until it pops out — centred right of the hinge */
     position: absolute;
-    top: calc(var(--case) * 0.05);
-    left: calc(var(--case) * 0.05);
+    top: calc(var(--case) * 0.06);
+    left: calc(var(--case) * 0.09);
     z-index: 2;
-    width: calc(var(--case) * 0.9);
-    height: calc(var(--case) * 0.9);
+    width: calc(var(--case) * 0.88);
+    height: calc(var(--case) * 0.88);
     filter: drop-shadow(0 2px 3px rgba(26, 26, 24, 0.2));
     transition: transform 0.18s ease-in;
 }
