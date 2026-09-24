@@ -107,16 +107,17 @@ const CITY = (() => {
     let waveFront = 0, waveMax = 0, swoopT = 0;
     let loginFired = false;
     let camZ = 0, bankAngle = 0, prevYaw = 0;
-    let corruptT = 0, corruptDirty = false;
+    let corruptT = 0;
     let cruiseTime = 0, skyOffset = 0;
 
-    let tiles = [], pillars = [], rows = [];
+    let tiles = [], rows = [], frontZ = 0;   // frontZ: the farthest row ahead
     let shards = [], shardPool = [];
     let scorches = [], scorchPool = [];
     let skyStreaks = [];
 
     let floorGeo, pilGeo, scorchGeo;
     let mFloor, mPil, mShard, mScorch;
+    let floorInst, pilInst;         // every floor hex in one draw, every pillar in another
     let bgA, bgB, bgNow;          // THREE.Colors, made in start() (THREE loads as a module, after this file)
 
     let music = null, musicFade = null;
@@ -131,13 +132,6 @@ const CITY = (() => {
     const eOut3 = t => 1 - Math.pow(1 - cl(t), 3);
 
     const sumWaves = (waves, t) => waves.reduce((s, [amp, per, ph]) => s + amp * Math.sin(TAU * t / per + ph), 0);
-
-    // Seeded random, so a row looks the same however often it's rebuilt
-    let rowSeed = 1;
-    function rand(s) {
-        s.v = (s.v * 1664525 + 1013904223) & 0xffffffff;
-        return (s.v >>> 0) / 0xffffffff;
-    }
 
     const tileX = col         => col * CW - (COLS * CW) / 2 + CW / 2;
     const tileZ = (rowZ, col) => rowZ + (col % 2 ? RH / 2 : 0);   // odd columns sit half a row down
@@ -200,10 +194,16 @@ const CITY = (() => {
 
         pilGeo = new THREE.CylinderGeometry(r, r, 1, 6);   // also used for shards
         pilGeo.rotateY(Math.PI / 6);
+        // All pillars are one draw, so the lighter top is a vertex colour rather than
+        // a second material (the cylinder's groups: 0 sides, 1 top, 2 bottom)
+        const cols = new Float32Array(pilGeo.attributes.position.count * 3);
+        const side = new THREE.Color(C_PIL_SIDE), top = new THREE.Color(C_PIL_TOP), cap = pilGeo.groups[1];
+        for (let v = 0; v < cols.length / 3; v++) side.toArray(cols, v * 3);
+        for (let i = cap.start; i < cap.start + cap.count; i++) top.toArray(cols, pilGeo.index.array[i] * 3);
+        pilGeo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
 
-        const side = new THREE.MeshBasicMaterial({ color: C_PIL_SIDE });
         mFloor  = new THREE.MeshBasicMaterial({ color: C_FLOOR, side: THREE.DoubleSide });
-        mPil    = [side, new THREE.MeshBasicMaterial({ color: C_PIL_TOP }), side];
+        mPil    = new THREE.MeshBasicMaterial({ vertexColors: true });
         // Shards and scorches fade individually, so each mesh gets a clone of these
         mShard  = new THREE.MeshBasicMaterial({ color: 0xff1a1a, transparent: true });
         mScorch = new THREE.MeshBasicMaterial({ color: 0x8b0000, transparent: true, opacity: 0.85,
@@ -216,23 +216,27 @@ const CITY = (() => {
     // Place a row at rowZ and re-roll which of its hexes are pillars
     function assignRow(row, rowZ) {
         row.z = rowZ;
-        const s = { v: (++rowSeed) * 7919 + 1 };
         row.cols.forEach((t, col) => {
             t.x = tileX(col);
             t.z = tileZ(rowZ, col);
-            t.isPil = rand(s) < PIL_PROB;
-            t.pilH  = t.isPil ? PIL_MIN + rand(s) * (PIL_MAX - PIL_MIN) : 0;
+            t.isPil = Math.random() < PIL_PROB;
+            t.pilH  = t.isPil ? PIL_MIN + Math.random() * (PIL_MAX - PIL_MIN) : 0;
             t.riseT = null; t.revealT = null; t.shattered = false;
-            t.floorMesh.position.set(t.x, 0, t.z);
-            t.floorMesh.visible = false;
-            t.pilMesh.position.set(t.x, 0, t.z);
-            t.pilMesh.scale.set(1, 0.001, 1);
-            t.pilMesh.visible = false;
         });
     }
 
     function buildWorld() {
         makeGeo();
+
+        // Instances are rewritten every frame (drawTiles); off-screen ones are left to the GPU to clip
+        floorInst = new THREE.InstancedMesh(floorGeo, mFloor, POOL_ROWS * COLS);
+        pilInst   = new THREE.InstancedMesh(pilGeo, mPil, POOL_ROWS * COLS);
+        for (const m of [floorInst, pilInst]) {
+            m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            m.frustumCulled = false;
+            m.count = 0;
+            scene.add(m);
+        }
 
         for (let ri = 0; ri < POOL_ROWS; ri++) {
             const rowZ   = (ROWS_BACK - ri) * RH;
@@ -243,16 +247,13 @@ const CITY = (() => {
                 const t = {
                     inWave, hit: !inWave,     // `hit` = revealed; rows outside the wave start revealed
                     diagN: null,              // 0–1 position along the wave's diagonal
-                    floorMesh: new THREE.Mesh(floorGeo, mFloor),
-                    pilMesh:   new THREE.Mesh(pilGeo, mPil),
                 };
-                scene.add(t.floorMesh, t.pilMesh);
                 row.cols.push(t);
                 tiles.push(t);
             }
             assignRow(row, rowZ);
-            for (const t of row.cols) if (t.isPil) pillars.push(t);
             rows.push(row);
+            frontZ = rowZ;
         }
 
         // The wave sweeps diagonally across the wave zone
@@ -265,13 +266,9 @@ const CITY = (() => {
 
     // Move a row that's fallen behind the camera to the far front
     function recycleRow(row) {
-        pillars = pillars.filter(p => !row.cols.includes(p));
-        const frontZ = Math.min(...rows.map(r => r.z));
-        assignRow(row, frontZ - RH);
-        for (const t of row.cols) {
-            t.hit = true; t.inWave = false; t.diagN = null;
-            if (t.isPil) pillars.push(t);
-        }
+        frontZ -= RH;
+        assignRow(row, frontZ);
+        for (const t of row.cols) { t.hit = true; t.inWave = false; t.diagN = null; }
     }
 
 
@@ -417,20 +414,10 @@ const CITY = (() => {
         }
     }
 
-    // Reveal hexes as the wave passes them, each with a small damped bounce.
-    // Only runs during wave + hold; hold (0.9s) outlasts the last bounce (0.45s).
+    // Reveal hexes as the wave passes them (each pops with a bounce: drawTiles)
     function updateWave() {
-        for (const t of tiles) {
-            if (!t.inWave) continue;
-            if (!t.hit && t.diagN * waveMax <= waveFront) {
-                t.hit = true; t.revealT = T;
-                if (!t.isPil) t.floorMesh.visible = true;
-            }
-            if (t.isPil || t.revealT === null) continue;
-            const age = T - t.revealT;
-            t.floorMesh.position.y = age < POP_DUR
-                ? POP_H * Math.sin(Math.PI * age / POP_DUR) * Math.exp(-3 * age / POP_DUR) : 0;
-        }
+        for (const t of tiles)
+            if (t.inWave && !t.hit && t.diagN * waveMax <= waveFront) { t.hit = true; t.revealT = T; }
     }
 
     // Returns the camera's position (x is always 0: it flies straight down the middle)
@@ -459,24 +446,16 @@ const CITY = (() => {
     function pillarRisen(p) { return eOut3(Math.max(0, T - p.riseT) / PIL_DUR); }
 
     function updatePillars(cy, cz) {
-        // Queue pillars ahead of the camera to rise, nearer ones first
-        if (swoopT > 0.8) {
-            for (const p of pillars) {
-                if (p.riseT !== null) continue;
+        for (const p of tiles) {
+            if (!p.isPil) continue;
+            // Queue pillars ahead of the camera to rise, nearer ones first
+            if (p.riseT === null) {
                 const dz = cz - p.z;
-                if (dz > 0 && dz < PIL_TRIG) p.riseT = T + Math.hypot(p.x, dz) * PIL_STAG;
+                if (swoopT > 0.8 && dz > 0 && dz < PIL_TRIG) p.riseT = T + Math.hypot(p.x, dz) * PIL_STAG;
+                continue;
             }
-        }
-        for (const p of pillars) {
-            if (p.riseT === null) continue;
-            const h = p.pilH * pillarRisen(p);
-            if (h > 0.001 * p.pilH) { p.pilMesh.scale.y = h; p.pilMesh.position.y = h / 2; }
-        }
-
-        // Fly through a pillar → it shatters
-        if (phase !== 'cruise') return;
-        for (const p of pillars) {
-            if (p.shattered || p.riseT === null || T < p.riseT) continue;
+            // Fly through a pillar → it shatters
+            if (phase !== 'cruise' || p.shattered || T < p.riseT || Math.abs(cz - p.z) >= COLLIDE_R) continue;
             const inY = cy >= 0 && cy <= p.pilH * pillarRisen(p);
             if (inY && Math.hypot(p.x, cz - p.z) < COLLIDE_R) {
                 p.shattered = true;
@@ -485,49 +464,52 @@ const CITY = (() => {
         }
     }
 
-    // Wrong passphrase: nearby hexes and pillars jitter, stretch and jump,
-    // settling over CORRUPT_DUR. Runs after updatePillars so it isn't overwritten.
-    function updateCorrupt(dt, cz) {
-        if (corruptT > 0) {
-            corruptT = Math.max(0, corruptT - dt);
-            const e = (corruptT / CORRUPT_DUR) ** 2;
-            for (const t of tiles) {
-                if (!t.hit) continue;
-                const dz = cz - t.z;
-                if (dz < -DD_BEHIND || dz > DD_AHEAD) continue;
-                const nx = Math.sin(t.x * 7.3  + T * 190 + corruptT * 44) * Math.cos(t.z * 5.1 + T * 230);
-                const ny = Math.sin(t.x * 11.7 + t.z * 8.3 + T * 160);
-                const nz = Math.cos(t.x * 9.1  + T * 210 + corruptT * 33) * Math.sin(t.z * 6.7);
-                const amp = e * 2.2;
-                t.floorMesh.position.set(t.x + nx * amp * 0.8, ny * amp * 1.4, t.z + nz * amp * 0.8);
-                if (t.isPil && !t.shattered && t.riseT !== null) {
-                    const m = t.pilMesh;
-                    m.scale.set(1 + Math.abs(nx) * e * 1.1, Math.max(0.05, pillarRisen(t) + ny * e * 1.8) * t.pilH, 1 + Math.abs(nz) * e * 1.1);
-                    m.position.set(t.x + nx * e * 1.2, m.scale.y / 2, t.z + nz * e * 1.2);
-                    if (Math.abs(nx * nz) > 0.82 && e > 0.25) m.position.y += ny * e * 5;
-                }
-            }
-        } else if (corruptDirty) {
-            // One pass to put everything back where it belongs
-            corruptDirty = false;
-            for (const t of tiles) {
-                if (!t.hit) continue;
-                t.floorMesh.position.set(t.x, 0, t.z);
-                if (t.isPil && !t.shattered && t.riseT !== null) {
-                    const h = t.pilH * pillarRisen(t);
-                    t.pilMesh.scale.set(1, h, 1);
-                    t.pilMesh.position.set(t.x, h / 2, t.z);
-                }
-            }
-        }
+    // One instance's matrix — scale, then move; no rotation — written straight into the buffer
+    function put(a, i, x, y, z, sx, sy, sz) {
+        const o = i * 16;
+        a[o] = sx; a[o + 5] = sy; a[o + 10] = sz;
+        a[o + 12] = x; a[o + 13] = y; a[o + 14] = z;
     }
 
-    function updateVisibility(cz) {
+    // This frame's hexes, within draw distance: floors with the wave's bounce, pillars
+    // as far as they've risen. A wrong passphrase (corruptT) makes them jitter, stretch
+    // and jump, settling over CORRUPT_DUR.
+    function drawTiles(cz) {
+        const F = floorInst.instanceMatrix.array, P = pilInst.instanceMatrix.array;
+        const e = (corruptT / CORRUPT_DUR) ** 2;
+        let nf = 0, np = 0;
         for (const t of tiles) {
             if (!t.hit) continue;
-            const dz = cz - t.z, vis = dz > -DD_BEHIND && dz < DD_AHEAD;
-            if (t.isPil) t.pilMesh.visible = vis && !t.shattered && t.riseT !== null;
-            else         t.floorMesh.visible = vis;
+            const dz = cz - t.z;
+            if (dz <= -DD_BEHIND || dz >= DD_AHEAD) continue;
+            let nx = 0, ny = 0, nz = 0;
+            if (e) {
+                nx = Math.sin(t.x * 7.3  + T * 190 + corruptT * 44) * Math.cos(t.z * 5.1 + T * 230);
+                ny = Math.sin(t.x * 11.7 + t.z * 8.3 + T * 160);
+                nz = Math.cos(t.x * 9.1  + T * 210 + corruptT * 33) * Math.sin(t.z * 6.7);
+            }
+            if (!t.isPil) {
+                const age = t.revealT === null ? POP_DUR : T - t.revealT;
+                const pop = age < POP_DUR ? POP_H * Math.sin(Math.PI * age / POP_DUR) * Math.exp(-3 * age / POP_DUR) : 0;
+                const amp = e * 2.2;
+                put(F, nf++, t.x + nx * amp * 0.8, pop + ny * amp * 1.4, t.z + nz * amp * 0.8, 1, 1, 1);
+                continue;
+            }
+            if (t.shattered || t.riseT === null) continue;       // a pillar's hex stays empty until it rises
+            if (e) {
+                const sy = Math.max(0.05, pillarRisen(t) + ny * e * 1.8) * t.pilH;
+                const jump = Math.abs(nx * nz) > 0.82 && e > 0.25 ? ny * e * 5 : 0;
+                put(P, np++, t.x + nx * e * 1.2, sy / 2 + jump, t.z + nz * e * 1.2, 1 + Math.abs(nx) * e * 1.1, sy, 1 + Math.abs(nz) * e * 1.1);
+                continue;
+            }
+            const h = t.pilH * pillarRisen(t);
+            if (h > 0.001 * t.pilH) put(P, np++, t.x, h / 2, t.z, 1, h, 1);
+        }
+        for (const [m, n] of [[floorInst, nf], [pilInst, np]]) {
+            m.count = n;
+            m.instanceMatrix.clearUpdateRanges();
+            m.instanceMatrix.addUpdateRange(0, n * 16);          // upload only what's drawn
+            m.instanceMatrix.needsUpdate = true;
         }
     }
 
@@ -543,8 +525,8 @@ const CITY = (() => {
         const { cy, cz } = updateCamera(dt);
         for (const row of rows) if (row.z - cz > RECYCLE_BEHIND) recycleRow(row);
         updatePillars(cy, cz);
-        updateCorrupt(dt, cz);
-        updateVisibility(cz);
+        corruptT = Math.max(0, corruptT - dt);
+        drawTiles(cz);
         updateShards(dt);
         updateScorches(dt);
         updateSky(dt, cz);
@@ -592,7 +574,7 @@ const CITY = (() => {
             canvas.style.zIndex = '500';    // above everything during the intro
             if (skipIntro) {
                 for (const t of tiles) t.hit = true;
-                for (const p of pillars) if (-p.z < 16) p.shattered = true;   // none rising in the camera's face
+                for (const p of tiles) if (p.isPil && -p.z < 16) p.shattered = true;   // none rising in the camera's face
                 phase = 'cruise'; swoopT = 1; loginFired = true;
                 renderer.setClearColor(bgB);
                 canvas.style.zIndex = '18';
@@ -608,7 +590,6 @@ const CITY = (() => {
 
         corruptEffect() {
             corruptT = CORRUPT_DUR;
-            corruptDirty = true;
         },
 
         fadeOutMusic,
