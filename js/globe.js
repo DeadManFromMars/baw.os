@@ -47,6 +47,10 @@
           title: 'White Hell',
           text: "You know what? Maybe it's not even the location that's bad but the mind. I always struggled to see the forest through the trees. All it takes is one bad tree to ruin my day. Quite frankly, it's an issue of attitude.\n\n\nIt still fucking sucks though.",
           next: null },
+        { lat: 0.86, lon: 1.5, box: { x: 0.18, y: 0.22 }, feed: null,   // picture to come
+          title: 'WALL STREET',
+          text: "Prediction engines got nothing on the American Spirit. I don't need to bet on the downfall of my future, for that is fate!",
+          next: null },
     ];
 
     // Focusing a location (click its box)
