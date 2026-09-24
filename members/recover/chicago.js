@@ -16,7 +16,7 @@
 
 const Chicago = (() => {
     const $ = id => document.getElementById(id);
-    const ref = () => { try { return sessionStorage.getItem('baw_recover_ref'); } catch { return null; } };
+    const ref = () => { try { return localStorage.getItem('baw_recover_ref') ?? sessionStorage.getItem('baw_recover_ref'); } catch { return null; } };
     const post = (path, body) => fetch(`${CONFIG.apiBase}/calls/chicago/${path}`, {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ref: ref(), ...body }) }).then(r => r.json());
@@ -413,7 +413,8 @@ const Chicago = (() => {
     }
 
     return {
-        dial: () => post('dial', {}),              // → { answers, box } or { answers: false, reason }
+        // → { answers, box } or { answers: false, reason }; no good reset link on this device → { denied }
+        dial: () => post('dial', {}).then(res => res.error ? { answers: false, denied: true } : res),
         connect,
         load,
         shown: build,                              // Dial-Up Numbers came on screen: build the singe if it's waiting

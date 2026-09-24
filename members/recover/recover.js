@@ -2,7 +2,8 @@
    recover.js — Member Services › Password Reset (backend: app/recovery.py)
 
    The emailed link brings ?ref=<token>. It's moved out of the address
-   bar straight away (kept for this tab, so a reload still works), then:
+   bar straight away (kept on this device, so a reload, a new tab or a
+   later visit still knows who this is — Dial-Up Numbers needs it), then:
      GET  /recovery/questions  → the questions, or the password if done
      POST /recovery/answer     → which answers are right; all right = the password
    Right answers lock in (greyed, green check) for as long as the page
@@ -18,8 +19,8 @@
 
     let ref = new URLSearchParams(location.search).get('ref');
     try {
-        if (ref) sessionStorage.setItem('baw_recover_ref', ref);
-        else ref = sessionStorage.getItem('baw_recover_ref');
+        if (ref) localStorage.setItem('baw_recover_ref', ref);
+        else ref = localStorage.getItem('baw_recover_ref') ?? sessionStorage.getItem('baw_recover_ref');   // (older visits kept it per tab)
     } catch {}
     if (location.search) history.replaceState(null, '', location.pathname);
 

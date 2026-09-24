@@ -76,6 +76,7 @@ const Dialup = (() => {
     let timers = [];
     const later = (sec, fn) => timers.push(setTimeout(fn, sec * 1000));
     const status = text => { $('dialerStatus').textContent = text; };
+    const DENIED = 'Error 691: Access was denied because the username and/or password is not valid on the domain.';
 
     function hangUp() {
         timers.forEach(clearTimeout); timers = [];
@@ -116,6 +117,7 @@ const Dialup = (() => {
             later(t, () => status('Ringing…'));
             later(t + 8.2, async () => {
                 const res = await asked;
+                if (res.denied) return popup(DENIED);          // no reset link on this device (or it's run out)
                 if (!res.answers) return;                      // busy (or blown up): it just rings out
                 hangUp();
                 Chicago.connect(res.box);
