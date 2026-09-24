@@ -29,9 +29,11 @@ const CITY = (() => {
 
     const COLS           = 32;
     const POOL_ROWS      = 80;      // rows kept in memory, recycled as the camera moves
-    const ROWS_BACK      = 8;       // rows behind the start position
-    const RECYCLE_BEHIND = 8;       // recycle a row once it's this far behind the camera
-    const WAVE_ZONE_Z    = 14;      // rows within this distance take part in the pop-in wave
+    // Looking straight down at the start, the camera sees ~12 units behind it: rows, drawing
+    // and the pop-in wave all reach past that, or the bottom of the screen starts empty
+    const ROWS_BACK      = 10;      // rows behind the start position
+    const RECYCLE_BEHIND = 17;      // recycle a row once it's this far behind the camera
+    const WAVE_ZONE_Z    = 18;      // rows within this distance take part in the pop-in wave
 
     /* ── TIMING / CAMERA ──────────────────────────────────── */
     const CAM_Y0     = 16;          // bird's-eye height
@@ -59,7 +61,7 @@ const CITY = (() => {
     const PIL_STAG = 0.03;          // rise delay per unit of distance
 
     const DD_AHEAD  = 72;           // draw distance
-    const DD_BEHIND = 10;
+    const DD_BEHIND = 17;
 
     const C_FLOOR    = 0xd0ccc4;
     const C_PIL_TOP  = 0xede8df;
