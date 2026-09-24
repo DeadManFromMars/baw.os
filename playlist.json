@@ -39,7 +39,7 @@
     "title": "Planet Airways Starspeeder3000",
     "artist": "Elektel",
     "album": "Bit Stream Lounge",
-    "art": "Images/AlbumArt/Elektel.png"
+    "art": "Images/AlbumArt/Elektel.jpg"
   },
   {
     "src": "Audio/Music/Alcazar - 01 - Sexual Guarantee.mp3",
@@ -53,21 +53,21 @@
     "title": "Infinity Processing Engine",
     "artist": "ALFAXYSM SOFTWARE",
     "album": "CRYSTALLOMANIA (Ver. 1.0)",
-    "art": "Images/AlbumArt/crystal.png"
+    "art": "Images/AlbumArt/crystal.jpg"
   },
   {
     "src": "Audio/Music/ALFAXYSM SOFTWARE - CRYSTALLOMANIA (Ver. 1.0) - 09 OPEN YOUR MIND.mp3",
     "title": "Open Your Mind",
     "artist": "ALFAXYSM SOFTWARE",
     "album": "CRYSTALLOMANIA (Ver. 1.0)",
-    "art": "Images/AlbumArt/crystal.png"
+    "art": "Images/AlbumArt/crystal.jpg"
   },
   {
     "src": "Audio/Music/02 - Sweet Sticky.mp3",
     "title": "Sweet Sticky",
     "artist": "Theo Parrish",
     "album": "First Floor",
-    "art": "Images/AlbumArt/TheoFloor.png"
+    "art": "Images/AlbumArt/TheoFloor.jpg"
   },
   {
     "src": "Audio/Music/102 - crystal waters - gypsy woman (shes homeless).mp3",
@@ -137,7 +137,7 @@
     "title": "First Class '77",
     "artist": "Fantastic Plastic Machine",
     "album": "The Fantastic Plastic Machine",
-    "art": "Images/AlbumArt/TFPM.png"
+    "art": "Images/AlbumArt/TFPM.jpg"
   },
   {
     "src": "Audio/Music/05 - Dreaming Your Dreams.mp3",
@@ -151,6 +151,6 @@
     "title": "空き家",
     "artist": "haircuts for men",
     "album": "ダウンタンブルと死にます ep (tape edition)",
-    "art": "Images/AlbumArt/HFM.png"
+    "art": "Images/AlbumArt/HFM.jpg"
   }
 ]

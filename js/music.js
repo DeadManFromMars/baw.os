@@ -1237,7 +1237,8 @@ const Mixtape = (() => {
     }
 
     // Another track selected. Same album (same cover): same case, left as it is.
-    // Another album: the open case shuts, and its art changes once the disc is in.
+    // Another album: the open case shuts, and its art changes once the disc is in —
+    // and once the picture's actually loaded, so it fades in whole, never half-drawn.
     function swapCd(t) {
         if (!cd || !$('mixCdStage')) return;
         const art = t.art ? `url("${encodeURI(t.art)}")` : '';
@@ -1246,11 +1247,15 @@ const Mixtape = (() => {
         clearTimeout(cd.swap);
         const wasOpen = $('mixCdStage').classList.contains('open');
         if (wasOpen) toggleCase(false);
-        cd.swap = setTimeout(() => {
+        const pic = t.art ? new Promise(ok => Object.assign(new Image(), { onload: ok, onerror: ok, src: encodeURI(t.art) })) : Promise.resolve();
+        const shut = new Promise(ok => { cd.swap = setTimeout(ok, wasOpen ? CD.CLOSE_MS : 0); });
+        $('mixCaseArt').classList.remove('loaded');
+        Promise.all([pic, shut]).then(() => {
+            if (cd?.art !== art) return;                  // picked another album meanwhile
             $('mixCaseArt').style.backgroundImage = art;
             $('mixCaseArt').classList.toggle('loaded', !!art);
             $('mixCdLabel').style.backgroundImage = art;
-        }, wasOpen ? CD.CLOSE_MS : 0);
+        });
     }
 
     // Disc position (disc seconds) while scratching, from its angle
