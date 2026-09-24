@@ -118,7 +118,7 @@ const Dialup = (() => {
             later(t + 8.2, async () => {
                 const res = await asked;
                 if (res.denied) return popup(DENIED);          // no reset link on this device (or it's run out)
-                if (!res.answers) return;                      // busy (or blown up): it just rings out
+                if (!res.answers) return;                      // blown up: it just rings out
                 hangUp();
                 Chicago.connect(res.box);
             });

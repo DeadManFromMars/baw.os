@@ -11,7 +11,8 @@
              Chicago's row is left singed — blown up like a lid, smoking
              — and can't be dialled again
    Some boxes carry extras: `ask` (pick ONE of your security questions
-   to ask him about), `contact` (he's saved to your contacts).
+   to ask him about — ever; calling back, the way there is gone),
+   `contact` (he's saved to your contacts).
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const Chicago = (() => {
