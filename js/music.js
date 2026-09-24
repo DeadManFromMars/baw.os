@@ -65,7 +65,9 @@ const Radio = (() => {
             const res = await fetch(`${CONFIG.apiBase}/profile/mixtape`, { credentials: 'include' });
             if (res.ok) {
                 const saved = await res.json();
-                tape    = (saved.queue || []).map(src => library.find(t => t.src === src)).filter(Boolean);
+                // (tapes saved before the songs moved into Audio/Music/Radio/ still find them)
+                const now = src => src.startsWith('Audio/Music/') && !src.startsWith('Audio/Music/Radio/') ? src.replace('Audio/Music/', 'Audio/Music/Radio/') : src;
+                tape    = (saved.queue || []).map(src => library.find(t => t.src === now(src))).filter(Boolean);
                 shuffle = !!saved.shuffle;
             }
         } catch { /* nothing saved yet — the library plays */ }

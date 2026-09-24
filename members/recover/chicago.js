@@ -64,7 +64,7 @@ const Chicago = (() => {
     let bangRaw = null, bangBuf = null, bangOut = null;
     function prepBang() {
         if (bangBuf || bangRaw) return;
-        bangRaw = fetch('../../Audio/Chicago/explosion.mp3').then(r => r.arrayBuffer()).then(a => ac.decodeAudioData(a)).then(b => { bangBuf = b; });
+        bangRaw = fetch('../../Audio/Sounds/Calls/explosion.mp3').then(r => r.arrayBuffer()).then(a => ac.decodeAudioData(a)).then(b => { bangBuf = b; });
     }
     // one bang: quiet, pitched a little differently each time, all through a limiter
     function bang(size) {

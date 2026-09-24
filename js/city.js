@@ -95,7 +95,7 @@ const CITY = (() => {
     const STREAK_DELAY = 1.0;       // seconds into cruise before they fade in
 
     /* ── INTRO MUSIC ──────────────────────────────────────── */
-    const MUSIC_SRC      = 'Audio/Music/The Edge.mp3';
+    const MUSIC_SRC      = 'Audio/Music/Hex/The Edge.mp3';
     const MUSIC_VOLUME   = 0.35;
     const MUSIC_FADE_IN  = 3.5;     // seconds
     const MUSIC_FADE_OUT = 1.8;
