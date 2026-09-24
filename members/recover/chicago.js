@@ -39,6 +39,9 @@ const Chicago = (() => {
     const now = () => (performance.now() - t0) / 1000;
     const ease = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
     const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+    // Text with *starred* words in bold (a star still open mid-typing bolds the rest so far)
+    const boldHtml = s => s.split('*').map((part, i) => i % 2 ? `<b>${esc(part)}</b>` : esc(part)).join('');
+    let shownText = '';
 
     function fit() {
         const dpr = devicePixelRatio || 1;
@@ -118,7 +121,7 @@ const Chicago = (() => {
             warble(head, t, k);
             g.drawImage(head, 0, 0);
             g.restore();
-            if ($('callLine').textContent !== text) $('callLine').textContent = text;
+            if (text !== shownText) { shownText = text; $('callLine').innerHTML = boldHtml(text); }
             if (done && box) finished();
         }
         requestAnimationFrame(frame);
@@ -157,13 +160,15 @@ const Chicago = (() => {
         return dis;
     }
 
-    // Where his lines are at `t` s into speaking: the text so far, and whether his mouth moves
+    // Where his lines are at `t` s into speaking: the text so far, and whether his mouth moves.
+    // *Starred* words are bold: the stars aren't typed out (or timed), just kept for boldHtml.
+    const typed = (line, n) => { let out = '', k = 0; for (const ch of line) { if (ch !== '*' && k++ >= n) break; out += ch; } return out; };
     function script(t, lines) {
         if (t < 0) return { text: '', talking: false, done: false };
         let text = '';
         for (const line of lines) {
-            const dur = line.length * TYPE_S;
-            if (t < dur) return { text: text + line.slice(0, Math.floor(t / TYPE_S)), talking: true, done: false };
+            const dur = line.replace(/\*/g, '').length * TYPE_S;
+            if (t < dur) return { text: text + typed(line, Math.floor(t / TYPE_S)), talking: true, done: false };
             text += line + '\n';
             t -= dur;
             if (t < PAUSE_S) return { text, talking: false, done: false };
@@ -187,7 +192,7 @@ const Chicago = (() => {
     function offer(list, note) {
         choices = list;
         $('callOpts').innerHTML = (note ? `<li class="note">${esc(note)}</li>` : '') +
-            list.map((o, i) => `<li><button type="button" data-i="${i}">${i + 1}. ${esc(o.text)}</button></li>`).join('');
+            list.map((o, i) => `<li><button type="button" data-i="${i}">${i + 1}. ${boldHtml(o.text)}</button></li>`).join('');
         $('callOpts').hidden = false;
     }
     async function choose(i) {
