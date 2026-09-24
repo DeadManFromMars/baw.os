@@ -41,10 +41,13 @@
     <div id="pageDialup" hidden>
         <h1>Dial-Up Access Numbers</h1>
         <div class="step">Find a local number to avoid long-distance charges.</div>
-        <table class="numbers">
-            <thead><tr><th>Location</th><th>Number</th><th>Speed</th><th></th></tr></thead>
-            <tbody id="numbers"></tbody>
-        </table>
+        <!-- the wrapper holds the singe when a row's been blown up (chicago.js) -->
+        <div class="numbers-wrap" id="numbersWrap">
+            <table class="numbers">
+                <thead><tr><th>Location</th><th>Number</th><th>Speed</th><th></th></tr></thead>
+                <tbody id="numbers"></tbody>
+            </table>
+        </div>
         <p class="small">Not all numbers support all speeds. Check with your local telephone company for calling charges.</p>
     </div>
 
@@ -134,8 +137,21 @@
     <label class="peanut-vol">Volume <input type="range" id="peanutVol" min="0" max="100" value="20"></label>
 </div>
 
+<!-- The Chicago call (chicago.js): the scene, what he says, the player's replies -->
+<div class="call" id="call" hidden>
+    <canvas id="c"></canvas>
+    <div class="call-talk">
+        <p class="call-line" id="callLine" aria-live="polite"></p>
+        <ol class="call-opts" id="callOpts" hidden></ol>
+    </div>
+</div>
+<div class="call-white" id="callWhite"></div>
+<div class="call-toast" id="callToast" hidden></div>
+
 <script src="../../js/config.js"></script>
 <script src="recover.js"></script>
+<script src="face.js"></script>
+<script src="chicago.js"></script>
 <script src="dialup.js"></script>
 </body>
 </html>

@@ -145,6 +145,39 @@ table.numbers { width: 100%; margin-top: 8px; }
 .peanut-vol input::-moz-range-thumb     { width: 7px; height: 16px; background: #d4d0c8; border: 2px outset #eee; border-radius: 0; }
 .peanut-vol input:focus-visible { outline: 1px dotted #fff; outline-offset: 2px; }
 
+/* ── The Chicago call (chicago.js) ── */
+.call { position: fixed; inset: 0; z-index: 30; background: #000; }
+.call canvas { display: block; width: 100vw; height: 100vh; }
+.call-talk { position: fixed; left: 0; right: 0; top: 66vh; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 0 16px; }
+.call-line { margin: 0; max-width: 760px; text-align: center; color: #e9e6df;
+             font: italic 24px/1.5 Georgia, 'Times New Roman', serif; letter-spacing: .02em; white-space: pre-line; }
+/* the player's replies: a plain list under his line, like the subtitles */
+.call-opts { margin: 0; padding: 12px 18px; list-style: none; border-top: 1px solid rgba(233,230,223,.35); min-width: 300px; max-width: 760px; }
+.call-opts button { position: relative; display: block; width: 100%; padding: 4px 0 4px 18px; background: none; border: none; cursor: pointer; text-align: left;
+                    color: rgba(233,230,223,.65); font: 19px/1.4 Georgia, 'Times New Roman', serif; }
+.call-opts button:hover, .call-opts button:focus-visible { color: #fff; outline: none; }
+.call-opts button::before { content: '›'; position: absolute; left: 2px; visibility: hidden; }   /* kept room: the text never shifts */
+.call-opts button:hover::before, .call-opts button:focus-visible::before { visibility: visible; }
+.call-opts .note { color: rgba(233,230,223,.45); font: italic 13px Georgia, serif; padding-bottom: 4px; }
+.boom { position: fixed; z-index: 31; pointer-events: none; }
+.call-white { position: fixed; inset: 0; z-index: 32; background: #fff; opacity: 0; transition: opacity .35s ease; pointer-events: none; }
+.call-white.on { opacity: 1; }
+.call-toast { position: fixed; left: 16px; bottom: 16px; z-index: 33; background: #d4d0c8; border: 2px outset #eee; padding: 8px 12px;
+              font: 11px Tahoma, Verdana, sans-serif; color: #111; }
+.dialer { z-index: 40; }                           /* its messages sit over everything */
+
+/* ── A singed row (chicago.js): blown loose like a lid, a dark gap, soot, smoke ── */
+.numbers-wrap { position: relative; }
+tr.singed td { color: #5a5048; }
+.dead { color: #6a5f55; text-decoration: line-through; cursor: default; user-select: none; }
+tr.tilt { position: relative; z-index: 1; transform-origin: 0 50%; transform: rotate(var(--tilt)); pointer-events: none; }
+tr.tilt td { background: #fff; }
+tr.hang td { height: 15px; padding: 0; border: none; }            /* room under it for the dropped end */
+.ash { position: absolute; z-index: 2; pointer-events: none; transform-origin: 0 50%; transform: rotate(var(--tilt));
+       box-shadow: inset 0 0 14px rgba(30,22,14,.3), inset -30px 0 26px -18px rgba(20,14,8,.35); }
+.scorch { position: absolute; z-index: 0; pointer-events: none; mix-blend-mode: multiply; }
+.smoke { position: absolute; z-index: 3; pointer-events: none; }
+
 .foot { padding: 10px 18px; border-top: 1px solid #e2e2e2; font-size: 10px; color: #888; }
 
 /* Phones — the email is often opened on one */

@@ -4,11 +4,12 @@
    The sidebar's data-page links swap pages in place, so answers typed
    on Password Reset survive a look at the numbers. Dial: dial tone,
    the number keyed in (touch tones, Web Audio), ringing, then a
-   Windows dial-up error — except the one that answers: Peanut, who
-   can't help with anything. All front end; nothing here is secret.
+   Windows dial-up error — except the ones that answer: Peanut, who
+   can't help with anything (all here, nothing secret), and Chicago,
+   whose call the server runs (chicago.js, backend app/calls.py).
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-(() => {
+const Dialup = (() => {
     const $ = id => document.getElementById(id);
 
     /* ── Pages ── */
@@ -22,15 +23,17 @@
         }
         $('crumb').textContent = link.textContent;
         $('soon').hidden = true;
+        if (link.dataset.page === 'pageDialup') Chicago.shown();     // a singed row needs laying out on screen
     });
 
 
     /* ── The numbers ──
-       ends: 'none' rings out · 'busy' busy signal · 'gone' not in service · 'peanut' answers */
+       ends: 'none' rings out · 'busy' busy signal · 'gone' not in service · 'peanut' answers
+             'chicago' asks the server (he may answer, be busy, or be blown up) */
     const NUMBERS = [
         { at: 'Wilmington, DE',   num: '(302) 555-0104', speed: '56K V.90', ends: 'gone' },
         { at: 'Washington, DC',   num: '(202) 555-0126', speed: '56K V.90', ends: 'busy' },
-        { at: 'Chicago, IL',      num: '(312) 555-0168', speed: '56K V.90', ends: 'none' },
+        { at: 'Chicago, IL',      num: '(312) 555-0168', speed: '56K V.90', ends: 'chicago' },
         { at: 'Boston, MA',       num: '(617) 555-0173', speed: '33.6K',    ends: 'none' },
         { at: 'Baltimore, MD',    num: '(410) 555-0162', speed: '56K V.90', ends: 'busy' },
         { at: 'Newark, NJ',       num: '(973) 555-0131', speed: '56K V.90', ends: 'none' },
@@ -42,7 +45,8 @@
         { at: 'Seattle, WA',      num: '(206) 555-0112', speed: '56K V.90', ends: 'busy' },
     ];
     $('numbers').innerHTML = NUMBERS.map((n, i) =>
-        `<tr><td>${n.at}</td><td class="num">${n.num}</td><td>${n.speed}</td><td><a href="#" data-dial="${i}">Dial</a></td></tr>`).join('');
+        `<tr${n.ends === 'chicago' ? ' data-caller="chicago"' : ''}><td>${n.at}</td><td class="num">${n.num}</td><td>${n.speed}</td><td><a href="#" data-dial="${i}">Dial</a></td></tr>`).join('');
+    Chicago.load();                                // already blown up for this player?
 
 
     /* ── Phone sounds (Web Audio; made on the Dial click, so browsers allow it) ── */
@@ -105,11 +109,33 @@
             return;
         }
         // Ringing: 2 s on, 4 s off
+        const ringOut = () => fail('Error 678: The remote computer did not respond.');
+        if (n.ends === 'chicago') {                        // rings while the server decides; picks up on the 2nd ring, or rings out
+            const asked = Chicago.dial().catch(() => ({ answers: false }));
+            for (let k = 0; k < 3; k++) tone([440, 480], t + k * 6, 2);
+            later(t, () => status('Ringing…'));
+            later(t + 8.2, async () => {
+                const res = await asked;
+                if (!res.answers) return;                      // busy (or blown up): it just rings out
+                hangUp();
+                Chicago.connect(res.box);
+            });
+            later(t + 18, ringOut);
+            return;
+        }
         const rings = n.ends === 'peanut' ? 2 : 3;
         for (let k = 0; k < rings; k++) tone([440, 480], t + k * 6, 2);
         later(t, () => status('Ringing…'));
         if (n.ends === 'peanut') later(t + 8.2, answer);
-        else later(t + rings * 6, () => fail('Error 678: The remote computer did not respond.'));
+        else later(t + rings * 6, ringOut);
+    }
+
+    // A Windows dial-up message on its own, with a Close button (a call's ending, chicago.js)
+    function popup(text) {
+        hangUp();
+        $('dialer').hidden = false;
+        status(text);
+        $('dialerBtn').value = 'Close';
     }
 
     function fail(text) {
@@ -200,4 +226,6 @@
         if (!$('peanut').hidden) leavePeanut();
         else if (!$('dialer').hidden) hangUp();
     });
+
+    return { popup };
 })();
