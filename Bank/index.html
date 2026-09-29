@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Bank</title>
+<meta name="credits" content="Sounds from freesound.org: “Clock and Pendulum 4416” by crattray1997 (CC BY 4.0, freesound.org/s/574714) and “old school airport departure board, Madeira” by amabok (CC BY 4.0, freesound.org/s/96408); the rest CC0.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; background: #000; }
+    body { font: 12px/1.55 'Space Mono', monospace; color: #e9dcc0; }
+    canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+    .display, #prompt, #toast, #ticket { font-family: 'Cinzel', serif; }
+    .display { text-transform: uppercase; letter-spacing: .14em; font-weight: 600; }
+    button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+    #prompt { position: fixed; left: 50%; bottom: 18%; transform: translateX(-50%); font-size: .75rem; letter-spacing: .2em; color: #d6ab52; text-transform: uppercase; opacity: 0; transition: opacity .6s; pointer-events: none; z-index: 5; }
+    #prompt.on { opacity: .9; }
+
+    #ticket { position: fixed; left: 14px; top: 14px; z-index: 5; background: #efe6cf; color: #1a1a18; padding: 8px 16px 10px; text-align: center; transform: rotate(-2deg); box-shadow: 0 6px 18px rgba(0, 0, 0, .5); }
+    #ticket[hidden] { display: none; }
+    #ticket span, #ticket em { display: block; font-size: .6rem; letter-spacing: .18em; text-transform: uppercase; font-style: normal; color: #55554d; }
+    #ticket b { display: block; font-weight: 700; font-size: 1.7rem; letter-spacing: .1em; }
+    #ticket.called { background: #f5d58a; }
+    #toast { position: fixed; left: 50%; top: 18%; transform: translateX(-50%); font-size: .8rem; letter-spacing: .2em; color: #e9dcc0; text-transform: uppercase; opacity: 0; transition: opacity .6s; pointer-events: none; z-index: 5; }
+    #toast.on { opacity: .9; }
+
+    #curtain { position: fixed; inset: 0; background: #000; z-index: 9; display: grid; place-items: center; transition: opacity 5s linear; }
+    #curtain.open { opacity: 0; pointer-events: none; }
+    #curtain span { font: 600 .8rem 'Cinzel', serif; letter-spacing: .3em; text-transform: uppercase; color: rgba(233, 220, 192, .35); }
+
+    #talk { position: fixed; left: 50%; bottom: 5vh; transform: translateX(-50%); width: min(760px, 92vw); z-index: 7; background: rgba(8, 6, 5, .88); border: 1px solid rgba(214, 171, 82, .7); padding: 18px 26px 20px; cursor: pointer; }
+    #talk[hidden] { display: none; }
+    #talkText { font: 400 1.35rem/1.5 'EB Garamond', serif; color: #efe3c8; min-height: 2.1em; }
+    #talkText b { font-weight: 600; }
+    #talkOpts { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+    #talkOpts:empty { display: none; }
+    #talkOpts button { text-align: left; font: italic 400 1.15rem/1.35 'EB Garamond', serif; color: #d6ab52; padding: 4px 10px; border-left: 2px solid transparent; }
+    #talkOpts button:hover, #talkOpts button:focus-visible { color: #f3d58f; border-left-color: #d6ab52; outline: none; }
+    #load { position: fixed; inset: 0; display: grid; place-items: center; background: #000; z-index: 20; color: #7d7462; letter-spacing: .3em; font-size: .7rem; text-transform: uppercase; }
+</style>
+<script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js",
+                   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }
+</script>
+</head>
+<body>
+<canvas id="view"></canvas>
+<div id="load">building the hall…</div>
+<div id="curtain"><span>click to begin</span></div>
+
+<div id="prompt"></div>
+<div id="ticket" hidden><span>your number</span><b id="ticketNo"></b><em id="ticketSays">wait to be called</em></div>
+<div id="toast"></div>
+<div id="talk" hidden><p id="talkText"></p><div id="talkOpts"></div></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import * as T from './textures.js';
+import * as F from './furniture.js';
+import { buildHall, HALL, SUN, ground } from './hall.js';
+import { makeSound } from './sound.js';
+
+const PUBLIC = true;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+const canvas = $('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(1);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#050404');
+scene.fog = new THREE.FogExp2('#24160c', 0.011);
+const camera = new THREE.PerspectiveCamera(68, 1, 0.08, 1500);
+
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
+const renderPass = new RenderPass(scene, camera);
+
+class QuietGTAO extends GTAOPass {
+    render(...args) { const hide = world?.airy || [], was = hide.map(o => o.visible); hide.forEach(o => o.visible = false); super.render(...args); hide.forEach((o, i) => o.visible = was[i]); }
+}
+const gtao = new QuietGTAO(scene, camera, 1, 1);
+gtao.updateGtaoMaterial({ radius: 0.9, distanceExponent: 1.4, thickness: 1.2, scale: 1.0, samples: 16 });
+gtao.blendIntensity = 1.0;
+
+const volume = new ShaderPass({
+    uniforms: {
+        tDiffuse: { value: null }, tDepth: { value: null }, tSun: { value: null }, sunMat: { value: new THREE.Matrix4() },
+        projInv: { value: new THREE.Matrix4() }, camWorld: { value: new THREE.Matrix4() }, camPos: { value: new THREE.Vector3() },
+        sunDir: { value: new THREE.Vector3() }, sunColor: { value: new THREE.Color('#ffae62') }, time: { value: 0 }, strength: { value: 0.022 },
+        fogColor: { value: new THREE.Color(0.035, 0.037, 0.055) }, fogDensity: { value: 0.65 }, sunAmt: { value: 1 }, warp: { value: 1 },
+    },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform sampler2D tDiffuse, tDepth, tSun; uniform mat4 sunMat, projInv, camWorld; uniform vec3 camPos, sunDir, sunColor, fogColor;
+        uniform float time, strength, fogDensity, sunAmt, warp; varying vec2 vUv;
+
+        float noise(vec3 p);
+        float fogAt(vec3 q) {
+            float rag = noise(q * vec3(0.09, 0.06, 0.09) + vec3(time * 0.02, time * 0.01, time * 0.015));
+
+            float front = q.z - 18.5, side = mix(-50.0, abs(q.x) - 8.8, smoothstep(10.0, 10.6, q.z));
+            float away = max(front, side) + (rag - 0.5) * 3.5;
+            float edge = smoothstep(-1.5, 6.0, away);
+            if (edge <= 0.0) return 0.0;
+            float tall = smoothstep(-2.0, 2.0, side - front);
+            float a = max(away, 0.0), top = mix(3.2, 5.8, tall) + 0.16 * a + (rag - 0.5) * 3.0, soft = 2.2 + a * 0.09;
+            float body = exp(-max(q.y - top + soft, 0.0) / soft);
+            float billow = noise(q * vec3(0.018, 0.04, 0.018) + vec3(time * 0.012, time * 0.004, time * 0.007));
+            float wisp = 0.55 + 1.0 * billow * (0.6 + 0.8 * noise(q * vec3(0.07, 0.14, 0.07) - vec3(time * 0.03, 0.0, time * 0.02)));
+            return edge * body * wisp;
+        }
+        float h(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+        float noise(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(mix(h(i), h(i + vec3(1, 0, 0)), f.x), mix(h(i + vec3(0, 1, 0)), h(i + vec3(1, 1, 0)), f.x), f.y),
+                       mix(mix(h(i + vec3(0, 0, 1)), h(i + vec3(1, 0, 1)), f.x), mix(h(i + vec3(0, 1, 1)), h(i + vec3(1, 1, 1)), f.x), f.y), f.z); }
+        float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+        void main() {
+            float d = texture2D(tDepth, vUv).x;
+            vec4 v = projInv * vec4(vUv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0); v /= v.w;
+            vec3 hit = (camWorld * v).xyz, ray = hit - camPos;
+            float len = min(length(ray), 80.0); vec3 dir = ray / max(length(ray), 1e-4);
+            const int N = 40; float stepLen = len / float(N), j = ign(gl_FragCoord.xy), t = stepLen * j, air = 0.0;
+
+            float fl = min(length(ray), 320.0), od = 0.0, prev = 0.0;
+            for (int i = 1; i <= 40; i++) {
+                float f = (float(i) - 1.0 + j) / 40.0, tt = fl * f * f;
+                od += fogAt(camPos + dir * tt) * (tt - prev); prev = tt;
+            }
+            float fogA = 1.0 - exp(-fogDensity * od);
+
+            vec2 wuv = vUv;
+            if (warp > 0.0 && fogA > 0.01) {
+                vec3 wd = dir * 4.0;
+                vec2 flow = vec2(noise(wd + vec3(time * 0.09, 0.0, 0.0)), noise(wd + vec3(0.0, time * 0.07, 13.0))) - 0.5;
+                float swell = 0.6 + 0.4 * sin(dot(dir, vec3(19.0, 27.0, 13.0)) - time * 0.9);
+                wuv += flow * swell * warp * (3.2 * fogA * (1.0 - fogA) + 0.3 * fogA) * 0.017 * smoothstep(9.0, 30.0, length(ray));
+            }
+            vec2 wd2 = (wuv - vUv) * 0.2;
+            vec3 col = vec3(texture2D(tDiffuse, wuv + wd2).r, texture2D(tDiffuse, wuv).g, texture2D(tDiffuse, wuv - wd2).b);
+            for (int i = 0; i < N; i++) {
+                vec3 p = camPos + dir * t;
+                vec4 lc = sunMat * vec4(p, 1.0); vec3 l = lc.xyz * 0.5 + 0.5;
+                vec2 soft = (vec2(j, fract(j * 7.31)) - 0.5) * 0.0025;
+                float lit = (l.x > 0.0 && l.x < 1.0 && l.y > 0.0 && l.y < 1.0) ? step(l.z - 0.0013, texture2D(tSun, l.xy + soft).x) : 0.0;
+                float dens = 0.25 + 0.75 * noise(p * 0.22 + vec3(0.0, time * 0.035, time * 0.02)) * noise(p * 0.07 - vec3(time * 0.01, 0.0, 0.0));
+                bool inside = abs(p.x) < 18.6 && p.z < 10.6 && p.z > -89.0 && p.y < 38.0;
+                dens *= inside ? 1.0 : 0.03;
+                air += lit * dens * stepLen * smoothstep(0.0, 3.0, t);
+                t += stepLen;
+            }
+            float c = dot(dir, -sunDir), g = 0.55;
+            float phase = (1.0 - g * g) / pow(1.0 + g * g - 2.0 * g * c, 1.5);
+
+            vec3 o = col + sunColor * air * phase * strength;
+
+            float toSun = pow(max(dot(dir, -sunDir), 0.0), 6.0);
+            vec3 fc = fogColor + vec3(0.42, 0.22, 0.11) * toSun * (0.4 + 0.6 * sunAmt);
+            fc += vec3(0.042, 0.033, 0.062) * smoothstep(-0.08, 0.14, dir.y) * (1.0 - smoothstep(0.14, 0.5, dir.y));
+            o = mix(o, fc, fogA);
+            if (any(isnan(o)) || any(isinf(o))) o = vec3(0.0);
+            gl_FragColor = vec4(clamp(o, 0.0, 200.0), 1.0);
+        }`,
+});
+
+const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.28, 0.6, 0.95);
+
+const GRADES = [
+    { name: 'Kodak 2383', sat: 1.1, contrast: 1.16, shadows: [0.93, 1.0, 1.06], highs: [1.06, 1.0, 0.9], lift: [0, 0.004, 0.012], bleach: 0, techni: 0, grain: 0.045, halation: 0.35 },
+    { name: 'Alexa', sat: 1.0, contrast: 1.04, shadows: [1, 1, 1], highs: [1.01, 1, 0.98], lift: [0.004, 0.004, 0.004], bleach: 0, techni: 0, grain: 0.03, halation: 0.18 },
+    { name: 'Teal + orange', sat: 1.28, contrast: 1.12, shadows: [0.82, 1.0, 1.14], highs: [1.14, 1.0, 0.8], lift: [0, 0.006, 0.014], bleach: 0, techni: 0, grain: 0.04, halation: 0.35 },
+    { name: 'Bleach bypass', sat: 0.75, contrast: 1.2, shadows: [0.97, 1.0, 1.03], highs: [1.02, 1.0, 0.97], lift: [0, 0, 0], bleach: 0.75, techni: 0, grain: 0.06, halation: 0.2 },
+    { name: 'Technicolor', sat: 1.3, contrast: 1.12, shadows: [0.96, 1.0, 1.02], highs: [1.05, 1.0, 0.94], lift: [0, 0, 0.006], bleach: 0, techni: 0.8, grain: 0.04, halation: 0.4 },
+    { name: 'Noir', sat: 0.12, contrast: 1.32, shadows: [0.96, 1.0, 1.05], highs: [1.04, 1.0, 0.95], lift: [0, 0, 0], bleach: 0.2, techni: 0, grain: 0.07, halation: 0.12 },
+];
+const film = new ShaderPass({
+    uniforms: {
+        tDiffuse: { value: null }, res: { value: new THREE.Vector2(1280, 720) }, time: { value: 0 }, on: { value: 1 }, grid: { value: 0 }, ca: { value: 0.006 },
+        sat: { value: 1 }, contrast: { value: 1 }, bleach: { value: 0 }, techni: { value: 0 }, grain: { value: 0.04 }, halation: { value: 0.3 },
+        shadows: { value: new THREE.Vector3(1, 1, 1) }, highs: { value: new THREE.Vector3(1, 1, 1) }, lift: { value: new THREE.Vector3() },
+    },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 res; uniform float time, on, grid, ca, sat, contrast, bleach, techni, grain, halation;
+        uniform vec3 shadows, highs, lift; varying vec2 vUv;
+        float hash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+        float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+        void main() {
+            vec2 q = vUv - 0.5;
+            vec3 raw = texture2D(tDiffuse, vUv).rgb;
+            vec2 off = q * dot(q, q) * ca;
+            vec3 c = vec3(texture2D(tDiffuse, vUv - off).r, raw.g, texture2D(tDiffuse, vUv + off).b);
+            vec3 h = vec3(0.0); vec2 px = res.y / 720.0 / res;
+            for (int i = 0; i < 12; i++) {
+                float a = float(i) * 2.39996, r = i < 6 ? 3.0 : 7.0;
+                h += max(texture2D(tDiffuse, vUv + vec2(cos(a), sin(a)) * r * px).rgb - 0.72, 0.0);
+            }
+            c += h / 12.0 * vec3(1.0, 0.32, 0.1) * halation * 2.0;
+
+            c = max(c, 0.0);
+            vec3 m = c - vec3(dot(c.gb, vec2(0.5)), dot(c.rb, vec2(0.5)), dot(c.rg, vec2(0.5)));
+            c = max(c + m * techni * 0.5, 0.0);
+            c = max(mix(vec3(luma(c)), c, sat), 0.0);
+            c = 0.45 * pow(c / 0.45, vec3(contrast));
+            c *= mix(shadows, highs, smoothstep(0.08, 0.7, luma(c)));
+            c += lift * (1.0 - c);
+            vec3 lum = vec3(luma(c));
+            vec3 ov = mix(2.0 * c * lum, 1.0 - 2.0 * (1.0 - c) * (1.0 - lum), step(0.5, lum));
+            c = mix(c, mix(ov, lum, 0.35), bleach);
+            float d = length(q * vec2(res.x / res.y, 1.0));
+            c *= 1.0 - 0.35 * smoothstep(0.25, 0.95, d);
+            float frame = floor(time * 24.0);
+            vec2 gp = gl_FragCoord.xy + frame * vec2(37.0, 17.0);
+            float n = hash(gp) + hash(floor(gp * 0.5) + 91.0) * 0.6 - 0.8, lg = clamp(luma(c), 0.0, 1.0);
+            float amt = grain * (0.35 + 2.6 * lg * (1.0 - lg));
+            c += n * amt + (vec3(hash(gp + 5.1), hash(gp + 9.7), hash(gp + 3.3)) - 0.5) * amt * 0.25;
+            vec2 g = mod(gl_FragCoord.xy, 4.0);
+            c *= 1.0 - grid * max(step(g.x, 0.99), step(g.y, 0.99));
+            gl_FragColor = vec4(mix(raw, clamp(c, 0.0, 1.0), on), 1.0);
+        }`,
+});
+let grade = 0, satMul = 1;
+function setGrade(i) {
+    grade = (i + GRADES.length) % GRADES.length;
+    const G = GRADES[grade], u = film.uniforms;
+    for (const k of ['contrast', 'bleach', 'techni', 'grain', 'halation']) u[k].value = G[k];
+    u.sat.value = G.sat * satMul;
+    for (const k of ['shadows', 'highs', 'lift']) u[k].value.fromArray(G[k]);
+    hud();
+}
+
+const ps1 = new ShaderPass({
+    uniforms: { tDiffuse: { value: null }, res: { value: new THREE.Vector2(320, 240) } },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 res; varying vec2 vUv;
+        float bayer(vec2 p) { int i = int(mod(p.x, 4.0)) + int(mod(p.y, 4.0)) * 4;
+            int m[16] = int[16](0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5); return float(m[i]) / 16.0 - 0.5; }
+        void main() { vec2 px = floor(vUv * res); vec3 c = texture2D(tDiffuse, (px + 0.5) / res).rgb;
+            c = floor(c * 31.0 + bayer(px) + 0.5) / 31.0; gl_FragColor = vec4(c, 1.0); }`,
+});
+for (const p of [renderPass, gtao, volume, bloom, new OutputPass(), film, ps1]) composer.addPass(p);
+
+let look = 'lit';
+function setLook(l) {
+    look = l;
+    bloom.enabled = look === 'lit';
+    ps1.enabled = look === 'ps1';
+    hud();
+}
+
+await Promise.all(['600 140px "Cinzel"', '700 140px "Cinzel"'].map(f => document.fonts.load(f).catch(() => {})));
+
+await F.loadEraFont('https://cdn.jsdelivr.net/npm/@fontsource/cinzel@5/files/cinzel-latin-600-normal.woff').catch(e => console.warn('3D letters: the font would not load — painted signs instead', e));
+const M = F.makeMaterials();
+const nums = {};
+const X = {
+    flutes: T.tex(T.flutes(24), 1, 1, false),
+    frond: T.tex(T.frond(), 1, 1),
+    face: T.tex(T.clockFace()),
+    fan: F.fanTexture(),
+    windowFrame: T.tex(T.windowFrame(), 1, 1),
+    murals: Object.fromEntries(['sun', 'wings', 'industry', 'fountain', 'aviation', 'stars', 'bridge', 'commerce'].map((k, i) => [k, T.tex(T.mural(k, 1280, 1920, 31 + i))])),
+    num: n => nums[n] ||= T.tex(T.sign(String(n), { w: 512, h: 256, size: 150, bg: '#0d0e0e', fg: '#d6ab52' })),
+    staff: T.tex(T.sign('EMPLOYEES ONLY', { w: 1024, h: 242, size: 78 })),
+    office: T.tex(T.sign('NAME', { w: 512, h: 120, size: 60, border: false })),
+    deposit: T.tex(T.depositBoxes(), 1, 1),
+    flaps: (() => { const t = T.tex(T.flapAtlas(), 1, 1); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; return t; })(),
+    subway: T.tex(T.sign('SUBWAY', { w: 1024, h: 220, size: 110, bg: '#0c2a1a', fg: '#e8e2d4' })),
+    notice: T.tex(T.letterBoard(F.hasEraFont() ? null : 'NOTICE')),
+    take: T.tex(T.sign('TAKE A NUMBER', { w: 1024, h: 420, size: 96 })),
+    guardians: Object.fromEntries(['halo', 'wings', 'sword'].map((k, i) => { const g = T.guardian(k, 151 + i * 5); return [k, { color: T.tex(g.color), normal: T.tex(g.normal, 1, 1, false), glow: T.tex(g.glow) }]; })),
+};
+X.mural = X.murals.sun;
+const timings = { pictures: Math.round(performance.now()) };
+
+const world = await buildHall(renderer, M, X);
+scene.add(world.group);
+timings.hall = Math.round(performance.now());
+
+const pmrem = new THREE.PMREMGenerator(renderer), cubeRT = new THREE.WebGLCubeRenderTarget(512, { type: THREE.HalfFloatType });
+scene.environment = pmrem.fromCubemap(cubeRT.texture).texture;
+scene.environmentIntensity = 0.4;
+
+{
+    $('load').textContent = 'lighting the lamps…';
+    renderer.setRenderTarget(composer.renderTarget1);
+    await renderer.compileAsync(scene, camera).catch(() => {});
+    renderer.setRenderTarget(null);
+}
+timings.shaders = Math.round(performance.now());
+{
+    const sun = world.sunDepth(renderer);
+    volume.uniforms.tSun.value = sun.texture; volume.uniforms.sunMat.value.copy(sun.matrix);
+    volume.uniforms.sunDir.value.copy(SUN); volume.uniforms.tDepth.value = gtao.depthTexture;
+}
+{
+    const cube = new THREE.CubeCamera(0.5, 200, cubeRT); cube.position.set(0, 8, -30);
+    cube.update(renderer, scene);
+    const standIn = scene.environment; scene.environment = pmrem.fromCubemap(cubeRT.texture).texture; standIn.dispose();
+}
+timings.reflections = Math.round(performance.now());
+
+let cataloguing = false;
+
+const me = { pos: HALL.START.clone(), eyeY: ground(HALL.START.x, HALL.START.z) + HALL.EYE, yaw: 0, pitch: 0, vel: new THREE.Vector2(), stride: 0, foot: 1, bob: 0 };
+const keys = new Set(), intro = { locked: PUBLIC };
+const R = 0.35, WALK = 1.7, HURRY = 4.2;
+const STEP = { walk: 1.55, hurry: 2.3 };
+let locked = false, dragging = null, refused = false;
+
+const lockMouse = () => canvas.requestPointerLock?.()?.catch?.(() => { refused = true; });
+canvas.addEventListener('click', () => { if (!cataloguing && !locked && !Q.talking && !document.querySelector('.panel:not(.hide)')) lockMouse(); });
+document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; });
+document.addEventListener('pointerlockerror', () => { refused = true; });
+addEventListener('mousemove', e => {
+    if (intro.locked) return;
+    if (locked) { me.yaw -= e.movementX * 0.0022; me.pitch = Math.max(-1.3, Math.min(1.3, me.pitch - e.movementY * 0.0022)); }
+    else if (refused && dragging && e.buttons & 1 && !Q.talking) { me.yaw -= e.movementX * 0.004; me.pitch = Math.max(-1.3, Math.min(1.3, me.pitch - e.movementY * 0.004)); }
+});
+canvas.addEventListener('pointerdown', () => { dragging = true; });
+addEventListener('pointerup', () => dragging = null);
+
+function collide(p) {
+    for (let pass = 0; pass < 2; pass++) for (const c of world.colliders) {
+        if (c.r !== undefined) {
+            let dx = p.x - c.x; const dz = p.z - c.z;
+            if (Math.abs(dx) < 0.02) dx = 0.02;
+            const d = Math.hypot(dx, dz), min = c.r + R;
+            if (d < min && d > 1e-6) { p.x = c.x + dx / d * min; p.z = c.z + dz / d * min; }
+        } else {
+            const nx = Math.max(c.x0, Math.min(p.x, c.x1)), nz = Math.max(c.z0, Math.min(p.z, c.z1));
+            const dx = p.x - nx, dz = p.z - nz, d = Math.hypot(dx, dz);
+            if (d < R) {
+                if (d > 1e-6) { p.x = nx + dx / d * R; p.z = nz + dz / d * R; }
+                else {
+                    const o = [[c.x0 - R - p.x, 0], [c.x1 + R - p.x, 0], [0, c.z0 - R - p.z], [0, c.z1 + R - p.z]].sort((a, b) => Math.abs(a[0] + a[1]) - Math.abs(b[0] + b[1]))[0];
+                    p.x += o[0]; p.z += o[1];
+                }
+            }
+        }
+    }
+}
+
+function walk(dt) {
+    const go = intro.locked ? 0 : 1;
+    const f = ((keys.has('w') || keys.has('arrowup')) - (keys.has('s') || keys.has('arrowdown'))) * go;
+    const s = ((keys.has('d') || keys.has('arrowright')) - (keys.has('a') || keys.has('arrowleft'))) * go;
+    const speed = keys.has('shift') ? HURRY : WALK;
+    const want = new THREE.Vector2(s, -f); if (want.lengthSq()) want.normalize().multiplyScalar(speed);
+    want.rotateAround(new THREE.Vector2(), -me.yaw);
+    me.vel.lerp(want, 1 - Math.exp(-dt * 8));
+    const before = me.pos.clone();
+    me.pos.x += me.vel.x * dt; me.pos.z += me.vel.y * dt;
+    collide(me.pos);
+    const moved = Math.hypot(me.pos.x - before.x, me.pos.z - before.z);
+
+    me.stride += moved;
+    const step = keys.has('shift') ? STEP.hurry : STEP.walk;
+    if (me.stride > step) { me.stride -= step; me.foot = -me.foot; sound.heel({ pan: me.foot * 0.12, gain: Math.min(1, 0.45 + me.vel.length() * 0.18), rate: 0.95 + Math.random() * 0.1, where: me.pos.z > 10.6 ? 'outside' : me.pos.z > 0 ? 'vestibule' : 'hall' }); }
+
+    for (const d of world.doors) {
+        const dx = me.pos.x - d.x, dz = me.pos.z - d.z, r = Math.hypot(dx, dz), a = Math.atan2(dx, dz);
+        if (r < 1.45) {
+            if (!d.inside) { d.inside = true; d.enter = a; d.base = d.wings.rotation.y; sound.hush(); }
+            let da = a - d.enter; da = Math.atan2(Math.sin(da), Math.cos(da));
+            d.wings.rotation.y = d.base + da;
+        } else if (d.inside && r > 1.6) d.inside = false;
+    }
+    const bobY = -Math.cos(2 * Math.PI * Math.min(1, me.stride / step)) * 0.022 * Math.min(1, me.vel.length());
+    me.eyeY += (ground(me.pos.x, me.pos.z) + HALL.EYE - me.eyeY) * (1 - Math.exp(-dt * 10));
+    camera.position.set(me.pos.x, me.eyeY + bobY, me.pos.z);
+    camera.rotation.set(me.pitch, me.yaw, 0, 'YXZ');
+    prompt();
+}
+
+const QUEUE_S = 6, AHEAD = [10, 10];
+const Q = { ticket: null, called: false, at: 0, talking: false, wasAuto: true };
+const pad4 = n => String(n).padStart(4, '0');
+function toast(text, s = 3) { $('toast').textContent = text; $('toast').classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => $('toast').classList.remove('on'), s * 1000); }
+function drawTicket() {
+    $('ticket').hidden = Q.ticket == null;
+    if (Q.ticket == null) return;
+    $('ticketNo').textContent = pad4(Q.ticket);
+    $('ticket').classList.toggle('called', Q.called);
+    $('ticketSays').textContent = Q.called ? `window ${world.boardCtl.queue.window}` : 'wait to be called';
+}
+function takeNumber(t) {
+    const c = world.boardCtl;
+    if (Q.ticket == null) Q.wasAuto = c.auto;
+    c.auto = false;
+    Q.ticket = (c.queue.number + AHEAD[0] + Math.floor(Math.random() * (AHEAD[1] - AHEAD[0] + 1))) % 10000;
+    Q.called = false; Q.at = t + QUEUE_S;
+    drawTicket();
+}
+function queueTick(t) {
+    if (Q.ticket == null || Q.called || t < Q.at) return;
+    const c = world.boardCtl;
+    let n = (c.queue.number + 1) % 10000;
+    if (n > Q.ticket || Q.ticket - n > 50) n = Q.ticket;
+    const win = n === Q.ticket ? c.served : c.staffed[Math.floor(Math.random() * c.staffed.length)];
+    c.call(n, win); Q.at = t + QUEUE_S;
+    if (n === Q.ticket) { Q.called = true; drawTicket(); toast(`${pad4(n)} — window ${win}`, 4); }
+}
+function near() {
+    const c = world.boardCtl, p = me.pos;
+    if (Q.ticket == null && Math.hypot(p.x - world.ticketAt.x, p.z - world.ticketAt.z) < 1.9) return 'take';
+    if (Q.called && Math.abs(p.x - c.windowX(c.queue.window)) < 1.15 && p.z > HALL.TELLERS + 0.4 && p.z < HALL.TELLERS + 2.8) return 'talk';
+    return null;
+}
+function prompt() {
+    const n = Q.talking ? null : near();
+    $('prompt').textContent = n === 'take' ? 'E · take a number' : n === 'talk' ? 'E · talk' : '';
+    $('prompt').classList.toggle('on', !!n);
+}
+
+const FALLBACK = { start: 'start', nodes: { start: { says: ["Sorry kid, we're closed. Come back later."], options: [] } } };
+async function script() {
+    try { const d = await (await fetch('demo.json', { cache: 'no-store' })).json(); if (d?.nodes?.[d.start]) return d; } catch {}
+    return FALLBACK;
+}
+const TALK = { d: null, node: null, line: 0, chars: [], shown: 0, choosing: false }, TYPE_RATE = 40;
+async function talk() {
+    Q.talking = true; keys.clear(); me.vel.set(0, 0); document.exitPointerLock?.();
+    TALK.d = await script();
+    $('talk').hidden = false; goTo(TALK.d.start);
+}
+function goTo(name) {
+    const n = TALK.d.nodes[name];
+    if (!n) return endTalk();
+    TALK.node = n; TALK.line = -1; TALK.choosing = false; $('talkOpts').innerHTML = ''; nextLine();
+}
+function nextLine() {
+    const says = TALK.node.says; let s;
+    do s = says[++TALK.line]?.replace(/^\s*\{[^}]*\}\s*/, ''); while (s !== undefined && !s.trim());
+    if (s === undefined) return TALK.node.options.length ? choices() : endTalk();
+    TALK.chars = []; let bold = false;
+    for (const ch of s) { if (ch === '*') bold = !bold; else TALK.chars.push([ch, bold]); }
+    TALK.shown = 0; drawLine();
+}
+function drawLine() {
+    let html = '', b = false;
+    for (const [ch, bold] of TALK.chars.slice(0, Math.floor(TALK.shown))) { if (bold !== b) { html += bold ? '<b>' : '</b>'; b = bold; } html += esc(ch); }
+    $('talkText').innerHTML = html + (b ? '</b>' : '');
+}
+function choices() {
+    TALK.choosing = true;
+    $('talkOpts').innerHTML = TALK.node.options.map((o, i) => `<button type="button" data-i="${i}">${esc(o.text)}</button>`).join('');
+}
+function choose(i) {
+    const o = TALK.node.options[i]; if (!o) return;
+    if (o.next) goTo(o.next); else endTalk();
+}
+function advance() {
+    if (!Q.talking || TALK.choosing || !TALK.node) return;
+    if (TALK.shown < TALK.chars.length) { TALK.shown = TALK.chars.length; drawLine(); lineDone(); } else nextLine();
+}
+
+function lineDone() {
+    const rest = TALK.node.says.slice(TALK.line + 1).some(s => s.replace(/^\s*\{[^}]*\}\s*/, '').trim());
+    if (!rest && TALK.node.options.length && !TALK.choosing) choices();
+}
+function endTalk() {
+    $('talk').hidden = true; $('talkOpts').innerHTML = ''; TALK.node = null; Q.talking = false;
+    Q.ticket = null; Q.called = false; world.boardCtl.auto = Q.wasAuto; drawTicket();
+}
+function typeOn(dt) {
+    if (!Q.talking || !TALK.node || TALK.shown >= TALK.chars.length) return;
+    TALK.shown = Math.min(TALK.chars.length, TALK.shown + dt * TYPE_RATE); drawLine();
+    if (TALK.shown >= TALK.chars.length) lineDone();
+}
+$('talkOpts').onclick = e => { const b = e.target.closest('button'); if (b) choose(+b.dataset.i); };
+addEventListener('pointerdown', e => { if (Q.talking && !e.target.closest('#talkOpts')) advance(); });
+
+const sound = makeSound();
+
+const _right = new THREE.Vector3(), _to = new THREE.Vector3();
+const roomOf = z => z > 10.6 ? 'street' : z > 0.3 ? 'vestibule' : z > -0.3 ? 'door' : 'hall';
+const dB = x => Math.pow(10, x / 20);
+function heard(at, { room = at ? roomOf(at.z) : 'hall', ref = 7, echo = 0.3, fall = 1, echoFall = 0 } = {}) {
+    const cam = camera.position, z = cam.z, S = THREE.MathUtils.smoothstep;
+
+    let door = 99; for (const d of world.doors) door = Math.min(door, Math.hypot(cam.x - d.x, z - d.z));
+    let reach, muffle;
+    if (room === 'street') {
+        const way = S(16 - z, 0, 16);
+        reach = z >= 0 ? dB(-9 * way) : dB(-9 - 36 * S(door, 0, 8)) * (1 - S(door, 7, 10)); muffle = way;
+    } else if (room === 'hall') {
+        reach = z < 0 ? dB(-18 * (1 - S(door, 0, 6))) : dB(-18 - 18 * S(door, 0, 3)) * (1 - S(door, 2.5, 4));
+        muffle = z < 0 ? 0.65 * (1 - S(door, 0, 5)) : 1 - 0.35 * (1 - S(door, 0, 2));
+    } else if (room === 'door') {
+        reach = 1; muffle = S(z, 10, 16);
+    } else {
+        reach = dB(-30 * S(-z, 0, 6)) * (1 - S(-z, 5, 8)); muffle = Math.max(S(z, 10, 16), S(-z, 0, 4));
+    }
+    if (reach <= 0.001) return null;
+    const verb = 0.45 * S(14 - z, 0, 5) + 0.55 * S(-z, -2, 4);
+    if (!at) return { gain: reach, pan: 0, lp: 0, wet: echo * verb, muffle };
+    const d = cam.distanceTo(at), near = Math.min(1, ref / Math.max(d, ref)) ** fall;
+    _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
+    const side = d > 0.01 ? _to.subVectors(at, cam).normalize().dot(_right) : 0;
+    const width = verb > 0.5 ? 0.2 + 0.4 * near : 0.8;
+    const air = 2800 + 15000 * Math.min(1, ref / Math.max(d, ref)) ** 0.7;
+    return { gain: near * reach, pan: Math.max(-0.8, Math.min(0.8, side * width)),
+             lp: air > 17000 ? 0 : air, wet: echo * verb * near ** echoFall / Math.max(near, 0.02), muffle };
+}
+
+const _foot = new THREE.Vector3();
+function walkerSteps() {
+    const ws = world.walkerSteps, cam = camera.position;
+    if (!ws?.length || !sound.on || cam.z < -8) return;
+    ws.map(s => ({ s, d: Math.hypot(s.x - cam.x, s.z - cam.z) })).filter(w => w.d < 30).sort((a, b) => a.d - b.d).slice(0, 3).forEach(({ s }) => {
+        const o = heard(_foot.set(s.x, 0.1, s.z), { room: 'street', ref: 4, echo: 0.2 });
+        if (o) sound.walker({ ...o, gain: s.gain * o.gain });
+    });
+}
+
+let LAMPS = null, streetAt = 8;
+const _lamp = new THREE.Vector3(), _office = new THREE.Vector3(), _shot = new THREE.Vector3();
+function ambience(dt) {
+    if (!sound.on) return;
+    LAMPS ??= world.lamps;
+    const cam = camera.position, off = { gain: 0 };
+    sound.loop('city', heard(null, { room: 'street', echo: 0.15 }) ?? off);
+    sound.loop('walla', heard(null, { room: 'street', echo: 0.15 }) ?? off);
+    sound.loop('room', heard(null, { room: 'hall', echo: 0 }) ?? off);
+
+    sound.loop('office', heard(_office.set(0, 2, world.ticketAt.z - 16), { room: 'hall', ref: 7, echo: 0.15, echoFall: 0.5 }) ?? off);
+    let lamp = null, ld = 6;
+    for (const p of LAMPS) { const d = cam.distanceTo(p); if (d < ld) { ld = d; lamp = p; } }
+    sound.loop('hum', (lamp && heard(_lamp.copy(lamp), { ref: 1.2, fall: 2, echo: 0 })) || off);
+
+    let door = null, spin = 0;
+    for (const d of world.doors) {
+        const r = d.wings.rotation.y; d.spin = (d.spin ?? 0) * 0.85 + 0.15 * Math.abs(r - (d.last ?? r)) / Math.max(dt, 1e-3); d.last = r;
+        if (d.spin > spin) { spin = d.spin; door = d; }
+    }
+    const rv = door && heard(_lamp.set(door.x, 1.2, door.z), { room: 'door', ref: 3, echo: 0.3 });
+    sound.loop('revolve', rv ? { ...rv, gain: rv.gain * Math.min(1, spin / 1.2) } : off);
+
+    const rb = flapRate > 0.5 && heard(world.board.getWorldPosition(_board), { room: 'hall', ref: 7, echo: 0.35 });
+    sound.loop('rattle', rb ? { ...rb, gain: rb.gain * Math.min(1, flapRate / 20) } : off);
+
+    if ((streetAt -= dt) < 0 && sound.has('street')) {
+        streetAt = 14 + Math.random() * 26;
+        const o = heard(_shot.set((Math.random() < 0.5 ? -1 : 1) * (25 + Math.random() * 60), 1, 26 + Math.random() * 20), { room: 'street', ref: 12, echo: 0.2 });
+        if (o) sound.shot('street', { ...o, rate: 0.95 + Math.random() * 0.1 });
+    }
+}
+
+let last = performance.now(), size = [0, 0], flapRate = 0;
+const _board = new THREE.Vector3();
+function resize() {
+    const w = innerWidth, h = innerHeight;
+    if (!w || !h || (w === size[0] && h === size[1])) return;
+    size = [w, h];
+    renderer.setSize(w, h, false); composer.setSize(w, h);
+    camera.aspect = w / h; camera.updateProjectionMatrix();
+    ps1.uniforms.res.value.set(Math.round(240 * w / h), 240);
+    renderer.getDrawingBufferSize(film.uniforms.res.value);
+}
+function frame(now = performance.now()) {
+    resize();
+    const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = now;
+    const t = now / 1000;
+    walk(dt);
+    queueTick(t); typeOn(dt);
+    world.update(t, camera.position, dt);
+    walkerSteps();
+
+    const ck = world.clock.userData.update(clockTime());
+    if (ck.tick && CLK.tick) clockSound('tick');
+    if (ck.strike) clockSound('strike', ck.strike);
+    if (ck.quarter) clockSound('quarter', ck.quarter);
+
+    const fo = world.flaps && heard(world.board.getWorldPosition(_board), { room: 'hall', ref: 7, echo: 0.35 });
+    if (fo) for (let i = 0; i < Math.min(world.flaps, 3); i++) sound.flap({ ...fo, delay: Math.random() * 0.03 });
+    flapRate += (world.flaps / Math.max(dt, 1e-3) - flapRate) * (1 - Math.exp(-dt * 6));
+    ambience(dt);
+    camera.updateMatrixWorld();
+    const u = volume.uniforms;
+    u.projInv.value.copy(camera.projectionMatrixInverse); u.camWorld.value.copy(camera.matrixWorld); u.camPos.value.copy(camera.position); u.time.value = t;
+    u.strength.value = 0.022 * world.sunlight; u.sunAmt.value = world.sunlight;
+    film.uniforms.time.value = t;
+    sound.update(dt);
+
+    if (!shadowDrawn || world.doors.some(d => d.inside)) { renderer.shadowMap.needsUpdate = true; shadowDrawn = true; }
+    composer.render(dt);
+
+    if ((perf.wait -= dt) < 0) {
+        perf.t += dt; perf.n++;
+        if (perf.t > 2) {
+            if (perf.t / perf.n > 0.025 && perf.scale > 0.61) { perf.scale = Math.max(0.6, perf.scale * 0.85); renderer.setPixelRatio(perf.scale); composer.setPixelRatio(perf.scale); size = [0, 0]; }
+            perf.t = perf.n = 0;
+        }
+    }
+}
+let shadowDrawn = false;
+const perf = { wait: 3, t: 0, n: 0, scale: 1 };
+
+function hud() {
+}
+addEventListener('keydown', e => {
+    const k = e.key.toLowerCase();
+    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
+    if (Q.talking) {
+        if (k === 'e' || k === ' ' || k === 'enter') advance();
+        else if (TALK.choosing && /^[1-9]$/.test(k)) choose(+k - 1);
+        return;
+    }
+    keys.add(k);
+    if (k === 'e' && !cataloguing && !intro.locked) { const n = near(); if (n === 'take') takeNumber(performance.now() / 1000); else if (n === 'talk') talk(); }
+});
+addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+addEventListener('blur', () => keys.clear());
+document.addEventListener('visibilitychange', () => keys.clear());
+
+const CLK = { offset: 0, tick: true };
+const clockTime = () => new Date(Date.now() + CLK.offset);
+
+{
+    const now = new Date(), from = new Date(now); from.setHours(18, 57, 0, 0);
+    CLK.offset = from - now; world.timeOffset = CLK.offset; world.clock.userData.update(clockTime());
+}
+
+const CLOCK_AT = new THREE.Vector3(0, 6.5, -42), CLOCK_ROOM = { tick: 0.28, strike: 0.3 };
+function clockSound(kind, n = 0) {
+    const o = heard(CLOCK_AT, { room: 'hall', ref: 7, echo: CLOCK_ROOM[kind === 'tick' ? 'tick' : 'strike'] });
+    if (!o) return;
+    if (kind === 'tick') sound.tick(o);
+    else if (kind === 'strike') sound.strike(n, o);
+    else sound.quarter(n, o);
+}
+
+setLook('lit');
+setGrade(0);
+frame(); timings.firstFrame = Math.round(performance.now());
+$('load').remove();
+renderer.setAnimationLoop(frame);
+
+if (PUBLIC) {
+    const begin = () => {
+        removeEventListener('pointerdown', begin); removeEventListener('keydown', begin);
+        sound.start()?.catch?.(() => {}); lockMouse();
+        $('curtain').firstElementChild?.remove();
+        setTimeout(() => { $('curtain').classList.add('open'); world.startWalkers(performance.now() / 1000); }, 5000);
+        setTimeout(() => { intro.locked = false; $('curtain').remove(); }, 10000);
+    };
+    addEventListener('pointerdown', begin); addEventListener('keydown', begin);
+} else $('curtain').remove();
+</script>
+</body>
+</html>

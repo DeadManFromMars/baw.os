@@ -1,0 +1,268 @@
+{
+  "start": "start",
+  "nodes": {
+    "start": {
+      "says": [
+        "Sorry kid, we're closed. Come back later."
+      ],
+      "options": [
+        {
+          "text": "What?",
+          "next": "box3"
+        },
+        {
+          "text": "You've gotta be kidding me.",
+          "next": "box2"
+        }
+      ]
+    },
+    "box2": {
+      "says": [
+        "Does it look like it?"
+      ],
+      "options": [
+        {
+          "text": "I don't know ma'am. I can't see your face.",
+          "next": "box5"
+        },
+        {
+          "text": "Then why are you standing behind the glass?",
+          "next": "box6"
+        }
+      ]
+    },
+    "box3": {
+      "says": [
+        "You heard me. We're closed, come back when we are open."
+      ],
+      "options": [
+        {
+          "text": "When are you open?",
+          "next": "box4"
+        },
+        {
+          "text": "So I can't open an account?",
+          "next": "box8"
+        }
+      ]
+    },
+    "box4": {
+      "says": [
+        "Ask The Creator."
+      ],
+      "options": [
+        {
+          "text": "Who's The Creator?",
+          "next": "box15"
+        }
+      ]
+    },
+    "box5": {
+      "says": [
+        "Are you hitting on me?"
+      ],
+      "options": [
+        {
+          "text": "Yes.",
+          "next": "box7"
+        },
+        {
+          "text": "No. (Yes)",
+          "next": "box10"
+        }
+      ]
+    },
+    "box6": {
+      "says": [
+        "Comfortable. Warm. Familiar."
+      ],
+      "options": [
+        {
+          "text": "Why even keep the bank open at all?",
+          "next": "box4"
+        },
+        {
+          "text": "Like that Freud guy said.",
+          "next": "box14"
+        }
+      ]
+    },
+    "box7": {
+      "says": [
+        "You look a little too lost and confused for me. Like a lost puppy in a place they've never been before."
+      ],
+      "options": [
+        {
+          "text": "It was worth the try.",
+          "next": "box10"
+        }
+      ]
+    },
+    "box8": {
+      "says": [
+        "Nope."
+      ],
+      "options": [
+        {
+          "text": "Will I be able to? Ever?",
+          "next": "box9"
+        }
+      ]
+    },
+    "box9": {
+      "says": [
+        "Yea, probably."
+      ],
+      "options": [
+        {
+          "text": "But not now?",
+          "next": "box16"
+        }
+      ]
+    },
+    "box10": {
+      "says": [
+        "Mmmm. Sure. Anything else I can get for you?"
+      ],
+      "options": [
+        {
+          "text": "A bank account.",
+          "next": "box12"
+        },
+        {
+          "text": "A drink.",
+          "next": "box11"
+        },
+        {
+          "text": "Nothing.",
+          "next": "box13"
+        }
+      ]
+    },
+    "box11": {
+      "says": [
+        "You're telling me."
+      ],
+      "options": []
+    },
+    "box12": {
+      "says": [
+        "Listen, come back when the time is right. For now? You're just gonna have to wait."
+      ],
+      "options": [
+        {
+          "text": "Ughhh.",
+          "next": ""
+        },
+        {
+          "text": "Fine.",
+          "next": ""
+        }
+      ]
+    },
+    "box13": {
+      "says": [
+        "Have a good enough day."
+      ],
+      "options": []
+    },
+    "box14": {
+      "says": [
+        "Who?"
+      ],
+      "options": [
+        {
+          "text": "Forget it.",
+          "next": "box10"
+        }
+      ]
+    },
+    "box15": {
+      "says": [
+        "The one who created all this? The walls, the floor, the people... You get the point."
+      ],
+      "options": [
+        {
+          "text": "No. I don't think I really get the point.",
+          "next": "box19"
+        },
+        {
+          "text": "Uhhh, yea, sure.",
+          "next": "box18"
+        }
+      ]
+    },
+    "box16": {
+      "says": [
+        "Nope."
+      ],
+      "options": [
+        {
+          "text": "So i'm fucked?",
+          "next": "box17"
+        }
+      ]
+    },
+    "box17": {
+      "says": [
+        "Mhm."
+      ],
+      "options": [
+        {
+          "text": "Great.",
+          "next": "box12"
+        }
+      ]
+    },
+    "box18": {
+      "says": [
+        "Yea I can tell by the confusion on your face you must *really* get it."
+      ],
+      "options": []
+    },
+    "box19": {
+      "says": [
+        "The point is that there exists a world beyond your comprehension and you're just barely scratching the surface. You blink and new things arise while others crumble."
+      ],
+      "options": [
+        {
+          "text": "Uh...",
+          "next": "box20"
+        }
+      ]
+    },
+    "box20": {
+      "says": [
+        "Look, kid. If you don't understand who made you or why you're here. Are you even living? Your reality isn't an illusion but you clearly lack purpose."
+      ],
+      "options": [
+        {
+          "text": "Right, but...",
+          "next": "box21"
+        }
+      ]
+    },
+    "box21": {
+      "says": [
+        "It's not that you aren't asking questions. You just aren't asking the *right* questions. Skew your perception, embrace life from different angles and sometimes hidden truths shake out of the pages like leaves in the wind."
+      ],
+      "options": [
+        {
+          "text": "But...",
+          "next": "box22"
+        }
+      ]
+    },
+    "box22": {
+      "says": [
+        "But what?"
+      ],
+      "options": [
+        {
+          "text": "Can I open a bank account?",
+          "next": "box12"
+        }
+      ]
+    }
+  }
+}
