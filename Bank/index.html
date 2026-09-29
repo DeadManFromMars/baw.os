@@ -309,6 +309,8 @@ timings.shaders = Math.round(performance.now());
 }
 {
     const cube = new THREE.CubeCamera(0.5, 200, cubeRT); cube.position.set(0, 8, -30);
+
+    renderer.shadowMap.needsUpdate = true;
     cube.update(renderer, scene);
     const standIn = scene.environment; scene.environment = pmrem.fromCubemap(cubeRT.texture).texture; standIn.dispose();
 }

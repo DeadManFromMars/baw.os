@@ -896,7 +896,7 @@ export async function buildHall(renderer, M, X) {
         return { texture: rt.depthTexture, matrix };
     }
 
-    const LAMP_POOL = 24;
+    const LAMP_POOL = 32;
     hall.updateMatrixWorld(true);
     const lamps = [];
     hall.traverse(o => { if (o.isPointLight) lamps.push({ light: o, world: o.getWorldPosition(new THREE.Vector3()), color: o.color.clone(), power: o.intensity, reach: o.distance, decay: o.decay, score: 0 }); });
