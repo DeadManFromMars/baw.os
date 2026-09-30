@@ -5,8 +5,9 @@
    on Password Reset survive a look at the numbers. Dial: dial tone,
    the number keyed in (touch tones, Web Audio), ringing, then a
    Windows dial-up error — except the ones that answer: Peanut, who
-   can't help with anything (all here, nothing secret), and Chicago,
-   whose call the server runs (chicago.js, backend app/calls.py).
+   can't help with anything (his lines are here) unless the server
+   says otherwise (backend app/calls.py), and Chicago, whose call the
+   server runs (chicago.js, same file).
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const Dialup = (() => {
@@ -206,14 +207,31 @@ const Dialup = (() => {
         $('peanutInput').focus();
     }
 
-    $('peanutAsk').addEventListener('submit', e => {
-        e.preventDefault();
-        if (!$('peanutInput').value.trim()) return;
-        $('peanutInput').value = '';
+    // What he says back: the backend decides if it's one of the few things he knows (so nothing's given away
+    // here); otherwise — or if the line's down — one of his can't-helps
+    async function heard(text) {
+        try {
+            const ctl = new AbortController(); setTimeout(() => ctl.abort(), 4000);
+            const res = await fetch(`${CONFIG.apiBase}/calls/peanut/ask`, {
+                method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text }), signal: ctl.signal,
+            });
+            const { reply } = await res.json();
+            if (reply) return reply;
+        } catch {}
         let i;
         do i = Math.floor(Math.random() * REPLIES.length); while (i === lastReply);   // never the same twice running
         lastReply = i;
-        say(REPLIES[i]);
+        return REPLIES[i];
+    }
+
+    $('peanutAsk').addEventListener('submit', async e => {
+        e.preventDefault();
+        const text = $('peanutInput').value.trim();
+        if (!text) return;
+        $('peanutInput').value = '';
+        const reply = await heard(text);
+        if (!$('peanut').hidden) say(reply);        // (unless they hung up meanwhile)
     });
 
     function leavePeanut() {
