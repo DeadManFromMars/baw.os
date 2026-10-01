@@ -38,15 +38,13 @@ const Dialup = (() => {
         { at: 'Wilmington, DE',   num: '(302) 428-9163', speed: '56K x2',      ends: 'gone' },
         { at: 'Washington, DC',   num: '(202) 783-4410', speed: '56K V.90',    ends: 'busy' },
         { at: 'Chicago, IL',      num: '(312) 939-2257', speed: '56K V.90',    ends: 'chicago' },
-        { at: 'Boston, MA',       num: '(617) 482-7730', speed: '33.6K',       ends: 'none' },
+        { at: 'Dallas, TX',       num: '(214) 482-7730', speed: '33.6K',       ends: 'none' },
         { at: 'Baltimore, MD',    num: '(410) 576-3318', speed: '56K K56flex', ends: 'busy' },
         { at: 'Osaka, Japan',     num: '+81 6-6345-2710', speed: 'ISDN 64K',   ends: 'osaka' },
         { at: 'Arleux, France',   num: '+33 3 27 89 51 46', speed: 'ISDN 64K', ends: 'arleux' },
         { at: 'New York, NY',     num: '(718) 391-6624', speed: 'ISDN 64K',    ends: 'none' },
-        { at: 'Cleveland, OH',    num: '(216) 861-4052', speed: '33.6K',       ends: 'gone' },
+        { at: 'Cincinnati, OH',   num: '(513) 861-4052', speed: '33.6K',       ends: 'gone' },
         { at: 'Philadelphia, PA', num: '(215) 627-4410', speed: '56K V.90',    ends: 'peanut' },
-        { at: 'Pittsburgh, PA',   num: '(412) 281-9735', speed: '28.8K',       ends: 'none' },
-        { at: 'Richmond, VA',     num: '(804) 644-2186', speed: '56K x2',      ends: 'none' },
         { at: 'Seattle, WA',      num: '(206) 448-5091', speed: '56K V.90',    ends: 'busy' },
     ];
     $('numbers').innerHTML = NUMBERS.map((n, i) =>
