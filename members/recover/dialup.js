@@ -31,7 +31,8 @@ const Dialup = (() => {
     /* ── The numbers ──
        ends: 'none' rings out · 'busy' busy signal · 'gone' not in service · 'peanut' answers
              'chicago' asks the server (he may answer, be busy, or be blown up)
-             'osaka' answers only on the dev PC for now (its screen isn't ready for the site); elsewhere it rings out */
+             'osaka', 'arleux' answer only on the dev PC for now (their screens aren't ready for the site);
+             elsewhere they ring out */
     const ON_THIS_PC = ['localhost', '127.0.0.1'].includes(location.hostname);
     const NUMBERS = [
         { at: 'Wilmington, DE',   num: '(302) 428-9163', speed: '56K x2',      ends: 'gone' },
@@ -40,6 +41,7 @@ const Dialup = (() => {
         { at: 'Boston, MA',       num: '(617) 482-7730', speed: '33.6K',       ends: 'none' },
         { at: 'Baltimore, MD',    num: '(410) 576-3318', speed: '56K K56flex', ends: 'busy' },
         { at: 'Osaka, Japan',     num: '+81 6-6345-2710', speed: 'ISDN 64K',   ends: 'osaka' },
+        { at: 'Arleux, France',   num: '+33 3 27 89 51 46', speed: 'ISDN 64K', ends: 'arleux' },
         { at: 'New York, NY',     num: '(718) 391-6624', speed: 'ISDN 64K',    ends: 'none' },
         { at: 'Cleveland, OH',    num: '(216) 861-4052', speed: '33.6K',       ends: 'gone' },
         { at: 'Philadelphia, PA', num: '(215) 627-4410', speed: '56K V.90',    ends: 'peanut' },
@@ -128,28 +130,30 @@ const Dialup = (() => {
             later(t + 18, ringOut);
             return;
         }
-        const answers = n.ends === 'peanut' || (n.ends === 'osaka' && ON_THIS_PC);
+        const answers = n.ends === 'peanut' || (n.ends in SCREENS && ON_THIS_PC);
         const rings = answers ? 2 : 3;
         for (let k = 0; k < rings; k++) tone([440, 480], t + k * 6, 2);
         later(t, () => status('Ringing…'));
         if (n.ends === 'peanut') later(t + 8.2, answer);
-        else if (answers) later(t + 8.2, osaka);
+        else if (answers) later(t + 8.2, () => callScreen(SCREENS[n.ends]));
         else later(t + rings * 6, ringOut);
     }
 
-    // Osaka (the dev PC only, for now): its screen opens over the page; it closes itself when the call's over
-    function osaka() {
+    // Osaka, Arleux (the dev PC only, for now): the call's screen opens over the page; it closes itself when the
+    // call's over (or Escape)
+    const SCREENS = { osaka: '/mockups/netphone/index.html?embed', arleux: '/mockups/zombies/index.html?embed' };
+    function callScreen(src) {
         hangUp();
         const f = document.createElement('iframe');
-        f.id = 'osaka'; f.src = '/mockups/netphone/index.html?embed';
+        f.id = 'callScreen'; f.src = src;
         f.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0;background:#000;z-index:1000';
         document.body.appendChild(f);
         f.focus();
     }
     window.addEventListener('message', e => {
-        if (e.origin === location.origin && e.data?.netphone === 'close') $('osaka')?.remove();
+        if (e.origin === location.origin && (e.data?.netphone === 'close' || e.data?.zombies)) $('callScreen')?.remove();
     });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') $('osaka')?.remove(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') $('callScreen')?.remove(); });
 
     // A Windows dial-up message on its own, with a Close button (a call's ending, chicago.js)
     function popup(text) {
