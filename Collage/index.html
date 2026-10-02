@@ -127,9 +127,9 @@
 </form></div>
 
 <script type="module">
-import * as paper from './paper.js?v=44';
-import * as D from './desk.js?v=44';
-import * as den from './room.js?v=44';
+import * as paper from './paper.js?v=46';
+import * as D from './desk.js?v=46';
+import * as den from './room.js?v=46';
 const { desk, inv, apply, turn, translate, rotateAbout } = paper;
 
 const IN = 2.54, TAU = Math.PI * 2, DEG = Math.PI / 180;
@@ -157,6 +157,7 @@ const FEEL = {
     scrap: 40,
     thread: .5,
     toss: 140,
+    overhang: 12,
     hold: .22,
     wind: .7,
     over: [30, 55],
@@ -672,7 +673,7 @@ function contain() {
 }
 const pxcm = () => Math.max(1, innerHeight) / D.span(view.dist);
 const at = (h = 0) => D.deskAt(ms.x, ms.y, h);
-const onDesk = p => ({ x: Math.max(-D.DESK.w / 2, Math.min(D.DESK.w / 2, p.x)), y: Math.max(-D.DESK.h / 2, Math.min(D.DESK.h / 2, p.y)) });
+const onDesk = (p, m = 0) => ({ x: Math.max(-D.DESK.w / 2 - m, Math.min(D.DESK.w / 2 + m, p.x)), y: Math.max(-D.DESK.h / 2 - m, Math.min(D.DESK.h / 2 + m, p.y)) });
 function reach() {
     const d = drag;
     const lies = () => { const h = Math.min(...d.piece.leaves.map(D.topOf).filter(Boolean)); return isFinite(h) ? d.h = h : d.h || 0; };
@@ -728,7 +729,7 @@ function spill() {
         else paperOff(g, { vx: away.x * 30, vy: away.y * 30 }, [], true);
     }
 }
-function step(from, to) { if (!from.length || trying() || tut) return; to.push(last); last = from.pop(); load(last); unsaved = true; lastTag = null; bar(); cursor(); wake(); }
+function step(from, to) { if (!from.length || trying() || tut) return; to.push(last); last = from.pop(); load(last); tick(0); unsaved = true; lastTag = null; bar(); cursor(); wake(); }
 function save() {
     if (trying() || tut) return;
     try { localStorage.setItem(KEY, last = state()); unsaved = false; say('saved'); }
@@ -910,7 +911,7 @@ function settle() {
     changed();
 }
 function release(d) {
-    const s = speed(), tossed = s.px > FEEL.toss, k = tossed ? Math.min(1, 150 / s.v) : 0, c = middle(d.pieces);
+    const s = speed(), tossed = !d.behind && s.px > FEEL.toss, k = tossed ? Math.min(1, 150 / s.v) : 0, c = middle(d.pieces);
     flights.push({ pieces: d.pieces, tools: d.tools, vx: s.x * k, vy: s.y * k, spin: tossed ? Math.max(-2.5, Math.min(2.5, cross(sub(d.last, c), { x: s.x, y: s.y }) * k * .002)) : 0, t: 0, tossed, same: !d.went && !d.fresh && !tossed, grip: { ...d.last }, sway: { ...(d.sway || { x: 0, y: 0 }) } });
 }
 function clearOf(pieces, riding, v) {
@@ -1325,7 +1326,7 @@ canvas.addEventListener('pointermove', e => {
     if (!begun) return;
     if (!atDesk) return roomMove(e);
     where(e);
-    const d = drag, p = d?.kind === 'thing' ? onDesk(reach()) : reach();
+    const d = drag, p = d?.kind === 'thing' ? onDesk(reach(), BIG.includes(d.t.kind) || tut ? 0 : FEEL.overhang) : reach();
     trail.push({ t: now(), ...p, sx: ms.x, sy: ms.y }); if (trail.length > 12) trail.shift();
     if (d?.kind === 'pan') { const q = at(); view.x += d.grip.x - q.x; view.y += d.grip.y - q.y; }
     else if (d?.kind === 'piece') {
@@ -1905,7 +1906,7 @@ function sitDown() {
     cursor(); wake();
 }
 function backOn(it, at, k = 0) {
-    if (it.kind === 'big') { it.obj.removeFromParent(); bring(it.t.kind, { x: at.x, y: at.y, ang: 0, h: 3 }); }
+    if (it.kind === 'big') { it.obj.removeFromParent(); it.obj.traverse(o => o.geometry && o.geometry.dispose()); bring(it.t.kind, { x: at.x, y: at.y, ang: 0, h: 3 }); }
     else if (it.kind === 'thing') {
         const t = it.t; D.scene.add(t.obj); things.push(t);
         Object.assign(t, { x: at.x, y: at.y, ang: 0, h: 3 + .6 * k, state: 'air', vx: 0, vy: 0, vh: 0, vp: 0, pitch: 0, spin: 0, on: null, z: -1, rank: ++stamp, settling: true, ease: null, seen: null, floor: null });
@@ -1929,7 +1930,7 @@ const floorState = () => den.items.concat(den.held).map(it => it.kind === 'big' 
 function floorClear() {
     for (const it of den.items.concat(den.held)) {
         den.forget(it);
-        if (it.kind === 'big') { it.t.away = false; it.t.obj.visible = true; }
+        if (it.kind === 'big') { it.t.away = false; it.t.obj.visible = true; it.obj.traverse(o => o.geometry && o.geometry.dispose()); }
         else if (it.kind === 'thing') { things.push(it.t); D.scene.add(it.t.obj); Object.assign(it.t, { state: 'rest', vx: 0, vy: 0, vh: 0, spin: 0, pitch: 0, vp: 0, on: null, z: -1, h: 0 }); }
         else it.obj.traverse(o => o.geometry && o.geometry.dispose());
     }
@@ -2025,7 +2026,7 @@ function tick(dt) {
     for (const t of things) t.knocked = false;
     for (const t of [...things].sort((a, b) => (a.z ?? -1) - (b.z ?? -1) || a.rank - b.rank)) {
         if (!loose(t)) continue;
-        if (!tut && t.state === 'rest' && !rides(t) && (Math.abs(t.x) > D.DESK.w / 2 + .5 || Math.abs(t.y) > D.DESK.h / 2 + .5)) { Object.assign(t, { vx: 0, vy: 0, vh: 0, spin: 0 }); offDesk(t); continue; }
+        if (!tut && (t.state === 'rest' || t.state === 'air') && !rides(t) && (Math.abs(t.x) > D.DESK.w / 2 + (t.state === 'rest' ? .5 : 0) || Math.abs(t.y) > D.DESK.h / 2 + (t.state === 'rest' ? .5 : 0))) { if (t.state === 'rest') Object.assign(t, { vx: 0, vy: 0, vh: 0, spin: 0 }); offDesk(t); continue; }
         const u = t.obj.userData, rolls = u.rolls, to = restOf(t, ground);
         if (t.state === 'rest' && t.h > to.h + .04 && !rides(t)) Object.assign(t, { state: 'air', vh: 0, vx: 0, vy: 0, spin: 0, settling: true });
         let lean = rolls && dt ? leanOf(t, ground) : 0;
@@ -2658,7 +2659,7 @@ function audit() {
     for (const t of things) {
         if (![t.x, t.y, t.h, t.ang, t.pitch].every(Number.isFinite)) { bad.push(`${t.kind}: lost (not a number)`); continue; }
         if (t === hand || t.away) continue;
-        if (Math.abs(t.x) > D.DESK.w / 2 + .01 || Math.abs(t.y) > D.DESK.h / 2 + .01) bad.push(`${t.kind}: off the desk`);
+        if (t.state !== 'drag' && !drag?.tools?.includes(t) && !flights.some(f => f.tools.includes(t)) && (Math.abs(t.x) > D.DESK.w / 2 + .01 || Math.abs(t.y) > D.DESK.h / 2 + .01)) bad.push(`${t.kind}: off the desk`);
         if (t.h < -.001 || t.h > (BIG.includes(t.kind) ? TOP : 20)) bad.push(`${t.kind}: ${t.h.toFixed(2)} cm up`);
         if (lie.includes(t) && !t.easing && t.h < restOf(t, ground).h - .05) bad.push(`${t.kind}: sunk into what it's lying on`);
     }
@@ -2668,7 +2669,7 @@ function audit() {
         if (c && c.depth > slack) bad.push(`${b.kind} is inside ${a.kind} (by ${c.depth.toFixed(2)} cm)`);
     }
     for (const l of paper.stack()) if (D.topOf(l) > TOP + 2) bad.push(`paper (piece ${l.piece.id}): ${D.topOf(l).toFixed(2)} cm up`);
-    for (const q of desk.pieces) { const c = middle([q]); if (!flights.some(f => f.bin && f.pieces.includes(q)) && (Math.abs(c.x) > D.DESK.w / 2 + .5 || Math.abs(c.y) > D.DESK.h / 2 + .5)) bad.push(`paper (piece ${q.id}): off the desk`); }
+    for (const q of desk.pieces) { const c = middle([q]); if (!flights.some(f => (f.bin || f.tossed) && f.pieces.includes(q)) && (Math.abs(c.x) > D.DESK.w / 2 + .5 || Math.abs(c.y) > D.DESK.h / 2 + .5)) bad.push(`paper (piece ${q.id}): off the desk`); }
     return bad.concat(D.sunk());
 }
 window.collage = { den, getUp, sitBack, pickFloor, holdE, letGoE, SOUND, get atDesk() { return atDesk; }, keysDown, paper, D, desk, view, sheets, things, flights, aloft, hinge, motions, scars, stiff, get lifting() { return lifting; }, get prying() { return prying; }, FEEL, tick, frame, fit, state, load, changed, setMode, wake,

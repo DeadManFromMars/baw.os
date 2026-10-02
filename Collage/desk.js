@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import * as paper from './paper.js?v=44';
+import * as paper from './paper.js?v=46';
 
 const S = paper.S, TAU = Math.PI * 2, IN = 2.54, V = (x, y, z) => new THREE.Vector3(x, y, z);
 const LENS = 20;
@@ -71,6 +71,7 @@ export function pick(cx, cy, objs) {
     return o ? { thing: o.userData.thing, part: hit.object.userData.part } : null;
 }
 export const eye = () => camera;
+export const compile = () => renderer.compile(scene, camera);
 export const lens = LENS;
 
 export function still(pieces, sheets, c) {

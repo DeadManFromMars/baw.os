@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import * as D from './desk.js?v=44';
-import * as field from './field.js?v=44';
+import * as D from './desk.js?v=46';
+import * as field from './field.js?v=46';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z), FAR = 70000;
 const smooth = t => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
@@ -30,6 +30,7 @@ export const LAMP = {
 const mat = (color, rough = .9) => new THREE.MeshStandardMaterial({ color, roughness: rough });
 const LEGS = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([i, j]) => ({ x: i * (D.DESK.w / 2 - 8), z: j * (D.DESK.h / 2 - 8) }));
 let darkRoom = null, lamp = null;
+export const took = { field: 0, grass: 0, ready: 0 };
 const glowTex = (stops, n = 256) => { const c = Object.assign(document.createElement('canvas'), { width: n, height: n }), g = c.getContext('2d'), gr = g.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2); for (const [at, col] of stops) gr.addColorStop(at, col); g.fillStyle = gr; g.fillRect(0, 0, n, n); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
 export function build() {
     const g = new THREE.Group(), W = D.DESK.w, H = D.DESK.h, wood = mat('#34170f', .5);
@@ -47,8 +48,12 @@ export function build() {
     const lit = new THREE.MeshBasicMaterial({ color: '#ffe9c4', transparent: true, opacity: .0055, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
     lamp.add(shade, face, glare); darkRoom.add(lamp);
     for (let i = 0; i < 7; i++) lamp.add(new THREE.Mesh(new THREE.ConeGeometry(70 + i * 20, LAMP.high, 48, 1, true).translate(0, -LAMP.high / 2, 0), lit));
-    field.build(D.scene, SLAB, FLOOR);
+    const t0 = performance.now(); field.build(D.scene, SLAB, FLOOR); took.field = performance.now() - t0;
     D.scene.add(g, darkRoom, D.eye());
+
+    const pump = () => { const t = performance.now(), left = field.more(6); took.grass += performance.now() - t; if (left) setTimeout(pump, 30); else setTimeout(ready, 200); };
+    const ready = () => { if (world !== 'dark' || up()) return; const t = performance.now(), was = lamp.visible; lamp.visible = true; field.show(true); D.compile(); field.show(false); lamp.visible = was; took.ready = performance.now() - t; };
+    setTimeout(pump, 500);
 }
 let time = 0;
 

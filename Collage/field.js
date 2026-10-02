@@ -61,29 +61,40 @@ function bladeGeo(joints) {
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
     return g;
 }
+
+const jobs = [];
 function grass() {
     const group = new THREE.Group(), r = rng(31), mat = bladeMat();
     for (const [from, to, perM2, wider, patch, joints] of GRASS.rings) {
         const blade = bladeGeo(joints), n0 = Math.ceil(to / patch);
         for (let i = -n0; i < n0; i++) for (let j = -n0; j < n0; j++) {
             const x0 = slab.cx + i * patch, z0 = slab.cz + j * patch, mid = Math.hypot(x0 + patch / 2 - slab.cx, z0 + patch / 2 - slab.cz);
-            if (mid > to + patch || mid < from - patch) continue;
-            const want = Math.round(patch * patch / 1e4 * perM2 * GRASS.q), roots = [], info = [];
-            for (let k = 0; k < want; k++) {
-                const x = x0 + r() * patch, z = z0 + r() * patch, d = Math.hypot(x - slab.cx, z - slab.cz);
-                if (d < from || d >= to || (x > slab.x0 - 6 && x < slab.x1 + 6 && z > slab.z0 - 6 && z < slab.z1 + 6)) continue;
-                roots.push(x, ground(x, z), z);
-                info.push(r() * Math.PI, (GRASS.tall[0] + r() * (GRASS.tall[1] - GRASS.tall[0])) * (1 + .12 * (wider - 1) / 4.5), GRASS.wide * wider * (.7 + .6 * r()), r());
-            }
-            if (!roots.length) continue;
-            const g = new THREE.InstancedBufferGeometry(); g.index = blade.index; g.setAttribute('position', blade.attributes.position);
-            g.setAttribute('aRoot', new THREE.InstancedBufferAttribute(new Float32Array(roots), 3)); g.setAttribute('aInfo', new THREE.InstancedBufferAttribute(new Float32Array(info), 4));
-            g.instanceCount = roots.length / 3;
-            const cx = x0 + patch / 2, cz = z0 + patch / 2; g.boundingSphere = new THREE.Sphere(V(cx, ground(cx, cz) + 60, cz), patch * .75 + 320);
-            group.add(new THREE.Mesh(g, mat));
+            if (mid <= to + patch && mid >= from - patch) jobs.push({ group, r, mat, blade, from, to, perM2, wider, patch, x0, z0 });
         }
     }
     return group;
+}
+function patchOf({ group, r, mat, blade, from, to, perM2, wider, patch, x0, z0 }) {
+    const want = Math.round(patch * patch / 1e4 * perM2 * GRASS.q), roots = new Float32Array(want * 3), info = new Float32Array(want * 4);
+    let n = 0;
+    for (let k = 0; k < want; k++) {
+        const x = x0 + r() * patch, z = z0 + r() * patch, d = Math.hypot(x - slab.cx, z - slab.cz);
+        if (d < from || d >= to || (x > slab.x0 - 6 && x < slab.x1 + 6 && z > slab.z0 - 6 && z < slab.z1 + 6)) continue;
+        roots[n * 3] = x; roots[n * 3 + 1] = ground(x, z); roots[n * 3 + 2] = z;
+        info[n * 4] = r() * Math.PI; info[n * 4 + 1] = (GRASS.tall[0] + r() * (GRASS.tall[1] - GRASS.tall[0])) * (1 + .12 * (wider - 1) / 4.5); info[n * 4 + 2] = GRASS.wide * wider * (.7 + .6 * r()); info[n * 4 + 3] = r();
+        n++;
+    }
+    if (!n) return;
+    const g = new THREE.InstancedBufferGeometry(); g.index = blade.index; g.setAttribute('position', blade.attributes.position);
+    g.setAttribute('aRoot', new THREE.InstancedBufferAttribute(roots.subarray(0, n * 3), 3)); g.setAttribute('aInfo', new THREE.InstancedBufferAttribute(info.subarray(0, n * 4), 4));
+    g.instanceCount = n;
+    const cx = x0 + patch / 2, cz = z0 + patch / 2; g.boundingSphere = new THREE.Sphere(V(cx, ground(cx, cz) + 60, cz), patch * .75 + 320);
+    group.add(new THREE.Mesh(g, mat));
+}
+export function more(ms = Infinity) {
+    const t0 = performance.now();
+    while (jobs.length && performance.now() - t0 < ms) patchOf(jobs.shift());
+    return jobs.length > 0;
 }
 function land() {
     const size = 90000, n = 220, g = new THREE.PlaneGeometry(size, size, n, n).rotateX(-Math.PI / 2).translate(slab.cx, 0, slab.cz), p = g.attributes.position;
@@ -176,13 +187,15 @@ function rock() {
     return m;
 }
 let blades = null, streaks = null, root = null, theScene = null;
+const haze = new THREE.FogExp2(HAZE.color, HAZE.density);
 export function build(scene, bounds, top) {
     slab = { ...bounds, cx: (bounds.x0 + bounds.x1) / 2, cz: (bounds.z0 + bounds.z1) / 2, top }; base = top - 14;
     blades = grass(); streaks = wisps(); root = new THREE.Group(); theScene = scene;
     root.add(rock(), land(), blades, sky(), streaks); root.visible = false; scene.add(root);
 }
 export function show(on) {
-    root.visible = on; theScene.fog = on ? new THREE.FogExp2(HAZE.color, HAZE.density) : null;
+    if (on) more();
+    root.visible = on; theScene.fog = on ? haze : null;
 }
 export function update(t, grassToo, eye) {
     if (!root.visible) return;
