@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import * as paper from './paper.js?v=30';
+import * as paper from './paper.js?v=32';
 
 const S = paper.S, TAU = Math.PI * 2, IN = 2.54, V = (x, y, z) => new THREE.Vector3(x, y, z);
 const LENS = 20;
@@ -486,7 +486,7 @@ function allOn(l, pl) {
     if (!mine.has(pl.ring)) mine.set(pl.ring, l.world.every(r => r.every(p => paper.inside(p, [pl.ring]))));
     return mine.get(pl.ring);
 }
-const mine = (pl, l, riding = riders.has(l.piece)) => pl.only ? pl.only.has(l.piece) : !riding;
+const mine = (pl, l, riding = riders.has(l.piece)) => pl.only ? pl.only.has(l.piece) : !riding && !(pl.not && pl.not.has(l.piece));
 let riders = new Set();
 const lays = new Map(), bases = new Map(), flatNow = new Map(); let last = null, lastBelow = new Map(), unsettled = false;
 
@@ -848,9 +848,10 @@ export function syncPaper(st) {
                 shape(v, l, at, face, !flap ? undefined : Math.abs(flap.ang) < .6 ? { x: -flap.s.x * arc, y: -flap.s.y * arc } : null, !!rise || under.length > 0 || up > .25, own || (rise && !air) ? null : { k: st.dt ? 1 - Math.exp(-st.dt / (air ? .035 : .05)) : 1, from: v.flatWas }, cut === 'sag' ? SAG : GRID, K, !!fly || !!rise, !laden.has(l), floor);
                 if (sig && st.dt) v.settle--;
             }
-            if (fly && (fly.twist || fly.sx || fly.sy || fly.up)) {
+            if (fly && (fly.twist || fly.sx || fly.sy || fly.up || fly.pitch)) {
                 m4.identity();
-                if (fly.twist) m4.copy(t4.makeTranslation(fly.tc.x, 0, fly.tc.y).multiply(s4.makeRotationY(-fly.twist)).multiply(s4.makeTranslation(-fly.tc.x, 0, -fly.tc.y)));
+                if (fly.pitch) m4.copy(t4.makeTranslation(fly.c.x, fly.ch ?? h, fly.c.y).multiply(s4.makeRotationX(fly.pitch)).multiply(s4.makeTranslation(-fly.c.x, -(fly.ch ?? h), -fly.c.y)));
+                if (fly.twist) m4.premultiply(t4.makeTranslation(fly.tc.x, 0, fly.tc.y).multiply(s4.makeRotationY(-fly.twist)).multiply(s4.makeTranslation(-fly.tc.x, 0, -fly.tc.y)));
                 if (fly.sx || fly.sy || fly.up) m4.premultiply(t4.makeTranslation(fly.sx || 0, fly.up || 0, fly.sy || 0));
                 v.group.matrix.copy(m4); v.group.matrixWorldNeedsUpdate = true; v.askew = true;
             } else if (v.askew) { v.group.matrix.identity(); v.group.matrixWorldNeedsUpdate = true; v.askew = false; }
@@ -862,7 +863,7 @@ export function syncPaper(st) {
         if (air && stiff < 1) h = base + up * stiff;
         v.flatWas = h; v.settle = 0; fields.delete(l); flatNow.set(l, h);
         m4.set(W[0], 0, W[2], W[4], 0, face, 0, h, W[1], 0, W[3], W[5], 0, 0, 0, 1);
-        if (fly && (fly.pitch || fly.roll)) m4.premultiply(t4.makeTranslation(fly.c.x, h, fly.c.y).multiply(s4.makeRotationX(fly.pitch)).multiply(s4.makeRotationZ(fly.roll)).multiply(s4.makeTranslation(-fly.c.x, -h, -fly.c.y)));
+        if (fly && (fly.pitch || fly.roll)) m4.premultiply(t4.makeTranslation(fly.c.x, fly.ch ?? h, fly.c.y).multiply(s4.makeRotationX(fly.pitch)).multiply(s4.makeRotationZ(fly.roll)).multiply(s4.makeTranslation(-fly.c.x, -(fly.ch ?? h), -fly.c.y)));
         if (fly && fly.twist) m4.premultiply(t4.makeTranslation(fly.tc.x, 0, fly.tc.y).multiply(s4.makeRotationY(-fly.twist)).multiply(s4.makeTranslation(-fly.tc.x, 0, -fly.tc.y)));
         if (fly && (fly.sx || fly.sy || fly.up)) m4.premultiply(t4.makeTranslation(fly.sx || 0, fly.up || 0, fly.sy || 0));
         if (fly && fly.turn) {
@@ -888,13 +889,14 @@ export function heightAt(p, plates, paperToo = true, upTo = Infinity, among) {
     let h = 0;
     const l = paperToo && (among ? among.filter(m => p.x >= m.box.x0 && p.x <= m.box.x1 && p.y >= m.box.y0 && p.y <= m.box.y1 && paper.inside(p, m.world)).pop() : paper.stackAt(p).filter(m => m.piece.z[m.sig] <= upTo).pop());
     for (const pl of plates) if (pl.top > h && (!pl.only || (l && pl.only.has(l.piece))) && paper.inside(p, [pl.ring])) h = pl.top;
+    if (l && plates.some(pl => pl.not && pl.not.has(l.piece) && paper.inside(p, [pl.ring]))) return h;
     if (!l || !last) return h;
     const F = fields.get(l);
     if (F) return fieldAt(F, p.x, p.y);
 
     const fly = last.aloft.get(l.piece), air = fly && !fly.lying, zl = l.piece.z[l.sig], by = last.tools.filter(o => o.z < zl && !o.ride === !last.plates.some(pl => pl.only && pl.only.has(l.piece)) && Math.abs(o.x - p.x) < o.far && Math.abs(o.y - p.y) < o.far);
     const rise = last.rise.get(l.piece), up = rise ? rise(p.x, p.y) : 0, firm = last.stiff.get(l.piece) || 0, K = l.piece.units > 1 ? .3 : .55;
-    const held = strict => { const under = strict ? by.filter(o => onTool(l, o)) : by; return under.length ? Math.max(h, support(strict ? last.plates.filter(pl => onPlate(l, pl)) : last.plates, under, K, p.x, p.y)) : h; };
+    const held = strict => { const under = strict ? by.filter(o => onTool(l, o)) : by; return under.length ? Math.max(h, support(last.plates.filter(pl => mine(pl, l) && (!strict || onPlate(l, pl))), under, K, p.x, p.y)) : h; };
     const on = air && firm >= 1 ? 0 : held(true), s = (air && firm >= 1 ? held(false) : firm > 0 && firm < 1 ? on + (held(false) - on) * firm : on) + (lays.get(l) || 0), flatH = tops.get(l) || s;
     const base = bases.get(l) ?? flatH;
     return air ? s + (Math.max(base + fly.alt + up, s) - s) * firm : s + Math.max(0, base - s) * firm + up;

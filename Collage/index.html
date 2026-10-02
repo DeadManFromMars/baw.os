@@ -118,8 +118,8 @@
 </form></div>
 
 <script type="module">
-import * as paper from './paper.js?v=30';
-import * as D from './desk.js?v=30';
+import * as paper from './paper.js?v=32';
+import * as D from './desk.js?v=32';
 const { desk, inv, apply, turn, translate, rotateAbout } = paper;
 
 const IN = 2.54, TAU = Math.PI * 2, DEG = Math.PI / 180;
@@ -150,6 +150,7 @@ const FEEL = {
     fence: [1, 5],
     dot: 3,
     shake: [3, 5, .3, 14],
+    tap: { tilt: 82, up: .16, down: .3, lift: 7, hit: .8, calm: .9 },
     lock: false,
     skip: 24,
     aim: 30,
@@ -258,7 +259,7 @@ const rise = (lf, p) => { const q = (p.x - lf.a.x) * lf.s.x + (p.y - lf.a.y) * l
 const liftAt = (piece, p) => lifting && lifting.pieces.has(piece) ? rise(lifting, p) : 0;
 let stamp = 0;
 let stirred = false;
-const TOP = 6;
+const TOP = 14;
 function thing(kind, x, y, ang = 0, obj = D.make(kind)) {
     const t = { kind, x, y, ang, h: 0, vx: 0, vy: 0, vh: 0, spin: 0, pitch: 0, vp: 0, rank: ++stamp, state: 'rest', obj };
     obj.userData.thing = t; D.scene.add(obj); things.push(t);
@@ -284,6 +285,14 @@ function restack() {
 }
 
 const mags = []; let lastMag = null;
+
+const LIFTS = () => [cutter, pileT, padT, ...mags].filter(Boolean);
+const belowOf = t => t.below ||= { has: x => x.under === t.kind };
+const unbelow = xs => { for (const x of xs) delete x.under; };
+const lifted = t => { unbelow(desk.pieces.filter(q => q.under === t.kind)); unbelow(things.filter(o => o.under === t.kind)); };
+const underBig = (x, p) => { if (!x.under) return false; const t = things.find(t => t.kind === x.under); return !!t && t.obj.visible && !t.carried && !t.away && (!p || onThing(t, p)); };
+const flying = q => flights.some(f => f.pieces.includes(q));
+const topHere = p => { const l = paper.topAt(p); return l && underBig(l.piece, p) ? null : l; };
 const heldBig = () => [cutter, pileT, padT, ...mags].find(t => t?.carried) || null, carriedNow = () => heldBig()?.carried;
 const offOf = m => m.turn || (m.turned > 0 && m.turned < m.list.length) ? 0 : m.turned === 0 ? m.dir * m.w / 2 : -m.dir * m.w / 2;
 const spineOf = t => toWorld(t, -t.mag.off, 0);
@@ -291,12 +300,12 @@ const boundTo = (m, name) => desk.pieces.filter(q => q.bound && q.bound.key === 
 const magOf = q => q.bound ? mags.find(t => t.mag.key === q.bound.key) : null;
 const upLeaves = m => { const i = m.turned, T = m.turn; return (T ? (T.side > 0 ? [i - 1, i, i + 1] : [i - 2, i - 1, i]) : [i - 1, i]).filter(k => k >= 0 && k < m.list.length); };
 function leafOut(t, name, side) {
-    const m = t.mag, sh = sheets[name], sp = spineOf(t), o = toWorld(t, -m.off + (m.dir > 0 ? 0 : -m.w), -m.h / 2), P = paper.mul(rotateAbout(o, t.ang), translate(o.x, o.y));
+    const m = t.mag, sh = sheets[name], sp = spineOf(t), o = toWorld(t, -m.off + (m.bind > 0 ? 0 : -m.w), -m.h / 2), P = paper.mul(rotateAbout(o, t.ang), translate(o.x, o.y));
     ready(sh);
     const pieces = m.cut[name] ? m.cut[name].map(p => paper.unshelve(p, P)) : [Object.assign(paper.addPiece(name, m.w, m.h, P), { bound: { key: m.key, name } })];
     delete m.cut[name]; m.out.add(name);
-    if (side < 0) { paper.flip(pieces, sp); if (t.ang) paper.moveBy(pieces, rotateAbout(sp, 2 * t.ang)); }
-    const mine = new Set(pieces), lying = paper.stack().filter(l => !mine.has(l.piece) && pieces.some(q => q.leaves.some(k => paper.overlap(l, k) > .05)));
+    if ((side < 0) !== !!m.over) { paper.flip(pieces, sp); if (t.ang) paper.moveBy(pieces, rotateAbout(sp, 2 * t.ang)); }
+    const mine = new Set(pieces), lying = paper.stack().filter(l => !mine.has(l.piece) && l.piece.under !== t.kind && pieces.some(q => q.leaves.some(k => paper.overlap(l, k) > .05)));
     if (lying.length) { const z = Math.min(...lying.map(zOf)); pieces.forEach((q, i) => q.z[''] = z - .5 - i * .001); paper.raise([]); }
     if (t.carried) for (const q of pieces) { t.carried.pieces.add(q); t.carried.d.pieces.push(q); }
 }
@@ -313,7 +322,7 @@ function remag(t) {
     if (!m.w) { const c = sheets[m.all[0]]; if (!ready(c)) return; m.w = c.w; m.h = c.h; m.off = offOf(m); for (const name of m.all) Object.assign(sheets[name], { w: m.w, h: m.h, wide: m.w }); }
     const off = offOf(m);
     if (off !== m.off) { t.x += (off - m.off) * Math.cos(t.ang); t.y += (off - m.off) * Math.sin(t.ang); m.off = off; }
-    const ups = t.fall ? [] : upLeaves(m);
+    const ups = t.fall || m.flip ? [] : upLeaves(m);
     const want = ups.map(k => m.list[k]);
     for (const name of [...m.out]) if (!want.includes(name)) leafIn(t, name);
     for (const k of ups) if (!m.out.has(m.list[k])) leafOut(t, m.list[k], k < m.turned ? -1 : 1);
@@ -322,13 +331,14 @@ function remag(t) {
     m.list.forEach((name, i) => { const sh = sheets[name]; if (sh.url && sh.front && !m.out.has(name) && i > 0 && i < m.list.length - 1 && (i < m.turned - 5 || i > m.turned + 4)) { D.forget(sh); sh.front = sh.back = null; } });
     D.scrap(t.obj);
     if (m.shut) ready(sheets[m.list[0]]);
-    t.obj = D.makeMag({ w: m.w, h: m.h, dir: m.dir, off: m.off, L, R, both: off === 0, right: right?.front, left: left?.back, paper: PAPER, swing: !!m.shut, under: m.shut && sheets[m.list[0]].front });
-    t.obj.userData.thing = t; t.obj.visible = n > 0 && !t.away; D.scene.add(t.obj); D.lay(t.obj, t.x, t.y, t.h + (t.carried ? t.carried.L : 0), t.ang);
+    const fr = m.over ? 'back' : 'front', bk = m.over ? 'front' : 'back';
+    t.obj = D.makeMag({ w: m.w, h: m.h, dir: m.dir, off: m.off, L, R, both: off === 0, right: right?.[fr], left: left?.[bk], paper: PAPER, swing: !!m.shut, under: m.shut && sheets[m.list[0]][fr] });
+    t.obj.userData.thing = t; t.obj.visible = n > 0 && !t.away; D.scene.add(t.obj); layBig(t);
     m.under = { R, L };
     if (m.shut) D.magSwing(t.obj, -m.dir * m.shut.a, (R + L + 3) * D.SHEET * m.shut.a / Math.PI);
 }
 function magPlates(t) {
-    const m = t.mag, c = Math.cos(t.ang), s = Math.sin(t.ang), n = m.list.length, { R, L } = m.under || { R: 0, L: 0 }, key = [t.x, t.y, t.ang, m.w, m.h, L, R, m.off, t.h, n, m.turned, !!m.turn, !!m.shut, !!t.carried].join();
+    const m = t.mag, c = Math.cos(t.ang), s = Math.sin(t.ang), n = m.list.length, { R, L } = m.under || { R: 0, L: 0 }, key = [t.x, t.y, t.ang, m.w, m.h, L, R, m.off, t.h, n, m.turned, !!m.turn, !!m.shut, !!t.carried, m.dir].join();
     if (t.plateKey !== key) {
         t.plateKey = key;
         t.plates = [[R, 1, n > m.turned || m.turn], [L, -1, m.turned > 0 || m.turn]].filter(([, , there]) => there).map(([k, side]) => {
@@ -336,44 +346,80 @@ function magPlates(t) {
             return { name: t.kind, ring, poly: [ring.map(q => ({ X: Math.round(q.x * paper.S), Y: Math.round(q.y * paper.S) }))], box, top: t.h + k * D.SHEET, key: key + side };
         });
     }
-    for (const pl of t.plates) { pl.only = t.carried ? t.carried.pieces : null; pl.tools = t.carried ? t.carried.tools : null; }
+    for (const pl of t.plates) { pl.only = t.carried ? t.carried.pieces : null; pl.tools = t.carried ? t.carried.tools : null; pl.not = t.carried ? null : belowOf(t); }
     return t.plates;
 }
 function tidy(t) {
     const m = t.mag; if (m.turn || m.shut || !m.w) return;
-    const edge = m.dir > 0 ? 0 : Math.round(m.w * paper.S);
+    const edge = m.bind > 0 ? 0 : Math.round(m.w * paper.S);
     for (const q of boundTo(m)) if (!q.paths.some(r => r.some(p => Math.abs(p.X - edge) < 60))) { delete q.bound; tutDid('cutout'); }
     let gone = false;
     for (const name of [...m.out]) if (!boundTo(m, name).length) { const i = m.list.indexOf(name); if (i >= 0) { m.list.splice(i, 1); if (i < m.turned) m.turned--; } m.out.delete(name); gone = true; }
     if (gone) remag(t);
 }
-function magStuck(t, side) {
-    const m = t.mag, box = boxOf(t), poly = polyOf(box), up = t.carried, rides = (set, o) => !up || !!set?.has(o);
-    const any = (b, p, all) => desk.pieces.some(q => !(q.bound && q.bound.key === m.key) && rides(up?.pieces, q) && q.leaves.some(l => paper.overPlate(l, p) > .05)) || things.some(o => o !== t && o !== mat && o !== hand && o.obj.visible && rides(up?.tools, o) && (all || (loose(o) && o.state === 'rest')) && (touching(b, boxOf(o))?.depth || 0) > .05);
-    if (any(box, poly, false)) return WHY.onMag;
-    if (t.carried || offOf(m) === 0) return null;
-    const o = toWorld(t, -m.off - side * m.dir * m.w / 2, 0), land = { x: o.x, y: o.y, c: box.c, s: box.s, hl: m.w / 2, hw: m.h / 2 }, W = D.DESK.w / 2, H = D.DESK.h / 2;
-    const ring = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => ({ x: o.x + a * land.hl * land.c - b * land.hw * land.s, y: o.y + a * land.hl * land.s + b * land.hw * land.c }));
-    return ring.every(p => Math.abs(p.x) <= W && Math.abs(p.y) <= H) && !any(land, polyOf(land), true) ? null : WHY.noOpen;
+function magStuck(t, side, all) {
+
+    const m = t.mag, box = boxOf(t), up = t.carried, rides = (set, o) => !up || !!set?.has(o);
+    const half = s => { const o = toWorld(t, -m.off + s * m.dir * m.w / 2, 0); return { x: o.x, y: o.y, c: box.c, s: box.s, hl: m.w / 2, hw: m.h / 2 }; };
+    const from = half(side), to = half(-side), open = offOf(m) === 0;
+    const leaf = boundTo(m, m.list[side > 0 ? m.turned : m.turned - 1]).flatMap(q => q.leaves);
+    const sp = spineOf(t), ax = -Math.sin(t.ang), ay = Math.cos(t.ang), over = p => { const k = 2 * ((p.x - sp.x) * ax + (p.y - sp.y) * ay); return { X: Math.round((2 * sp.x + k * ax - p.x) * paper.S), Y: Math.round((2 * sp.y + k * ay - p.y) * paper.S) }; };
+    const onLeaf = l => leaf.some(k => paper.overlap(l, k) > .05), underLeaf = l => { const poly = l.world.map(r => r.map(over).reverse()); return leaf.some(k => paper.overPlate(k, poly) > .05); };
+    const mine_ = o => o.under === t.kind || (BIG.includes(o.kind) && (o.rank < t.rank || t.under === o.kind));
+    const tools = (b, any) => things.some(o => o !== t && o !== mat && o !== hand && o.obj.visible && !mine_(o) && rides(up?.tools, o) && (any || BIG.includes(o.kind) || (loose(o) && o.state === 'rest')) && (touching(b, boxOf(o))?.depth || 0) > .05);
+    const loosePaper = desk.pieces.filter(q => !(q.bound && q.bound.key === m.key) && q.under !== t.kind && !flying(q) && rides(up?.pieces, q)).flatMap(q => q.leaves);
+    const lies = b => { const poly = polyOf(b); return loosePaper.filter(l => paper.overPlate(l, poly) > .05); };
+    if (all || !leaf.length) { if (lies(box).length || tools(box)) return WHY.onMag; }
+    else {
+        if (lies(from).some(onLeaf) || tools(from)) return WHY.onMag;
+        if (open && (lies(to).some(underLeaf) || tools(to))) return WHY.onMag;
+    }
+    if (up || open) return null;
+    const W = D.DESK.w / 2, H = D.DESK.h / 2;
+    const ring = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => ({ x: to.x + a * to.hl * to.c - b * to.hw * to.s, y: to.y + a * to.hl * to.s + b * to.hw * to.c }));
+    const wide = { x: sp.x, y: sp.y, c: box.c, s: box.s, hl: m.w, hw: m.h / 2 }, level = Math.abs(Math.min(TOP, restBig(t, wide)) - Math.min(TOP, restBig(t))) < .01;
+    return ring.every(p => Math.abs(p.x) <= W && Math.abs(p.y) <= H) && level && !tools(to, true) ? null : WHY.noOpen;
 }
 function turnPage(t, side) {
     const m = t.mag;
-    if (m.turn || m.shut || !m.w || (side > 0 ? m.turned >= m.list.length : m.turned <= 0)) return false;
+    if (m.turn || m.shut || m.flip || !m.w || (side > 0 ? m.turned >= m.list.length : m.turned <= 0)) return false;
     const why = magStuck(t, side); if (why) { say(why); return false; }
+    if (!t.carried && offOf(m) !== 0) {
+        const o = toWorld(t, -m.off - side * m.dir * m.w / 2, 0), poly = polyOf({ x: o.x, y: o.y, c: Math.cos(t.ang), s: Math.sin(t.ang), hl: m.w / 2, hw: m.h / 2 });
+        for (const q of desk.pieces) if (!(q.bound && q.bound.key === m.key) && !flying(q) && q.leaves.some(l => paper.overPlate(l, poly) > .05)) q.under = t.kind;
+        paper.raise(boundTo(m));
+    }
     m.turn = { side, name: m.list[side > 0 ? m.turned : m.turned - 1], a: 1e-4, v: 0, flipped: false };
     remag(t); wake(); tutDid('pages');
     return true;
 }
 function shutMag(t) {
     const m = t.mag;
-    if (m.turn || m.shut || !m.w || m.turned <= 0) return false;
+    if (m.turn || m.shut || m.flip || !m.w || m.turned <= 0) return false;
     if (m.turned === 1) { const went = turnPage(t, -1); if (went) tutDid('shut'); return went; }
-    const why = magStuck(t, -1); if (why) { say(why); return false; }
+    const why = magStuck(t, -1, true); if (why) { say(why); return false; }
     m.shut = { name: m.list[m.turned - 1], a: 1e-4, flipped: false }; remag(t); wake(); tutDid('shut');
     return true;
 }
-function liftBig(t, p) { move(t, p); drag.lift = true; taken(drag); }
-function grabMag(t, p) { lastMag = t; liftBig(t, p); tutDid('pick'); }
+const laden = t => bigs().some(o => o !== t && o !== mat && t !== mat && o.rank > t.rank && (touching(boxOf(o), boxOf(t))?.depth || 0) > .3);
+
+const FLIP = .6;
+function flipMag(t) {
+    const m = t.mag;
+    if (m.turn || m.shut || m.flip || !m.w || t.fall) return false;
+    if (m.turned > 0 && m.turned < m.list.length) { say(WHY.shutFirst); return false; }
+    if (magStuck(t, 1, true) === WHY.onMag) { say(WHY.onMag); return false; }
+    if (laden(t)) { say(WHY.under); return false; }
+    m.flip = { a: 1e-4, swapped: false }; remag(t); wake();
+    return true;
+}
+function flipped(t) { const m = t.mag; m.list.reverse(); m.over = !m.over; m.dir = -m.dir; m.off = offOf(m); remag(t); }
+function layBig(t) {
+    const F = t.mag?.flip, roll = F ? (F.a < Math.PI / 2 ? F.a : F.a - Math.PI) : 0, half = F ? t.obj.userData.tall / 2 : 0, dx = half * Math.sin(roll);
+    D.lay(t.obj, t.x + dx * Math.cos(t.ang), t.y + dx * Math.sin(t.ang), t.h + (t.carried ? t.carried.L : 0) + (t.fall ? t.fall.L : 0) + (F ? Math.abs(Math.sin(F.a)) * t.mag.w / 2 + half * (1 - Math.cos(roll)) : 0), t.ang, roll);
+}
+function liftBig(t, p) { if (laden(t)) return say(WHY.under); move(t, p); drag.lift = true; taken(drag); }
+function grabMag(t, p) { lastMag = t; liftBig(t, p); if (drag?.t === t) tutDid('pick'); }
 function ringOf(t) {
     const u = t.obj.userData, c = Math.cos(t.ang), s = Math.sin(t.ang);
     return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => ({ x: t.x + a * u.len / 2 * c - b * u.wid / 2 * s, y: t.y + a * u.len / 2 * s + b * u.wid / 2 * c }));
@@ -384,7 +430,7 @@ function plates() {
         if (t.mag) return magPlates(t);
         const u = t.obj.userData, key = [t.x, t.y, t.ang, u.len, u.wid].join();
         if (t.plateKey !== key) { const ring = ringOf(t); t.plateKey = key; t.plate = { name: t.kind, ring, poly: [ring.map(q => ({ X: Math.round(q.x * paper.S), Y: Math.round(q.y * paper.S) }))], box: { x: t.x, y: t.y, c: Math.cos(t.ang), s: Math.sin(t.ang), hl: u.len / 2, hw: u.wid / 2 } }; }
-        t.plate.top = t.h + u.tall; t.plate.key = key + ',' + t.plate.top; t.plate.only = t.carried ? t.carried.pieces : null; t.plate.tools = t.carried ? t.carried.tools : null;
+        t.plate.top = t.h + u.tall; t.plate.key = key + ',' + t.plate.top; t.plate.only = t.carried ? t.carried.pieces : null; t.plate.tools = t.carried ? t.carried.tools : null; t.plate.not = t.carried ? null : belowOf(t);
         return t.plate;
     });
 }
@@ -402,7 +448,7 @@ const rides = t => !!(drag?.tools?.includes(t) || flights.some(f => f.tools.incl
 function groundUnder(t, ground) {
     const u = t.obj.userData, z = t.z ?? -1, under = things.filter(o => o !== t && o !== hand && !BIG.includes(o.kind) && (o.state === 'rest' || o.state === 'slide') && ((o.z ?? -1) < z || ((o.z ?? -1) === z && o.rank < t.rank)) && far(o, t) < (o.obj.userData.len + u.len) / 2 + 1);
     if (rides(t)) { const on = D.heightAt(t, ground, true, z); return p => { let s = on; for (const o of under) s = Math.max(s, topOver(o, p)); return s; }; }
-    ground = ground.filter(pl => !pl.only || pl.tools.has(t));
+    ground = ground.filter(pl => (!pl.only || pl.tools.has(t)) && !(pl.not && pl.not.has(t)));
     const rail = cutter && !cutter.up && ground.some(pl => pl.name === 'cutter') ? [railBox()].map(b => [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([i, j]) => ({ x: b.x + i * b.hl * b.c - j * b.hw * b.s, y: b.y + i * b.hl * b.s + j * b.hw * b.c })))[0] : null;
     const flat = p => { let h = 0; for (const pl of ground) if (pl.top > h && paper.inside(p, [pl.ring])) h = pl.top; if (rail && paper.inside(p, [rail])) h = Math.max(h, cutter.h + D.CUTTER.tall + D.CUTTER.gap + .85); return h; };
     const m = Math.max(u.len, u.wid) / 2, near = z < 0 ? [] : paper.stack().filter(l => zOf(l) <= z && !carriedNow()?.pieces.has(l.piece) === !carriedNow()?.tools.has(t) && l.box.x1 > t.x - m && l.box.x0 < t.x + m && l.box.y1 > t.y - m && l.box.y0 < t.y + m);
@@ -547,8 +593,8 @@ function reach() {
     return p;
 }
 
-const state = () => JSON.stringify({ paper: paper.snapshot(), pile, pad, known: Object.keys(sheets), mags: mags.map(t => ({ key: t.mag.key, list: t.mag.list, turned: t.mag.turned, cut: t.mag.cut })),
-                                     things: things.filter(t => t !== hand).map(({ kind, x, y, ang, at, rank, on, up, held }) => ({ kind, x, y, ang, at, rank, up, held, on: on && desk.pieces.includes(on.piece) ? { id: on.piece.id, sig: on.sig } : null })) });
+const state = () => JSON.stringify({ paper: paper.snapshot(), pile, pad, known: Object.keys(sheets), mags: mags.map(t => ({ key: t.mag.key, list: t.mag.list, turned: t.mag.turned, cut: t.mag.cut, over: !!t.mag.over })),
+                                     things: things.filter(t => t !== hand).map(({ kind, x, y, ang, at, rank, on, up, held, under }) => ({ kind, x, y, ang, at, rank, up, held, under, on: on && desk.pieces.includes(on.piece) ? { id: on.piece.id, sig: on.sig } : null })) });
 function load(json) {
     const s = JSON.parse(json);
     const lost = s.paper.pieces.filter(p => !sheets[p.sheet]).length;
@@ -556,12 +602,12 @@ function load(json) {
     paper.restore(s.paper);
     const known = new Set(s.known || s.pile.concat(s.paper.pieces.map(p => p.sheet)));
     pile = Object.keys(sheets).filter(n => n !== 'board' && !known.has(n) && !sheets[n].mag && !sheets[n].lesson).concat(s.pile.filter(n => sheets[n] && !sheets[n].mag)); pad = s.pad;
-    for (const t of mags) { const m = t.mag, o = s.mags?.find(o => o.key === m.key), out = new Set(s.paper.pieces.map(p => p.sheet)); m.turn = m.shut = null; m.list = o ? o.list.filter(n => sheets[n]) : m.all.filter(n => !out.has(n)); m.turned = Math.min(o ? o.turned : 0, m.list.length); m.cut = o?.cut || {}; m.out = new Set(boundTo(m).map(q => q.bound.name)); m.off = offOf(m); }
+    for (const t of mags) { const m = t.mag, o = s.mags?.find(o => o.key === m.key), out = new Set(s.paper.pieces.map(p => p.sheet)); m.turn = m.shut = m.flip = null; m.over = !!o?.over; m.dir = m.over ? -m.bind : m.bind; m.list = o ? o.list.filter(n => sheets[n]) : m.all.filter(n => !out.has(n)); m.turned = Math.min(o ? o.turned : 0, m.list.length); m.cut = o?.cut || {}; m.out = new Set(boundTo(m).map(q => q.bound.name)); m.off = offOf(m); }
     for (const p of desk.pieces) ready(sheets[p.sheet]);
     for (const t of things.filter(t => t.kind === 'clip' && t !== hand)) { t.obj.removeFromParent(); things.splice(things.indexOf(t), 1); }
-    for (const o of s.things) { const t = o.kind === 'clip' ? thing('clip', 0, 0) : things.find(t => t.kind === o.kind && t !== hand); if (t) { Object.assign(t, o, { rank: o.rank ?? t.rank, state: 'rest', vx: 0, vy: 0, vh: 0, vp: 0, spin: 0, tw: null, on: o.on ? { piece: desk.pieces.find(q => q.id === o.on.id), sig: o.on.sig } : null }); if (o.on === undefined || (o.on && !t.on.piece)) attach(t); else levelOf(t); } }
+    for (const o of s.things) { const t = o.kind === 'clip' ? thing('clip', 0, 0) : things.find(t => t.kind === o.kind && t !== hand); if (t) { Object.assign(t, o, { under: o.under, rank: o.rank ?? t.rank, state: 'rest', vx: 0, vy: 0, vh: 0, vp: 0, spin: 0, tw: null, on: o.on ? { piece: desk.pieces.find(q => q.id === o.on.id), sig: o.on.sig } : null }); if (o.on === undefined || (o.on && !t.on.piece)) attach(t); else levelOf(t); } }
     stamp = Math.max(stamp, ...things.map(t => t.rank));
-    for (const t of [cutter, ...mags]) if (t) t.carried = null;
+    for (const t of LIFTS()) t.carried = null;
     drag = null; flights.length = 0; motions.length = 0; turns.length = 0; hops.length = 0; twists.clear(); shifts.clear(); aloft.clear(); hinge.clear(); stiff.clear(); lifting = prying = bigTurn = null; owed = false;
     restack();
     return lost;
@@ -599,10 +645,10 @@ function clearDesk() {
     if (tut) return;
     for (const p of [...desk.pieces]) paper.remove(p);
     desk.clips = []; desk.bonds = []; pile = Object.keys(sheets).filter(n => n !== 'board' && !sheets[n].mag && !sheets[n].lesson); pad = 12;
-    mags.forEach((t, i) => { const m = t.mag; m.list = m.all.slice(); m.turned = 0; m.turn = m.shut = null; m.cut = {}; m.out = new Set(); m.off = offOf(m); Object.assign(t, { x: m.home.x, y: m.home.y, ang: 0, rank: START.length + i + 1, pitch: 0, vp: 0, state: 'rest', on: null, z: -1, carried: null }); });
+    mags.forEach((t, i) => { const m = t.mag; m.list = m.all.slice(); m.turned = 0; m.turn = m.shut = m.flip = null; m.over = false; m.dir = m.bind; m.cut = {}; m.out = new Set(); m.off = offOf(m); Object.assign(t, { x: m.home.x, y: m.home.y, ang: 0, rank: START.length + i + 1, pitch: 0, vp: 0, state: 'rest', on: null, z: -1, carried: null }); });
     for (const t of things.filter(t => t.kind === 'clip')) { t.obj.removeFromParent(); things.splice(things.indexOf(t), 1); }
     START.forEach(([kind, x, y, ang = 0], i) => Object.assign(things.find(t => t.kind === kind), { x, y, ang, at: 0, rank: i + 1, pitch: 0, vp: 0, state: 'rest', on: null, z: -1, up: false, held: [], carried: null }));
-    hand = null; restack(); changed();
+    unbelow(things); hand = null; restack(); changed();
 }
 function scar(lines) {
     for (const l of lines) scars.push(l.map(q => ({ x: +q.x.toFixed(3), y: +q.y.toFixed(3) })));
@@ -628,7 +674,7 @@ const WHY = {
     across: "something is lying across the edge of that paper: it can't be lifted to fold it behind until that's moved",
     rail: "the cutter's rail is holding it: flip the rail up first", railUp: "the rail's up, and the blade with it: flip it down onto the paper first", room: "there's no room to put it down there: back it goes",
     stuck: "it won't go further: what it's pushing is up against something", duck: "what's lying on it is up against the edge of the paper over it: take it off first", wall: "it's up against the side of what's standing there: take what's lying on it off, and lift it over", wedged: "it's up against something there: slide it out another way", way: 'it would come out under the sheet lying beside it: move that one first', snag: "it catches on the folded paper beside it: take what's lying on it off, and lift it over",
-    held: "it's clipped down: take the clip off first", deep: "the tweezers can't get hold of it there: take it by its edge", onMag: "something is lying on the magazine: move that off first", bound: "that page is in the magazine: it turns (A, D), and it's cut out — it isn't taken out", offMat: "Not on the table — cut on the mat.", fast: "Too fast — the blade came off the paper.", noOpen: "no room to open it there: move the magazine, or what's beside it", through: "it can't go through the folded edge",
+    held: "it's clipped down: take the clip off first", deep: "the tweezers can't get hold of it there: take it by its edge", onMag: "something is lying on the magazine: move that off first", shutFirst: "shut the magazine first (S): then it turns over", bound: "that page is in the magazine: it turns (A, D), and it's cut out — it isn't taken out", offMat: "Not on the table — cut on the mat.", fast: "Too fast — the blade came off the paper.", noOpen: "no room to open it there: move the magazine, or what's beside it", through: "it can't go through the folded edge",
     hid: 'Shift-click opens a flap that is folded behind',
     lip: "that's as far as it folds: a flap that's already folded is in the way — open that flap, or cut it", thick: `that would be more than ${paper.LIMITS.layers} layers: too thick to fold`,
     covered: 'another fold lies over that one: open it first', refolded: 'that flap has been folded again since: open that fold first',
@@ -644,7 +690,7 @@ function speed() {
 }
 const pieceAt = (pieces, p) => pieces.filter(q => q.leaves.some(l => paper.inside(p, l.world))).sort((a, b) => paper.area(a.paths) - paper.area(b.paths))[0];
 function onPaper(pieces) {
-    return things.filter(t => !BIG.includes(t.kind) && t.state === 'rest' && t.on && pieces.includes(t.on.piece) && pieces.some(q => q.leaves.some(l => paper.inside(t, l.world))));
+    return things.filter(t => !BIG.includes(t.kind) && t.state === 'rest' && !underBig(t) && t.on && pieces.includes(t.on.piece) && pieces.some(q => q.leaves.some(l => paper.inside(t, l.world))));
 }
 function carry(pieces, tools, T) {
     if (!paper.moveBy(pieces, T)) return false;
@@ -652,9 +698,10 @@ function carry(pieces, tools, T) {
     return true;
 }
 function heldDown(pieces, riding) {
-    return things.some(t => loose(t) && t.state === 'rest' && !riding.includes(t) && t.on && pieces.some(q => q.leaves.some(l => over(t, l) && underBox(l, t))));
+    return things.some(t => loose(t) && t.state === 'rest' && !riding.includes(t) && t.on && pieces.some(q => q.leaves.some(l => over(t, l) && underBox(l, t))))
+        || pieces.some(q => underBig(q) && q.leaves.some(l => paper.overPlate(l, polyOf(boxOf(things.find(t => t.kind === q.under)))) > .05));
 }
-const takeUp = pieces => { for (const q of pieces) aloft.set(q, { alt: aloft.get(q)?.alt || 0, pitch: 0, roll: 0 }); };
+const takeUp = pieces => { unbelow(pieces); for (const q of pieces) aloft.set(q, { alt: aloft.get(q)?.alt || 0, pitch: 0, roll: 0 }); };
 function hold(pieces, p) {
     const all = pieces.concat(paper.riders(pieces)), tools = onPaper(all), free = !paper.covered(all) && !all.some(paper.woven) && !heldDown(all, tools);
     if (free) { paper.raise(all); takeUp(all); }
@@ -695,7 +742,7 @@ function gather(d) {
     say('the whole pile');
 }
 
-const proud = o => o.h + tallOf(o) - (leafOn(o) ? D.topOf(leafOn(o)) : Math.max(0, ...plates().filter(pl => !pl.only && paper.inside(o, [pl.ring])).map(pl => pl.top))) > FEEL.climb;
+const proud = o => o.h + tallOf(o) - (leafOn(o) ? D.topOf(leafOn(o)) : Math.max(0, ...plates().filter(pl => !pl.only && !(pl.not && pl.not.has(o)) && paper.inside(o, [pl.ring])).map(pl => pl.top))) > FEEL.climb;
 const lidsOf = (t, moving, box) => paper.stack().filter(l => zOf(l) > (t.z ?? -1) && !aloft.has(l.piece) && !moving.includes(l.piece) && underBox(l, t, box));
 function standing(pieces, reach, up) {
     const b = pieces.flatMap(q => q.leaves.map(l => l.box)), x0 = Math.min(...b.map(o => o.x0)) - reach, x1 = Math.max(...b.map(o => o.x1)) + reach, y0 = Math.min(...b.map(o => o.y0)) - reach, y1 = Math.max(...b.map(o => o.y1)) + reach;
@@ -770,18 +817,19 @@ function clearOf(pieces, riding, v) {
 function middle(pieces) { const b = pieces.flatMap(q => q.leaves.map(l => l.box)); return { x: (Math.min(...b.map(o => o.x0)) + Math.max(...b.map(o => o.x1))) / 2, y: (Math.min(...b.map(o => o.y0)) + Math.max(...b.map(o => o.y1))) / 2 }; }
 function ridersOf(t) {
     const plate = [ringOf(t).map(q => ({ X: Math.round(q.x * paper.S), Y: Math.round(q.y * paper.S) }))], clipped = desk.clips.filter(c => c.plate === t.kind).flatMap(c => c.ids);
-    let pieces = desk.pieces.filter(q => clipped.includes(q.id) || (t === cutter && clamped(q)) || q.leaves.reduce((s, l) => s + paper.overPlate(l, plate), 0) > paper.area(q.paths) * .5);
-    pieces = [...new Set(pieces.flatMap(q => paper.group(q)))]; pieces = pieces.concat(paper.riders(pieces));
-    return { pieces, tools: things.filter(o => o !== t && o.state === 'rest' && o.kind !== 'mat' && (onThing(t, o) || pieces.some(q => q.leaves.some(l => paper.inside(o, l.world))))) };
+    const down = x => x.under === t.kind;
+    let pieces = desk.pieces.filter(q => !down(q) && (clipped.includes(q.id) || (t === cutter && clamped(q)) || q.leaves.reduce((s, l) => s + paper.overPlate(l, plate), 0) > paper.area(q.paths) * .5));
+    pieces = [...new Set(pieces.flatMap(q => paper.group(q)))].filter(q => !down(q)); pieces = pieces.concat(paper.riders(pieces).filter(q => !down(q)));
+    return { pieces, tools: things.filter(o => o !== t && !down(o) && !(t !== mat && BIG.includes(o.kind) && o.rank < t.rank) && o.state === 'rest' && o.kind !== 'mat' && (onThing(t, o) || pieces.some(q => q.leaves.some(l => paper.inside(o, l.world))))) };
 }
 function takeSheet(t, p) {
     const sh = t === pileT ? sheets[pile[0]] : sheets.board;
     if (!sh || !ready(sh) || (t === padT && !pad)) return;
     if (t === pileT) pile.shift(); else pad--;
     const piece = paper.addPiece(sh.name, sh.w, sh.h, paper.mul(rotateAbout(t, t.ang), translate(t.x - sh.w / 2, t.y - sh.h / 2)), t === padT ? 2 : 1), leaf = piece.leaves[0];
-    const lying = paper.stack().filter(l => l !== leaf && paper.overlap(l, leaf) > .05);
+    const lying = paper.stack().filter(l => l !== leaf && l.piece.under !== t.kind && paper.overlap(l, leaf) > .05);
     if (lying.length) { piece.z[''] = Math.min(...lying.map(zOf)) - .5; paper.raise([]); }
-    for (const o of things) if (loose(o) && o.state === 'rest' && !leafOn(o) && underBox(leaf, o)) o.on = { piece, sig: '' };
+    for (const o of things) if (loose(o) && o.state === 'rest' && o.under !== t.kind && !leafOn(o) && underBox(leaf, o)) o.on = { piece, sig: '' };
     restack();
     drag = Object.assign(hold([piece], p), { piece, from: p, t0: now(), fresh: true });
 }
@@ -801,17 +849,38 @@ function swingTo(piece, k, from, to, dur, done, also, roll) { motions.push({ pie
 
 const turns = [], hops = [], twists = new Map(), shifts = new Map();
 
-function shook(d) {
-    const dx = ms.x - (d.at ? d.at.x : ms.x), dy = ms.y - (d.at ? d.at.y : ms.y), t = now(), s = d.shake ||= { x: 0, y: 0, run: 0, t: 0 };
+const unitsIn = d => { const seen = new Set(); let n = 0; for (const q of d.pieces) if (!seen.has(q)) { for (const x of paper.group(q)) seen.add(x); n++; } return n; };
+function knocking(d) {
+    const dx = ms.x - (d.at ? d.at.x : ms.x), dy = ms.y - (d.at ? d.at.y : ms.y), t = now(), S = d.stand;
     d.at = { ...ms };
-    if (!dx && !dy) return 0;
-    if (dx * s.x + dy * s.y >= 0) { s.x += dx; s.y += dy; return 0; }
-    const real = Math.hypot(s.x, s.y) >= FEEL.shake[3];
-    s.x = dx; s.y = dy;
-    if (!real) return 0;
-    s.run = t - s.t < FEEL.shake[2] * 1000 ? s.run + 1 : 1; s.t = t;
-    return s.run;
+    if (!S) {
+        const s = d.shake ||= { y: 0, x: 0, t: 0 };
+        if (!dx && !dy) return;
+        if (dy * s.y >= 0) { s.y += dy; s.x += Math.abs(dx); if (!s.t0) s.t0 = t; return; }
+        const real = Math.abs(s.y) >= FEEL.shake[3] && Math.abs(s.y) > 1.5 * s.x && t - s.t0 < FEEL.shake[2] * 1000, was = s.y;
+        s.y = dy; s.x = Math.abs(dx); s.t0 = t;
+        if (!real) { s.run = 0; return; }
+        s.run = (s.run || 0) + 1; if (s.run < 2) return;
+        if (d.tools.length) { if (!d.saidTool) say(WHY.tool); d.saidTool = true; return; }
+        if (unitsIn(d) < 2) return;
+        d.stand = { y: d.last.y, a: 0, floor: ms.y - dy + (was < 0 ? Math.min(-was, FEEL.tap.lift * pxcm()) : 0), lift: 0, peak: 0, taps: 0, t, bounce: 0 };
+        d.went = true; wake(); return;
+    }
+    if (S.out) return;
+    if (dy) S.t = t;
+    const px = pxcm();
+    S.floor = Math.min(Math.max(S.floor, ms.y), ms.y + FEEL.tap.lift * px);
+    const lift = (S.floor - ms.y) / px;
+    S.peak = Math.max(S.peak, lift);
+    if (lift <= 1e-6 && S.lift > 0 && S.peak >= FEEL.tap.hit) {
+        S.taps++; S.bounce = 1;
+        const was = squareUp(d, S.taps < 3 ? .5 : 1, true);
+        if (was) { const nearly = was.rot * .5 < 4 * DEG && was.off * .5 < .8; if (S.taps < 3 && nearly) squareUp(d, 1, false); if ((S.taps >= 3 || nearly) && (was.rot > 1e-6 || was.off > .01)) say('knocked square'); }
+    }
+    if (lift <= 1e-6) S.peak = 0;
+    S.lift = lift; wake();
 }
+const standAt = (d, p) => { const S = d.stand, e = S.out ? 1 - S.a * S.a * (3 - 2 * S.a) : 0; return { x: p.x, y: S.y + (p.y - S.y) * e }; };
 function squareUp(d, part, rattle) {
     const units = [], seen = new Set();
     for (const q of d.pieces) if (!seen.has(q)) { const g = paper.group(q).filter(x => d.pieces.includes(x)); g.forEach(x => seen.add(x)); units.push(g); }
@@ -836,15 +905,6 @@ function squareUp(d, part, rattle) {
         }
     }
     return worst;
-}
-function jostle(d, n) {
-    if (d.tools.length) { if (!d.saidTool) say(WHY.tool); d.saidTool = true; return; }
-    const [from, by] = FEEL.shake, was = squareUp(d, n < from ? 0 : n >= by ? 1 : .5, true);
-    if (!was || n < from) return wake();
-    const nearly = was.rot * .5 < 4 * DEG && was.off * .5 < .8;
-    if (n < by && nearly) squareUp(d, 1, false);
-    if ((n >= by || nearly) && (was.rot > 1e-6 || was.off > .01)) say('knocked square');
-    d.went = true; wake();
 }
 function heapOf(pieces) {
     const set = new Set(pieces), size = new Map();
@@ -1096,20 +1156,21 @@ canvas.addEventListener('pointerdown', e => {
             if (c.why) say(WHY[c.why]);
             else { paper.addClip(c); seated.set(desk.clips[desk.clips.length - 1], 0); hand.obj.removeFromParent(); things.splice(things.indexOf(hand), 1); hand = null; changed(); }
         }
-    } else if (mode !== 'hands') { const leaf = paper.topAt(p); if (leaf) take(leaf, p, e); }
+    } else if (mode !== 'hands') { const leaf = topHere(p); if (leaf) take(leaf, p, e); }
     else {
         const hit = D.pick(ms.x, ms.y, things.filter(t => !BIG.includes(t.kind)).map(t => t.obj).concat(clipThings.map(t => t.obj), cutter.obj.visible ? cutter.obj : []));
-        const small = hit && hit.thing.clipped == null && hit.thing !== cutter && buried(hit.thing, p) ? null : hit;
-        const leaf = paper.topAt(p), big = [...mags, pileT, padT, cutter, mat].find(t => t.obj.visible && onThing(t, p));
+        const small = hit && hit.thing.clipped == null && hit.thing !== cutter && (buried(hit.thing, p) || underBig(hit.thing)) ? null : hit;
+        const leaf = topHere(p), big = [...mags, pileT, padT, cutter, mat].filter(t => t.obj.visible && onThing(t, p)).sort((a, b) => (b === mat ? -1 : b.rank) - (a === mat ? -1 : a.rank))[0];
         if (small && small.thing.clipped != null) {
             desk.clips.splice(small.thing.clipped, 1); hand = thing('clip', p.x, p.y); hand.state = 'hand'; changed();
         } else if (small && small.thing === cutter) {
             if (leaf && !cutter.up && !clamped(leaf.piece) && small.part) take(leaf, p, e);
             else if (small.part === 'slider') { if (cutter.up) say(WHY.railUp); else drag = { kind: 'slider', grab: toLocal(cutter, p).v - (cutter.at || 0), lo: cutter.at || 0, hi: cutter.at || 0 }; }
             else if (small.part === 'rail') { move(cutter, p); drag.part = 'rail'; }
-            else if (leaf) take(leaf, p, e); else move(cutter, p);
+            else if (leaf) take(leaf, p, e); else if (laden(cutter)) say(WHY.under); else move(cutter, p);
         }
         else if (small) drag = { kind: 'thing', t: small.thing, last: p, down: { ...ms } };
+        else if (e.altKey && (big === pileT || big === padT)) liftBig(big, p);
         else if (leaf) take(leaf, p, e);
         else if (big && (big === pileT || big === padT)) { if (e.altKey) liftBig(big, p); else { takeSheet(big, p); if (drag) drag.stack = big; } }
         else if (big?.mag) grabMag(big, p);
@@ -1152,8 +1213,9 @@ canvas.addEventListener('pointermove', e => {
     if (d?.kind === 'pan') { const q = at(); view.x += d.grip.x - q.x; view.y += d.grip.y - q.y; }
     else if (d?.kind === 'piece') {
         if (far(ms, d.down) > 3) d.went = true;
-        d.want = p; if (!d.behind) haul(d, p);
-        if (d.lifted) { const n = shook(d); if (n) jostle(d, n); }
+        if (d.lifted) knocking(d);
+        const q = d.stand ? standAt(d, p) : p;
+        d.want = q; if (!d.behind) haul(d, q);
         if (d.held && now() - d.t0 < FEEL.yankFor * 1000 && speed().px > FEEL.yank) rip(d, p);
         else freed(d);
     } else if (d?.kind === 'cut') {
@@ -1231,7 +1293,7 @@ canvas.addEventListener('pointermove', e => {
     wake();
 });
 function foldSpot(p) {
-    const leaf = paper.topAt(p), e = leaf && paper.edgeAt(leaf, p, FEEL.reach, FEEL.corner);
+    const leaf = topHere(p), e = leaf && paper.edgeAt(leaf, p, FEEL.reach, FEEL.corner);
     return e && !paper.heldAt(leaf.piece, e.at) && !things.some(t => loose(t) && t.state === 'rest' && onThing(t, e.at) && (t.on?.piece === leaf.piece || over(t, leaf))) ? { leaf, ...e } : null;
 }
 const shift = (d, T) => Object.assign(d.t, apply(T, d.t));
@@ -1245,7 +1307,7 @@ function ahead(t, v) {
     }
     return top;
 }
-const pickUp = t => { t.state = 'drag'; t.rank = ++stamp; t.ease = posed(t); };
+const pickUp = t => { unbelow([t]); t.state = 'drag'; t.rank = ++stamp; t.ease = posed(t); };
 
 const railBox = () => { const C = D.CUTTER, p = toWorld(cutter, C.rail, 0); return { x: p.x, y: p.y, c: Math.cos(cutter.ang), s: Math.sin(cutter.ang), hl: C.railW / 2, hw: C.h / 2 + C.over }; };
 const clamped = q => !!cutter && !cutter.up && !!cutter.held?.includes(q.fam) && q.leaves.some(l => underBox(l, null, railBox()));
@@ -1297,9 +1359,13 @@ function bear(d, T) {
 }
 function setDown(t) {
     const c = t.carried, box = boxOf(t), poly = polyOf(box), W = D.DESK.w / 2, H = D.DESK.h / 2;
-    const room = ringOf(t).every(p => Math.abs(p.x) <= W && Math.abs(p.y) <= H) && !desk.pieces.some(q => !c.pieces.has(q) && q.leaves.some(l => paper.overPlate(l, poly) > .05))
-        && !things.some(o => o !== t && o !== hand && o !== mat && !c.tools.has(o) && o.obj.visible && touching(box, boxOf(o)));
-    if (room) { c.down = true; return; }
+    if (ringOf(t).every(p => Math.abs(p.x) <= W && Math.abs(p.y) <= H)) {
+        lifted(t);
+        for (const q of desk.pieces) if (!c.pieces.has(q) && !flying(q) && q.leaves.some(l => paper.overPlate(l, poly) > .05)) q.under = t.kind;
+        for (const o of things) if (o !== t && o !== hand && !BIG.includes(o.kind) && !c.tools.has(o) && o.obj.visible && loose(o) && o.state === 'rest' && (touching(box, boxOf(o))?.depth || 0) > .05) o.under = t.kind;
+        paper.raise([...c.pieces]);
+        c.down = true; return;
+    }
     say(WHY.room); c.back = true;
     const dA = c.from.ang - t.ang;
     if (Math.abs(dA) > 1e-9) { const at = { x: t.x, y: t.y }; bear(c.d, rotateAbout(at, dA)); t.ang = c.from.ang; t.tw = { c: at, rem: -dA, v: 0 }; for (const q of c.pieces) { trueUp(q); twists.set(q, { c: at, rem: -dA, v: 0 }); } for (const o of c.tools) o.tw = { c: at, rem: -dA, v: 0 }; }
@@ -1307,12 +1373,13 @@ function setDown(t) {
 function borne(t, dt) {
     const c = t.carried, by = (t.mag ? t.mag.off : 0) - (c.from.off || 0), home = { x: c.from.x + by * Math.cos(c.from.ang), y: c.from.y + by * Math.sin(c.from.ang) };
     if (c.back) { c.v = Math.min(160, (c.v || 0) + 500 * dt, Math.sqrt(1000 * far(t, home)) + 6); const gap = far(t, home), go = Math.min(gap, c.v * dt); if (gap < .01) { c.back = false; c.down = true; } else bear(c.d, translate((home.x - t.x) / gap * go, (home.y - t.y) / gap * go)); }
-    c.L += Math.max(-14 * dt, Math.min(14 * dt, (c.down ? 0 : FEEL.heft) - c.L));
+    const over = c.down ? 0 : Math.max(0, ...bigs().filter(o => o !== t && touching(boxOf(t), boxOf(o))).map(o => o.h + o.obj.userData.tall + 1.5 - t.h));
+    c.L += Math.max(-14 * dt, Math.min(14 * dt, (c.down ? 0 : Math.max(FEEL.heft, over)) - c.L));
     if (c.down && c.L <= 0) { t.carried = null; changed(); }
 }
 function taken(d) {
     d.moved = true;
-    if (d.t === cutter || d.lift) { const t = d.t; t.rank = ++stamp; t.carried = { pieces: new Set(d.pieces), tools: new Set(d.tools), L: 0, from: { x: t.x, y: t.y, ang: t.ang, off: t.mag?.off }, d }; }
+    if (d.t === cutter || d.lift) { const t = d.t; t.rank = ++stamp; lifted(t); t.carried = { pieces: new Set(d.pieces), tools: new Set(d.tools), L: 0, from: { x: t.x, y: t.y, ang: t.ang, off: t.mag?.off }, d }; }
     else if (BIG.includes(d.t.kind)) { for (const o of [d.t, ...(d.tools || []).filter(o => BIG.includes(o.kind))].sort((a, b) => a.rank - b.rank)) if (o !== mat) o.rank = ++stamp; }
     else if (loaded(d.t)) { d.slid = true; d.t.state = 'slide'; }
     else pickUp(d.t);
@@ -1335,6 +1402,7 @@ const movedBy = (b, M) => { const p = apply(M, b), a = Math.atan2(b.s, b.c) + Ma
 function restBig(t, box = boxOf(t)) {
     let h = 0;
     if (t !== mat) for (const o of bigs()) if (o !== t && (o === mat || o.rank < t.rank)) { const c = touching(box, boxOf(o)); if (c && c.depth > .3) h = Math.max(h, o.h + o.obj.userData.tall); }
+    if (t !== mat) for (const o of things) if (o.under === t.kind && o.state === 'rest') { const c = touching(box, boxOf(o)); if (c && c.depth > .05) h = Math.max(h, o.h + tallOf(o)); }
     return h;
 }
 function rollback(log, to = 0) {
@@ -1440,7 +1508,7 @@ function unroll(d) {
 }
 function cutDone(d, held) {
     D.showLine('cut');
-    const res = d.pts.length > 1 ? paper.cut(rdp(d.pts, .01), { ...FORCE[force], safe: plates().flatMap(pl => pl.poly) }) : { made: [], scars: [] };
+    const res = d.pts.length > 1 ? paper.cut(rdp(d.pts, .01), { ...FORCE[force], safe: plates().flatMap(pl => pl.poly), only: q => !(q.under && d.pts.some(p => underBig(q, p))) })         : { made: [], scars: [] };
     if (res.scars.length) scar(res.scars);
     if (res.made.length) { if (!FORCE[force].clean) say('scored'); else if (!FORCE[force].layers && res.made.some(q => q.perfs.length)) say('the sheets underneath are only scored'); changed(); }
     else if (res.scars.length && !tut) say('that went into the desk');
@@ -1473,7 +1541,7 @@ function drop() {
         cutDone(d); if (hand) hand.ease = posed(hand);
     } else if (d.kind === 'snip') {
         D.showLine('cut');
-        const res = d.pts.length > 1 ? paper.cut(bites(d.pts), { clean: paper.LIMITS.snip, score: 0, snip: true }) : { made: [] };
+        const res = d.pts.length > 1 ? paper.cut(bites(d.pts), { clean: paper.LIMITS.snip, score: 0, snip: true, only: q => !(q.under && d.pts.some(p => underBig(q, p))) }) : { made: [] };
         if (res.jam) say('too thick for the scissors');
         if (res.made.length) { changed(); tutDid('snip'); } else if (d.pts.length > 1 && !res.jam) say('scissors have to come in from an edge');
     } else if (d.kind === 'glue') { if (d.did) changed(); }
@@ -1532,7 +1600,7 @@ function spin(dir, big) {
     if (d?.kind === 'piece') { if (turnPaper(d.piece, d.pieces, d.tools)) d.went = true; return; }
     if (d?.kind === 'thing') { if (!d.moved) taken(d); turnThing(d.t, d); return; }
     if (d || hand) return;
-    const hit = D.pick(ms.x, ms.y, things.filter(t => !BIG.includes(t.kind)).map(t => t.obj)), small = hit && !buried(hit.thing, mouse) ? hit : null, leaf = !small && paper.topAt(mouse);
+    const hit = D.pick(ms.x, ms.y, things.filter(t => !BIG.includes(t.kind)).map(t => t.obj)), small = hit && !buried(hit.thing, mouse) && !underBig(hit.thing) ? hit : null, leaf = !small && topHere(mouse);
     if (small) { turnThing(small.thing); changed('turn'); }
     else if (leaf) { const g = paper.group(leaf.piece), all = g.concat(paper.riders(g)); if (turnPaper(leaf.piece, all, onPaper(all))) changed('turn'); }
     else if (onThing(mat, mouse)) { turnThing(mat, { t: mat, ...ridersOf(mat) }); changed('turn'); }
@@ -1551,6 +1619,7 @@ addEventListener('keydown', e => {
     if (reporting()) { if (key === 'escape') closeReport(); return; }
     if (tut?.lines.length) { if (key === ' ' || key === 'enter') { e.preventDefault(); tellOn(); } return; }
     if (key === 'control') { ctrl = true; wake(); return; }
+    if (key === 'alt') { e.preventDefault(); return; }
     if (e.ctrlKey || e.metaKey) {
         if (key === 'z') { e.preventDefault(); e.shiftKey ? step(redo, undo) : step(undo, redo); }
         else if (key === 'y') { e.preventDefault(); step(redo, undo); }
@@ -1574,7 +1643,9 @@ addEventListener('keydown', e => {
     else if (e.repeat) return;
     else if (key === 'f' && !hand) {
         finish();
-        const d = drag?.kind === 'piece' && drag.lifted ? drag : null, leaf = !drag && paper.topAt(mouse), g = d ? d.pieces : leaf ? paper.group(leaf.piece) : null;
+        const top_ = !drag && topHere(mouse), book = drag?.kind === 'thing' && drag.t.mag ? drag.t : drag ? null : top_?.piece.bound ? magOf(top_.piece) : top_ ? null : mags.filter(t => t.obj.visible && onThing(t, mouse)).sort((a, b) => b.rank - a.rank)[0];
+        if (book) { flipMag(book); return; }
+        const d = drag?.kind === 'piece' && drag.lifted ? drag : null, leaf = !drag && topHere(mouse), g = d ? d.pieces : leaf ? paper.group(leaf.piece) : null;
         if (!g) return;
         if (g.some(paper.woven)) say(WHY.threaded);
         else if (!d && paper.covered(g)) say(WHY.under);
@@ -1594,7 +1665,7 @@ addEventListener('keydown', e => {
         }
     } else if ((((key === 'delete' || key === 'backspace') && !hand) || key === 'x') && !drag) {
         finish();
-        const leaf = paper.topAt(mouse), piece = leaf?.piece;
+        const leaf = topHere(mouse), piece = leaf?.piece;
         if (piece && clamped(piece)) say(WHY.rail);
         else if (piece?.bound) say(WHY.bound);
         else if (piece && paper.group(piece).length > 1) say(WHY.attached);
@@ -1609,6 +1680,7 @@ addEventListener('keydown', e => {
     wake();
 });
 addEventListener('keyup', e => {
+    if (e.key === 'Alt') e.preventDefault();
     if (e.key === ' ') space = false;
     if (e.key === 'Control') ctrl = false;
     if (e.key.toLowerCase() === 'p') pressing = false;
@@ -1727,7 +1799,13 @@ function tick(dt) {
     if (d?.kind === 'piece' && d.lifted) {
         const s = speed(), want = Math.max(Math.min(3.2, .3 + s.v * .045), clearOf(d.pieces, d.tools, s)), k = 1 - Math.exp(-dt / .16);
         for (const q of d.pieces) { const a = aloft.get(q)?.alt || 0, f = Math.min(1, (stiff.get(q) || 0) + dt / .12); aloft.set(q, { alt: d.behind ? Math.min(TOP, a + Math.min(18, Math.max(0, 18 - (f < 1 ? a / .12 : 0)) / f) * dt) : a + Math.max(-16 * dt, Math.min(16 * dt, (want - a) * k)), pitch: 0, roll: 0 }); }
-        if (mouse && !d.behind) haul(d, mouse = reach());
+        if (d.stand && dt) {
+            const S = d.stand; if (!S.out && now() - S.t > FEEL.tap.calm * 1000) S.out = true;
+            S.a = S.out ? Math.max(0, S.a - dt / FEEL.tap.down) : Math.min(1, S.a + dt / FEEL.tap.up); S.bounce = Math.max(0, S.bounce - dt / .16);
+            if (S.out) S.lift = Math.max(0, S.lift - 14 * dt);
+            if (S.out && S.a <= 0) { d.stand = null; d.shake = null; }
+        }
+        if (mouse && !d.behind) { mouse = reach(); haul(d, d.stand ? standAt(d, mouse) : mouse); }
     }
     const began = performance.now(), tries = d?.tries;
     if ((d?.kind === 'fold' || d?.kind === 'open') && mouse) mouse = reach();
@@ -1768,13 +1846,18 @@ function tick(dt) {
     D.aim(view);
 
     let fly = aloft;
-    if (turns.length || hops.length || twists.size || shifts.size || carriedNow() || mags.some(t => t.mag.turn || t.mag.shut)) {
+    if (turns.length || hops.length || twists.size || shifts.size || carriedNow() || drag?.stand || mags.some(t => t.mag.turn || t.mag.shut)) {
         fly = new Map(aloft);
         const more = (q, o) => fly.set(q, { alt: 0, pitch: 0, roll: 0, ...fly.get(q), ...o });
         for (const f of hops) for (const q of f.pieces) more(q, { alt: (fly.get(q)?.alt || 0) + .7 * Math.sin(Math.PI * Math.min(1, f.t)) });
         for (const [q, w] of twists) more(q, { twist: w.rem, tc: w.c, lying: !fly.has(q) });
         for (const [q, s] of shifts) more(q, { sx: s.x, sy: s.y, lying: fly.get(q)?.lying ?? !fly.has(q) });
         if (carriedNow()) for (const q of carriedNow().pieces) more(q, { up: carriedNow().L, lying: fly.get(q)?.lying ?? !fly.has(q) });
+        if (drag?.stand) {
+            const S = drag.stand, e = S.a * S.a * (3 - 2 * S.a), bs = drag.pieces.flatMap(q => q.leaves.map(l => l.box)), c = { x: (Math.min(...bs.map(b => b.x0)) + Math.max(...bs.map(b => b.x1))) / 2, y: Math.max(...bs.map(b => b.y1)) };
+            const ch = Math.min(...drag.pieces.flatMap(q => q.leaves.map(D.topOf))), hop = .45 * Math.sin(Math.PI * (1 - S.bounce)) * (S.bounce > 0 ? 1 : 0);
+            for (const q of drag.pieces) more(q, { pitch: e * FEEL.tap.tilt * DEG, roll: 0, c, ch, up: e * (D.heightAt(c, plates(), false) + .02 + S.lift + hop - ch) });
+        }
         for (const f of turns) { const e = f.t * f.t * (3 - 2 * f.t), a = Math.PI * e; for (const q of f.pieces) more(q, { alt: (aloft.get(q)?.alt || 0) + .3 * Math.sin(a) + f.r * f.flat * Math.sin(a), turn: f.done ? a - Math.PI : a, flat: f.flat, tc: f.c, twist: 0 }); }
         for (const t of mags) {
             const m = t.mag, T = m.turn; if (!T) continue;
@@ -1796,7 +1879,7 @@ function tick(dt) {
         if (cap < .02 || pieces.reduce((n, q) => n + q.leaves.length, 0) > FEEL.bendUpTo) return;
         for (const q of pieces) { const k = FEEL.sag * (q.units > 1 ? .3 : 1); more(q, (x, y) => { const dx = x - g.x, dy = y - g.y; return Math.max(-cap, Math.min(FEEL.hang, -k * (dx * dx + dy * dy) - FEEL.sway * (dx * v.x + dy * v.y))); }); }
     };
-    if (d?.kind === 'piece' && d.lifted) {
+    if (d?.kind === 'piece' && d.lifted && !d.stand) {
         const s = speed(), k = 1 - Math.exp(-dt / .15); d.sway ||= { x: 0, y: 0 };
         d.sway.x += (s.x - d.sway.x) * k; d.sway.y += (s.y - d.sway.y) * k;
         hang(d.pieces, d.last, d.sway);
@@ -1847,7 +1930,8 @@ function tick(dt) {
     };
     for (const t of [cutter, pileT, padT, ...mags].sort((a, b) => a.rank - b.rank)) {
         const want = t.carried && !t.carried.down ? t.h : Math.min(TOP, restBig(t));
-        t.h = !dt || Math.abs(want - t.h) < .003 ? want : t.h + (want - t.h) * (1 - Math.exp(-dt / .05)); t.easing = t.h !== want;
+        const gap = want - t.h;
+        t.h = !dt || Math.abs(gap) < .003 ? want : Math.abs(gap) > .5 || t.carried ? t.h + Math.sign(gap) * Math.min(Math.abs(gap), 6 * dt) : t.h + gap * (1 - Math.exp(-dt / .05)); t.easing = t.h !== want;
     }
     const now_ = plates();
     for (const t of [...things].sort((a, b) => (a.z ?? -1) - (b.z ?? -1) || a.rank - b.rank)) {
@@ -1867,11 +1951,19 @@ function tick(dt) {
         t.px = t.x; t.py = t.y;
         const w = t.tw, p = w ? apply(rotateAbout(w.c, w.rem), t) : t;
         if (!big) { const want = tipped(t); t.up = dt ? Math.min(want, (t.up || 0) + 6 * dt) : want; }
-        if (t !== hand) { D.lay(t.obj, p.x, p.y, t.h + (big ? (t.carried ? t.carried.L : 0) + (t.fall ? t.fall.L : 0) : t.up) + (carriedNow()?.tools.has(t) ? carriedNow().L : 0), t.ang + (w ? w.rem : 0), big ? 0 : t.pitch); eased(t); }
+        if (t.mag?.flip) layBig(t);
+        else if (t !== hand) { D.lay(t.obj, p.x, p.y, t.h + (big ? (t.carried ? t.carried.L : 0) + (t.fall ? t.fall.L : 0) : t.up) + (carriedNow()?.tools.has(t) ? carriedNow().L : 0), t.ang + (w ? w.rem : 0), big ? 0 : t.pitch); eased(t); }
         if (u.rolls) t.obj.children[0].rotation.x = t.roll || 0;
         if (u.halves && t !== hand && t.open) { t.open = Math.max(0, t.open - 5 * dt); D.snip(t.obj, t.open); }
     }
     if (cutter) { const to = cutter.up ? 1 : 0; cutter.open = !dt || cutter.open == null ? to : cutter.open + Math.max(-dt / .28, Math.min(dt / .28, to - cutter.open)); D.cutterPose(cutter.obj, cutter.at || 0, cutter.open * cutter.open * (3 - 2 * cutter.open)); }
+    for (const t of mags) {
+        const F = t.mag.flip; if (!F || !dt) continue;
+        F.a = Math.min(Math.PI, F.a + dt * Math.PI / FLIP * (.35 + 1.3 * Math.sin(F.a)));
+        if (!F.swapped && F.a >= Math.PI / 2) { F.swapped = true; flipped(t); }
+        if (F.a >= Math.PI) { t.mag.flip = null; remag(t); last = state(); unsaved = true; }
+        else layBig(t);
+    }
     for (const t of mags) {
         const m = t.mag, T = m.turn; if (!T || !dt) continue;
         T.a = Math.min(Math.PI, T.a + (1 + 8 * Math.sin(T.a)) * dt);
@@ -2193,7 +2285,7 @@ function tidyUp() {
         const total = mags.reduce((s, t, i) => s + 2 * half(t, turnOf(i)).x, 0) + 2.5 * (n - 1); let x = -total / 2;
         mags.forEach((t, i) => {
             const a = turnOf(i), hf = half(t, a), at = { x: x + hf.x, y: -H + 2.5 + hf.y + 2.2 * Math.abs(i - (n - 1) / 2), ang: a, h: 34 }; x += 2 * hf.x + 2.5;
-            Object.assign(t.mag, { list: t.mag.all.slice(), turned: 0, turn: null, shut: null, cut: {}, out: new Set() }); t.mag.off = offOf(t.mag);
+            Object.assign(t.mag, { list: t.mag.all.slice(), turned: 0, turn: null, shut: null, flip: null, over: false, dir: t.mag.bind, cut: {}, out: new Set() }); t.mag.off = offOf(t.mag);
             setTimeout(() => bring(t.kind, { ...at, then: i === n - 1 ? () => go('pick') : null }), i * 220);
         });
     }, 900 + TIDY * 1000 + 500);
@@ -2245,7 +2337,7 @@ for (const [kind, x, y, ang] of START) {
         if (h > 32) x = Math.max(x, D.MAT.w / 2 + 1.5);
         const home = { x: x + w / 2, y: -D.DESK.h / 2 + 2 + h / 2 }, t = thing('mag ' + i, home.x, home.y, 0, D.makeMag({ w: 1, h: 1, dir, off: 0, L: 0, R: 1, paper: PAPER }));
         t.obj.visible = false;
-        t.mag = { key, all, list: all.slice(), turned: 0, dir, w: c.wide || 0, h: c.wide ? h : 0, off: c.wide ? dir * c.wide / 2 : 0, home, turn: null, out: new Set(), cut: {}, under: { R: 0, L: 0 } };
+        t.mag = { key, all, list: all.slice(), turned: 0, dir, bind: dir, over: false, w: c.wide || 0, h: c.wide ? h : 0, off: c.wide ? dir * c.wide / 2 : 0, home, turn: null, out: new Set(), cut: {}, under: { R: 0, L: 0 } };
         if (c.wide) for (const name of all) Object.assign(sheets[name], { w: c.wide, h, wide: c.wide });
         BIG.push(t.kind); mags.push(t); x += w + 2;
     });
