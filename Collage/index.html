@@ -114,7 +114,7 @@
     <textarea maxlength="4000" aria-label="Your report"></textarea>
     <div class="drop">Drop photos here, paste them, or click to choose (up to 4)<input type="file" accept="image/*" multiple hidden><div class="shots"></div></div>
     <div class="foot"><span class="status" role="status"></span><button type="button" class="cancel">Cancel</button><button type="submit" class="send">Send</button></div>
-    <p class="note">Sent along with it: this page's address, your browser and screen size, and what you were doing on the desk.</p>
+    <p class="note">Sent along with it: this page's address, your browser and screen size, what you were doing on the desk, and any error the page ran into.</p>
 </form></div>
 
 <script type="module">
@@ -1946,9 +1946,24 @@ function tick(dt) {
 }
 
 const active = () => flights.length || bigTurn || carriedNow() || (cutter && cutter.open !== (cutter.up ? 1 : 0)) || D.settling() || things.some(t => t.state === 'air' || t.vp || t.tw || t.ease || t.easing) || drag || performance.now() < forceUntil + 100 || motions.length || lifting || prying || stiff.size || turns.length || hops.length || twists.size || shifts.size || torn || pressed > .02 || pressing || mags.some(t => t.mag.turn || t.mag.shut) || things.some(t => t.fall || t.glide);
+
+const faults = [];
+function fault(err, where_) {
+    const what = `${where_}: ${err?.message || err} @ ${(err?.stack || '').split('\n').slice(1, 3).map(l => l.trim().replace(/https?:\/\/[^\s)]*\//g, '')).join(' < ')}`;
+    console.error(err);
+    if (!faults.includes(what) && faults.length < 6) faults.push(what);
+    if (!fault.said) { fault.said = true; say('Something went wrong on the desk. Please use the report button, bottom left, and say what you were doing.'); }
+}
+addEventListener('error', e => { if (e.error) fault(e.error, 'page'); });
+addEventListener('unhandledrejection', e => fault(e.reason, 'promise'));
 function frame(t) {
-    tick(Math.min(.05, (t - lastFrame) / 1000 || .016)); lastFrame = t;
-    if (active()) idle = 0;
+    let busy = false;
+    try {
+        const dt = (t - lastFrame) / 1000; lastFrame = t;
+        tick(dt > 0 ? Math.min(.05, dt) : .016);
+        busy = !!active();
+    } catch (err) { fault(err, 'frame'); }
+    if (busy) idle = 0;
     if (++idle < 4) requestAnimationFrame(frame); else awake = false;
 }
 function wake() { idle = 0; if (!awake) { awake = true; lastFrame = performance.now(); requestAnimationFrame(frame); } }
@@ -2003,7 +2018,7 @@ reportEl.querySelector('form').onsubmit = async e => {
     const words = report.text.value.trim();
     if (words.length < 3 && !report.shots.length) { reportSays('Write a few words first, or add a photo.', true); report.text.focus(); return; }
     const body = new FormData();
-    body.append('kind', report.kind); body.append('text', words); body.append('page', location.href);
+    body.append('kind', report.kind); body.append('text', faults.length ? `${words}\n\n[errors on the page: ${faults.join(' | ')}]`.slice(0, 4000) : words); body.append('page', location.href);
     body.append('context', tut ? `the tutorial, step "${tut.step}"` : `the desk${hand ? ', holding the ' + hand.kind : ''}, ${mode}`);
     body.append('screen', `${innerWidth} x ${innerHeight} @ ${devicePixelRatio}`);
     report.shots.forEach((s, i) => body.append('photo', s.blob, `photo-${i + 1}.jpg`));
