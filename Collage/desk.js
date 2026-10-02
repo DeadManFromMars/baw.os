@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import * as paper from './paper.js?v=32';
+import * as paper from './paper.js?v=40';
 
 const S = paper.S, TAU = Math.PI * 2, IN = 2.54, V = (x, y, z) => new THREE.Vector3(x, y, z);
 const LENS = 20;
 export const SHEET = 0.02;
+export const LEAF = 0.009;
 export const DESK = { w: 190, h: 110 };
 export const MAT = { w: 24 * IN, h: 18 * IN, tall: 0.3 };
 export const CUTTER = { w: 16, h: 34, tall: 1, rail: 2, travel: 14, fence: 1, railW: 3, gap: .12, flip: 1.85, over: .35 };
@@ -345,13 +346,14 @@ export function makeMag(o) {
     const pic = (img, round) => { if (!drawable(img)) return side; let t = tex(img); if (round) { t = t.clone(); t.needsUpdate = true; t.repeat.set(-1, -1); t.offset.set(1, 1); t.userData.own = true; } return new THREE.MeshStandardMaterial({ map: t, roughness: .9 }); };
     const hinge = o.swing ? new THREE.Group() : null;
     if (hinge) { hinge.position.x = sx; g.add(hinge); }
+    const spine = new THREE.MeshStandardMaterial({ color: o.spine || '#19181b', roughness: .8 });
     const pile = (n, img, at, on, under) => {
         if (n <= 0) return;
-        const tall = n * SHEET, m = new THREE.Mesh(new THREE.BoxGeometry(o.w, tall, o.h), [side, side, pic(img), on ? pic(under, true) : side, side, side]);
+        const tall = n * LEAF, inward = -at * o.dir > 0, m = new THREE.Mesh(new THREE.BoxGeometry(o.w, tall, o.h), [inward ? spine : side, inward ? side : spine, pic(img), on ? pic(under, true) : side, side, side]);
         m.position.set((on ? 0 : sx) + at * o.dir * o.w / 2, tall / 2, 0); m.castShadow = m.receiveShadow = true; (on || g).add(m);
     };
     pile(o.R, o.right, 1); pile(o.L, o.left, -1, hinge, o.under);
-    g.userData = { len: o.both ? 2 * o.w : o.w, wid: o.h, tall: Math.max(.01, Math.max(o.L, o.R) * SHEET), lift: 0, hinge };
+    g.userData = { len: o.both ? 2 * o.w : o.w, wid: o.h, tall: Math.max(.01, Math.max(o.L, o.R) * LEAF), lift: 0, hinge };
     return g;
 }
 export function magSwing(obj, a, y) { const h = obj.userData.hinge; if (h) { h.rotation.z = a; h.position.y = y; } }
@@ -365,7 +367,7 @@ export function forget(sh) {
     for (const img of [sh.front, sh.back]) { const t = img && texes.get(img); if (t) { t.dispose(); texes.delete(img); } }
 }
 export function lay(obj, x, y, h, ang, pitch = 0) { obj.position.set(x, h + obj.userData.lift, y); obj.rotation.set(0, -ang, pitch, 'YZX'); }
-const bx = V(), by = V(), bz = V(), bm = new THREE.Matrix4(), tipW = V();
+const bx = V(), by = V(), bz = V(), bm = new THREE.Matrix4(), tipW = V(), rimW = V();
 function basis(obj, x, zHint) { bx.copy(x).normalize(); bz.copy(zHint).addScaledVector(bx, -zHint.dot(bx)).normalize(); by.crossVectors(bz, bx); obj.quaternion.setFromRotationMatrix(bm.makeBasis(bx, by, bz)); }
 const SNIP = { pitch: 28 * Math.PI / 180, lean: 62 * Math.PI / 180 };
 export function inHand(obj, kind, p, h, a = 0, low = 0) {
@@ -376,11 +378,13 @@ export function inHand(obj, kind, p, h, a = 0, low = 0) {
         tipW.set(8.6 * Math.cos(o), .13, -8.6 * Math.sin(o)).applyQuaternion(obj.quaternion); obj.position.set(p.x - tipW.x, h - tipW.y, p.y - tipW.z);
         return;
     }
-    if (low) basis(obj, V(Math.cos(a), low, Math.sin(a)), V(-Math.sin(a), 0, Math.cos(a)));
+    if (kind === 'glue') basis(obj, V(-.33 - .45 * low, -.9, -.28 - .3 * low), V(0, 0, 1));
+    else if (low) basis(obj, V(Math.cos(a), low, Math.sin(a)), V(-Math.sin(a), 0, Math.cos(a)));
     else if (kind === 'scalpel' || kind === 'tweezers') basis(obj, V(.62, .64, .45), V(0, -1, 0));
-    else if (kind === 'glue') basis(obj, V(-.33, -.9, -.28), V(0, 0, 1));
     else basis(obj, V(Math.cos(a), 0, Math.sin(a)), V(-Math.sin(a), 0, Math.cos(a)));
-    tipW.copy(obj.userData.tip).applyQuaternion(obj.quaternion); obj.position.set(p.x - tipW.x, h - tipW.y, p.y - tipW.z);
+    tipW.copy(obj.userData.tip).applyQuaternion(obj.quaternion);
+    if (kind === 'glue' && low) tipW.addScaledVector(rimW.set(0, -1, 0).addScaledVector(bx, bx.y).normalize(), .86 * low);
+    obj.position.set(p.x - tipW.x, h - tipW.y, p.y - tipW.z);
 }
 export function snip(obj, open) { obj.userData.open = open; obj.userData.halves[0].rotation.y = open; obj.userData.halves[1].rotation.y = -open; }
 
@@ -799,7 +803,8 @@ export function syncPaper(st) {
         const fly = st.aloft.get(l.piece), hg = st.hinge.get(l), up = fly ? fly.alt : 0, W = l.W, flatH = tops.get(l);
         const air = fly && !fly.lying;
         const was = bases.get(l), thin = SHEET * (l.piece.units > 1 ? 1.6 : 1);
-        let base = was == null || !st.dt || Math.abs(flatH - was) < .004 ? flatH : was + (flatH - was) * (1 - Math.exp(-st.dt / .08));
+        const part = l.piece.bound || rides.get(l);
+        let base = part || was == null || !st.dt || Math.abs(flatH - was) < .004 ? flatH : was + (flatH - was) * (1 - Math.exp(-st.dt / .08));
         for (const m of below.get(l)) { const under = bases.get(m) + thin; if (under > base) base = under; }
         bases.set(l, base); if (base !== flatH) unsettled = true;
         const face = W[0] * W[3] - W[1] * W[2] < 0 ? -1 : 1;

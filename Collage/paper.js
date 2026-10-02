@@ -2,7 +2,7 @@ const C = window.ClipperLib;
 export const S = 10000;
 const KERF = 25, RIP = 4;
 const DUST = 1e4;
-const SCRAP = 0.02;
+const SCRAP = 0.004;
 const TOUCH = 0.05;
 const CLIP = { reach: 2.2, grip: [0.4, 1.3, 2.3] };
 export const LIMITS = {
@@ -12,6 +12,7 @@ export const LIMITS = {
     share: .62,
     clean: 3, score: 2,
     snip: 4,
+    thread: .25,
 };
 
 export const desk = { pieces: [], clips: [], tucks: [], bonds: [], n: 1, torn: null };
@@ -441,6 +442,29 @@ export function separate(piece, part, seed) {
     if (rough) { piece.tears = piece.tears.concat(rough.map(r => r.map(micron))); desk.torn = rough.flatMap(r => piece.leaves.flatMap(l => openIn(intLine(r), swell(l.paths, 30)).map(part => part.map(q => apply(l.W, { x: q.X / S, y: q.Y / S }))))); }
     const made = slice(piece, union((rough || lines).flatMap(p => kerf(p, seed ? RIP : KERF))));
     if (made.length) { renumber(); reclip(); retuck(); }
+    return made;
+}
+
+const mitred = (paths, by) => { const co = new C.ClipperOffset(20, 2.5), out = new C.Paths(); co.AddPaths(paths, C.JoinType.jtMiter, C.EndType.etClosedPolygon); co.Execute(out, by); return out; };
+const threaded = new WeakMap();
+function partsOf(piece) {
+    const c = threaded.get(piece); if (c && c.paths === piece.paths) return c.parts;
+    const d = LIMITS.thread * S / 2, cores = lumpsOf(swell(piece.paths, -d));
+    const parts = cores.length > 1 ? cores.map(k => both(mitred(k, d + 3), piece.paths)).filter(p => p.length) : [];
+    threaded.set(piece, { paths: piece.paths, parts });
+    return parts;
+}
+const threadsOf = (piece, part) => { const inner = swell(piece.paths, -10); return part.flatMap(r => openIn(r.concat([r[0]]), inner)).filter(l => l.length > 1); };
+const onDeskLines = (piece, lines) => lines.flatMap(c => piece.leaves.flatMap(l => openIn(c, swell(l.paths, 30)).map(r => r.map(q => apply(l.W, { x: q.X / S, y: q.Y / S })))));
+export function threadAt(piece, p) {
+    const parts = partsOf(piece), i = parts.length > 1 ? partAt(piece, parts, p) : -1;
+    return i < 0 ? null : { part: parts[i], small: area(parts[i]) * 2 < area(piece.paths), line: onDeskLines(piece, threadsOf(piece, parts[i])) };
+}
+export function snap(piece, part) {
+    const lines = threadsOf(piece, part), was = piece.tears;
+    piece.tears = was.concat(lines.map(toCm)); desk.torn = onDeskLines(piece, lines);
+    const made = slice(piece, run(CT.ctDifference, swell(part, 2 * RIP), part));
+    if (made.length) { renumber(); reclip(); retuck(); } else { piece.tears = was; desk.torn = null; }
     return made;
 }
 
