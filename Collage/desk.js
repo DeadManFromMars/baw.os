@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import * as paper from './paper.js?v=40';
+import * as paper from './paper.js?v=44';
 
 const S = paper.S, TAU = Math.PI * 2, IN = 2.54, V = (x, y, z) => new THREE.Vector3(x, y, z);
 const LENS = 20;
@@ -70,6 +70,21 @@ export function pick(cx, cy, objs) {
     while (o && !o.userData.thing) o = o.parent;
     return o ? { thing: o.userData.thing, part: hit.object.userData.part } : null;
 }
+export const eye = () => camera;
+export const lens = LENS;
+
+export function still(pieces, sheets, c) {
+    const g = new THREE.Group(), set = new Set(pieces);
+    paper.stack().filter(l => set.has(l.piece)).forEach((l, k) => {
+        const sh = sheets[l.piece.sheet]; if (!sh) return;
+        const v = build(l, sh, matsOf(sh)), W = l.W, face = W[0] * W[3] - W[1] * W[2] < 0 ? -1 : 1;
+        v.group.matrix.set(W[0], 0, W[2], W[4] - c.x, 0, face, 0, k * SHEET, W[1], 0, W[3], W[5] - c.y, 0, 0, 0, 1);
+        for (const ch of v.group.children) { if (ch.userData.casts) { ch.userData.sh = sh; ch.castShadow = true; } if (ch.userData.ridge) ch.visible = false; }
+        g.add(v.group);
+    });
+    return g;
+}
+export function restill(g) { g.traverse(ch => { const sh = ch.userData.sh; if (sh) { const m = matsOf(sh); ch.material = ch.userData.side > 0 ? m.front : m.back; } }); }
 export const render = () => renderer.render(scene, camera);
 export const info = () => renderer.info.render;
 
