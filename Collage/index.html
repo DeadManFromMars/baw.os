@@ -1956,8 +1956,12 @@ function fault(err, where_) {
 }
 addEventListener('error', e => { if (e.error) fault(e.error, 'page'); });
 addEventListener('unhandledrejection', e => fault(e.reason, 'promise'));
+
+const pulse = { frames: 0, at: 0, downs: 0, on: '', desk: 0 };
+addEventListener('pointerdown', e => { pulse.downs++; pulse.on = e.target.id || e.target.tagName; if (e.target === canvas) pulse.desk++; }, true);
+const reportState = () => `[state: ${pulse.frames} frames, the last ${pulse.at ? Math.round(performance.now() - pulse.at) + ' ms ago' : 'never'}; clock ${awake ? 'awake' : 'asleep'} (idle ${idle}); ${pulse.downs} presses, ${pulse.desk} on the desk, the last on "${pulse.on}"; hand ${hand?.kind || '-'}, drag ${drag?.kind || '-'}, mode ${mode}, carried ${heldBig()?.kind || '-'}, lesson ${tut ? tut.step + (tut.lines.length ? ' + ' + tut.lines.length + ' line(s) up' : '') : 'off'}; things ${things.length}, in the air ${things.filter(t => t.state === 'air' || t.fall).length}, paper ${desk.pieces.length}; window ${document.visibilityState}${document.hasFocus() ? '' : ', not in front'}]`;
 function frame(t) {
-    let busy = false;
+    let busy = false; pulse.frames++; pulse.at = performance.now();
     try {
         const dt = (t - lastFrame) / 1000; lastFrame = t;
         tick(dt > 0 ? Math.min(.05, dt) : .016);
@@ -2018,7 +2022,7 @@ reportEl.querySelector('form').onsubmit = async e => {
     const words = report.text.value.trim();
     if (words.length < 3 && !report.shots.length) { reportSays('Write a few words first, or add a photo.', true); report.text.focus(); return; }
     const body = new FormData();
-    body.append('kind', report.kind); body.append('text', faults.length ? `${words}\n\n[errors on the page: ${faults.join(' | ')}]`.slice(0, 4000) : words); body.append('page', location.href);
+    body.append('kind', report.kind); body.append('text', `${words}\n\n${reportState()}${faults.length ? `\n[errors on the page: ${faults.join(' | ')}]` : ''}`.slice(0, 4000)); body.append('page', location.href);
     body.append('context', tut ? `the tutorial, step "${tut.step}"` : `the desk${hand ? ', holding the ' + hand.kind : ''}, ${mode}`);
     body.append('screen', `${innerWidth} x ${innerHeight} @ ${devicePixelRatio}`);
     report.shots.forEach((s, i) => body.append('photo', s.blob, `photo-${i + 1}.jpg`));
