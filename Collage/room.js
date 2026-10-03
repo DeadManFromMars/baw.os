@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import * as D from './desk.js?v=62';
-import * as field from './field.js?v=62';
+import * as D from './desk.js?v=63';
+import * as field from './field.js?v=63';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z), FAR = 70000;
 const smooth = t => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
@@ -24,7 +24,7 @@ export const LAMP = {
     high: 300,
     see: 12,
     wait: 1.2, close: 18,
-    fight: [[0, 0], [.2, .42], [.3, .22], [.52, .68], [.61, .5], [.8, .9], [.84, .8], [.9, .93], [1, 1]],
+    fight: [[0, 0], [.5, .68], [.62, .5], [1, 1]],
     grace: .3,
     open: .5,
     hear: [2.2, .6],
