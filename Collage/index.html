@@ -132,9 +132,9 @@
 </form></div>
 
 <script type="module">
-import * as paper from './paper.js?v=58';
-import * as D from './desk.js?v=58';
-import * as den from './room.js?v=58';
+import * as paper from './paper.js?v=60';
+import * as D from './desk.js?v=60';
+import * as den from './room.js?v=60';
 const { desk, inv, apply, turn, translate, rotateAbout } = paper;
 
 const IN = 2.54, TAU = Math.PI * 2, DEG = Math.PI / 180;
@@ -165,6 +165,7 @@ const FEEL = {
     overhang: 12,
     seek: 7,
     skip: 2,
+    ahead: 4,
     riffle: [.35, 3],
     hold: .22,
     wind: .7,
@@ -269,9 +270,9 @@ async function findScans() {
 }
 function ready(sh) {
     if (!sh.front) {
-        const img = sh.front = new Image(); img.onload = () => { if (sh.front !== img) return; sh.h = sh.tall || PAGE.h; sh.w = sh.wide || sh.h * img.naturalWidth / img.naturalHeight; restack(); wake(); };
+        const img = sh.front = new Image(); img.onload = () => { if (sh.front !== img) return; sh.h = sh.tall || PAGE.h; sh.w = sh.wide || sh.h * img.naturalWidth / img.naturalHeight; arrived(sh); wake(); };
         sh.front.src = sh.url;
-        if (sh.backUrl) { sh.back = new Image(); sh.back.onload = () => { restack(); wake(); }; sh.back.src = sh.backUrl; }
+        if (sh.backUrl) { const b = sh.back = new Image(); b.onload = () => { if (sh.back === b) { arrived(sh); wake(); } }; b.src = sh.backUrl; }
     }
     return !!sh.w;
 }
@@ -298,11 +299,17 @@ let warming;
 function warm() {
     clearTimeout(warming); warming = setTimeout(() => { for (const name of pile.slice(0, 3)) { const sh = sheets[name]; if (sh && ready(sh)) D.warm(sh); } }, 250);
 }
+function arrived(sh) {
+    const t = sh.mag ? mags.find(t => t.mag.key === sh.mag) : null;
+    if (!t) return restack();
+    const i = t.mag.list.findIndex(n => sheets[n] === sh);
+    if (!t.mag.w || i < 0 || Math.abs(i - t.mag.turned) <= 3 || i === t.mag.list.length - 1) remag(t);
+}
 function restack() {
     for (const t of [pileT, padT]) {
         if (!t) continue;
         const sh = t === pileT ? sheets[pile[0]] : sheets.board, n = t === pileT ? pile.length : pad, ok = sh && (t === padT || ready(sh));
-        t.obj.removeFromParent();
+        D.scrap(t.obj);
         t.obj = D.makeStack(ok ? sh.w : PAGE.w, ok ? sh.h : PAGE.h, Math.max(.01, n * D.SHEET * (t === padT ? 1.6 : 1)), ok && n ? sh.front : null, n ? (t === padT ? BLACK : PAPER) : '#3a2418');
         t.obj.userData.thing = t; t.obj.visible = n > 0 && !t.away; D.scene.add(t.obj);
     }
@@ -394,9 +401,18 @@ function remag(t) {
     for (const name of [...m.out]) if (!want.includes(name)) leafIn(t, name);
     for (const k of ups) if (!m.out.has(m.list[k])) leafOut(t, m.list[k], k < m.turned ? -1 : 1);
     const n = m.list.length, up = ups, hiR = up.filter(k => k >= m.turned).length, R = n - m.turned - hiR, L = m.turned - (up.length - hiR), right = sheets[m.list[m.turned + hiR]], left = sheets[m.list[m.turned - 1 - (up.length - hiR)]];
-    if (!seeking(m)) for (const sh of [right, left, sheets[m.list[m.turned + hiR + 1]], sheets[m.list[m.turned - 2 - (up.length - hiR)]], sheets[m.list[n - 1]]]) if (sh) ready(sh);
+    if (!seeking(m)) {
+        const fwd = riffle?.t === t ? riffle.side : 0, A = FEEL.ahead;
+        for (const sh of [right, left, sheets[m.list[n - 1]]]) if (sh) ready(sh);
+        for (let j = 0; j < A * 2; j++) { if (j < A * (fwd > 0 ? 2 : 1)) { const sh = sheets[m.list[m.turned + j]]; if (sh) ready(sh); } if (j < A * (fwd < 0 ? 2 : 1)) { const sh = sheets[m.list[m.turned - 1 - j]]; if (sh) ready(sh); } }
+    }
     const shown = new Set(desk.pieces.map(q => q.sheet).concat(den.items.concat(den.held).flatMap(it => (it.pieces || []).map(e => e.p.sheet))));
-    m.list.forEach((name, i) => { const sh = sheets[name]; if (sh.url && sh.front && !m.out.has(name) && !shown.has(name) && i > 0 && i < m.list.length - 1 && (i < m.turned - 5 || i > m.turned + 4)) { D.forget(sh); sh.front = sh.back = null; } });
+    m.list.forEach((name, i) => {
+        const sh = sheets[name]; if (!sh.url || !sh.front || m.out.has(name) || shown.has(name) || i === 0 || i === m.list.length - 1) return;
+        const far = i < m.turned - 6 || i > m.turned + 5;
+        if (far) D.forget(sh);
+        if (i < m.turned - 3 * FEEL.ahead || i > m.turned + 3 * FEEL.ahead) sh.front = sh.back = null;
+    });
     D.scrap(t.obj);
     if (m.shut) ready(sheets[m.list[0]]);
     const fr = m.over ? 'back' : 'front', bk = m.over ? 'front' : 'back';
@@ -542,9 +558,15 @@ function pagesBar() {
     if (!pagesHeld) pagesEl.value = m.goal ?? m.turned;
     pagesEl.classList.add('on');
 }
+let pagesWait = [];
+const pagesGo = (t, now) => {
+    pagesWait.forEach(clearTimeout); const m = t.mag, k = m.goal;
+    const fetch = () => { for (let j = -2; j <= 2; j++) { const sh = sheets[m.list[k + j]]; if (sh) ready(sh); } };
+    if (now) { fetch(); seek(t); wake(); } else pagesWait = [setTimeout(fetch, 90), setTimeout(() => { seek(t); wake(); }, 260)];
+};
 pagesEl.addEventListener('pointerdown', () => { pagesHeld = true; });
-addEventListener('pointerup', () => { if (pagesHeld) { pagesHeld = false; pagesEl.blur(); } });
-pagesEl.addEventListener('input', () => { const t = pagesMag; if (!t) return; t.mag.goal = +pagesEl.value; lastMag = t; seek(t); wake(); });
+addEventListener('pointerup', () => { if (pagesHeld) { pagesHeld = false; pagesEl.blur(); if (pagesMag?.mag.goal != null) pagesGo(pagesMag, true); } });
+pagesEl.addEventListener('input', () => { const t = pagesMag; if (!t) return; t.mag.goal = +pagesEl.value; lastMag = t; pagesGo(t, !pagesHeld); });
 function shutMag(t) {
     const m = t.mag;
     if (m.turn || m.shut || m.flip || !m.w || m.turned <= 0) return false;
