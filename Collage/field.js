@@ -27,6 +27,15 @@ float gustAt(vec2 p, float t, vec2 dir) {
     float w = sin(along * .0105 - t * 1.25 + sin(across * .004 + t * .11) * 2.) * .55 + sin(along * .027 + across * .011 - t * 2.1) * .3 + sin(along * .0031 - across * .0017 - t * .45) * .35;
     return clamp(.5 + .42 * w, 0., 1.);
 }`;
+export function gustHere(x, z, r = 600) {
+    const t = uniforms.uTime.value, d = uniforms.uWind.value; let s = 0, n = 0;
+    for (const [i, j] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [.7, .7], [-.7, .7], [.7, -.7], [-.7, -.7]]) {
+        const px = x + i * r, pz = z + j * r, along = px * d.x + pz * d.y, across = -px * d.y + pz * d.x;
+        const w = Math.sin(along * .0105 - t * 1.25 + Math.sin(across * .004 + t * .11) * 2) * .55 + Math.sin(along * .027 + across * .011 - t * 2.1) * .3 + Math.sin(along * .0031 - across * .0017 - t * .45) * .35;
+        s += Math.max(0, Math.min(1, .5 + .42 * w)); n++;
+    }
+    return s / n;
+}
 const uniforms = { uTime: { value: 0 }, uWind: { value: new THREE.Vector2(...GRASS.wind).normalize() }, uRoot: { value: new THREE.Color(GRASS.root) }, uTip: { value: new THREE.Color(GRASS.tip) }, uSheen: { value: new THREE.Color(GRASS.sheen) },
                    uSoil: { value: new THREE.Color(GRASS.soil) }, uFog: { value: new THREE.Color(HAZE.color) }, uFogD: { value: HAZE.density } };
 const bladeMat = () => new THREE.ShaderMaterial({ uniforms, side: THREE.DoubleSide, vertexShader: `

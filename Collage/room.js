@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import * as D from './desk.js?v=63';
-import * as field from './field.js?v=63';
+import * as D from './desk.js?v=68';
+import * as field from './field.js?v=68';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z), FAR = 70000;
 const smooth = t => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
@@ -23,11 +23,16 @@ export const WALK = {
 export const LAMP = {
     high: 300,
     see: 12,
-    wait: 1.2, close: 18,
-    fight: [[0, 0], [.5, .68], [.62, .5], [1, 1]],
+
+    total: 44.5,
+    wait: 9.4,
+    windAt: 6.9,
+    fight: [[0, 0], [.048, .059], [.672, .356], [.777, .219], [1, 1]],
+    zoom: .35, zoomP: .7,
+
     grace: .3,
     open: .5,
-    hear: [2.2, .6],
+    hear: [1, .47],
     shut: .7, blink: [.14, .1, .7],
 };
 const mat = (color, rough = .9) => new THREE.MeshStandardMaterial({ color, roughness: rough });
@@ -86,16 +91,18 @@ export function atFront() {
 }
 
 export const eyes = { shut: 0, level: 0 };
-let stare = 0, looked = 0, away = 0, blink = null;
+let stare = 0, looked = 0, away = 0, blink = null, zoomed = 0;
 const fought = s => { const F = LAMP.fight; for (let i = 1; i < F.length; i++) if (s <= F[i][0]) { const [a, p] = F[i - 1], [b, q] = F[i], u = (s - a) / (b - a || 1); return p + (q - p) * u * u * (3 - 2 * u); } return 1; };
 function lampAndEyes(dt, cam) {
     if (world === 'dream') { if (!blink) { eyes.shut = 0; eyes.level += (1 - eyes.level) * Math.min(1, dt * 1.5); } }
     else if (!blink) {
         cam.getWorldDirection(gaze); toLamp.copy(lamp.position).sub(cam.position).normalize();
         const at = me.t >= 1 && gaze.dot(toLamp) > Math.cos(LAMP.see * Math.PI / 180);
-        if (at) { away = 0; looked += dt; if (looked > LAMP.wait) stare = Math.min(1, stare + dt / LAMP.close); eyes.shut = fought(stare); eyes.level = Math.pow(stare, LAMP.hear[0]) * LAMP.hear[1]; }
+        const part = from => Math.max(0, Math.min(1, (looked - from) / Math.max(.1, LAMP.total - from)));
+        if (at) { away = 0; looked += dt; stare = part(0); eyes.shut = fought(part(LAMP.wait)); eyes.level = Math.pow(part(LAMP.windAt), LAMP.hear[0]) * LAMP.hear[1]; }
         else if ((away += dt) > LAMP.grace) { looked = stare = 0; eyes.shut = Math.max(0, eyes.shut - dt / LAMP.open); eyes.level = Math.max(0, eyes.level - dt * LAMP.hear[1] / LAMP.open); }
-        if (stare >= 1) blink = { t: 0, gone: false };
+        if (looked >= LAMP.total) blink = { t: 0, gone: false };
+        eyes.looked = looked;
     }
     if (blink) {
         const b = blink, [a, c, o] = LAMP.blink; b.t += dt;
@@ -139,7 +146,9 @@ export function frame(dt, keys) {
     const bob = -Math.cos(2 * Math.PI * me.stride / WALK.step) * WALK.bob * Math.min(1, Math.hypot(me.vx, me.vz) / WALK.walk);
     me.eye = WALK.eye + (WALK.low - WALK.eye) * me.low;
     walkP.set(me.x, FLOOR + me.eye + bob, me.z); walkQ.setFromEuler(euler.set(me.pitch, me.yaw, 0));
-    if (me.t >= 1) { cam.position.copy(walkP); cam.quaternion.copy(walkQ); cam.fov = WALK.fov; }
+    const into = world === 'dark' ? Math.pow(smooth(stare), LAMP.zoomP) : 0;
+    zoomed = blink?.gone ? 0 : zoomed + (into - zoomed) * (1 - Math.exp(-dt / (into > zoomed ? .3 : .6)));
+    if (me.t >= 1) { cam.position.copy(walkP); cam.quaternion.copy(walkQ); cam.fov = WALK.fov * (1 - LAMP.zoom * zoomed); }
     else {
         const e = smooth(me.t), f0 = D.lens * Math.PI / 360, f1 = WALK.fov * Math.PI / 360;
         onDesk(seat.p, fwd.set(0, 0, -1).applyQuaternion(seat.q), t0); onDesk(walkP, fwd.set(0, 0, -1).applyQuaternion(walkQ), t1);
@@ -213,3 +222,4 @@ export function take(it) {
 }
 export function forget(it) { const i = items.indexOf(it), j = held.indexOf(it); if (i >= 0) items.splice(i, 1); if (j >= 0) held.splice(j, 1); it.obj.removeFromParent(); }
 export const busy = () => up() || eyes.shut > 0 || items.some(it => !it.still);
+export const gustHere = (x = me.x, z = me.z) => field.gustHere(x, z);
