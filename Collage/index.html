@@ -133,9 +133,9 @@
 </form></div>
 
 <script type="module">
-import * as paper from './paper.js?v=68';
-import * as D from './desk.js?v=68';
-import * as den from './room.js?v=68';
+import * as paper from './paper.js?v=71';
+import * as D from './desk.js?v=71';
+import * as den from './room.js?v=71';
 const { desk, inv, apply, turn, translate, rotateAbout } = paper;
 
 const IN = 2.54, TAU = Math.PI * 2, DEG = Math.PI / 180;
@@ -170,6 +170,7 @@ const FEEL = {
     riffle: [.35, 3],
     hold: .22,
     wind: .35,
+    windFx: { soft: 5200, wide: .25, warm: 4, gust: .42, dir: .6 },
     space: .5,
     over: [30, 55],
     drag: 260,
@@ -2077,13 +2078,42 @@ async function findSounds() {
     try { const r = await fetch('sounds/'); if (r.ok) names = [...(await r.text()).matchAll(/href="([^"?/]+\.(?:mp3|ogg|wav|m4a|flac))"/gi)].map(m => decodeURIComponent(m[1])); else { const j = await fetch('sounds/sounds.json'); if (j.ok) names = await j.json(); } } catch {}
     for (const k in HEARD) { const n = names.find(n => HEARD[k].test(n)); if (n) { const a = new Audio('sounds/' + encodeURIComponent(n)); a.loop = true; a.volume = 0; a.preload = 'auto'; a.onerror = () => { SOUND[k] = null; }; SOUND[k] = a; } }
 }
+
+let WG = null;
+function shapeWind(e1) {
+    const a = new AudioContext(); e1.volume = 1;
+    const s1 = a.createMediaElementSource(e1), merge = a.createChannelMerger(2), late = a.createDelay(5);
+    const orig = a.createGain(), m1 = a.createGain(), m2 = a.createGain();
+    for (const m of [m1, m2]) { m.channelCount = 1; m.channelCountMode = 'explicit'; }
+    late.delayTime.value = 3.7;
+    s1.connect(orig); s1.connect(m1); s1.connect(late).connect(m2); m1.connect(merge, 0, 0); m2.connect(merge, 0, 1);
+    const warm = a.createBiquadFilter(); warm.type = 'lowshelf'; warm.frequency.value = 220;
+    const soft = a.createBiquadFilter(); soft.type = 'lowpass'; soft.Q.value = .5;
+    const gust = a.createGain(), round = a.createGain(), from = a.createGain(), pan = a.createStereoPanner(), back = a.createBiquadFilter(), vol = a.createGain();
+    from.channelCount = 1; from.channelCountMode = 'explicit'; back.type = 'lowpass'; back.Q.value = .5; vol.gain.value = 0;
+    orig.connect(warm); merge.connect(warm); warm.connect(soft).connect(gust);
+    gust.connect(round).connect(vol); gust.connect(from).connect(pan).connect(back).connect(vol); vol.connect(a.destination);
+    const F = FEEL.windFx; orig.gain.value = 1 - F.wide; m1.gain.value = m2.gain.value = F.wide; warm.gain.value = F.warm; round.gain.value = 1 - F.dir * .85; from.gain.value = F.dir * 1.4;
+    return { a, e1, soft, gust, pan, back, vol };
+}
 function windLoud(level) {
-    for (const k in HEARD) {
-        const a = SOUND[k]; if (!a) continue;
-        const v = Math.max(0, Math.min(1, level)) * FEEL[k];
-        a.volume = v;
-        if (v > .002 && a.paused) a.play().catch(() => {}); else if (v <= .002 && !a.paused) a.pause();
-    }
+    level = Math.max(0, Math.min(1, level));
+    const sp = SOUND.space;
+    if (sp) { const v = level * FEEL.space; sp.volume = v; if (v > .002 && sp.paused) sp.play().catch(() => {}); else if (v <= .002 && !sp.paused) sp.pause(); }
+    const w = SOUND.wind; if (!w) return;
+    const v = level * FEEL.wind;
+    if (!WG) { if (v <= .002) return; try { WG = shapeWind(w); } catch { SOUND.wind = null; return; } }
+    const G = WG, t = G.a.currentTime, F = FEEL.windFx;
+    if (G.a.state === 'suspended') G.a.resume().catch(() => {});
+    G.vol.gain.setTargetAtTime(v, t, .05);
+    if (v > .002 && G.e1.paused) G.e1.play().catch(() => {}); else if (v <= .002 && !G.e1.paused) G.e1.pause();
+    if (v <= .002) return;
+    const g = den.gustHere();
+    G.gust.gain.setTargetAtTime(Math.max(.25, 1 + F.gust * (g - .5) * 1.3), t, .12);
+    G.soft.frequency.setTargetAtTime(Math.min(20000, F.soft * (1 + F.gust * (g - .5) * .8)), t, .12);
+    const m = D.eye().matrixWorld.elements, lx = -m[8], lz = -m[10];
+    const up = den.BLOWS, side = Math.atan2(lx * -up.z - lz * -up.x, lx * -up.x + lz * -up.z);
+    G.pan.pan.setTargetAtTime(Math.sin(side) * .95, t, .08); G.back.frequency.setTargetAtTime(20000 - 17200 * Math.max(0, -Math.cos(side)), t, .08);
 }
 
 let awake = false, idle = 0, lastFrame = 0;
@@ -2781,7 +2811,7 @@ function audit() {
     for (const q of desk.pieces) { const c = middle([q]); if (!moving.has(q) && !flights.some(f => (f.bin || f.tossed) && f.pieces.includes(q)) && (Math.abs(c.x) > D.DESK.w / 2 + .5 || Math.abs(c.y) > D.DESK.h / 2 + .5)) bad.push(`paper (piece ${q.id}): off the desk`); }
     return bad.concat(D.sunk());
 }
-window.collage = { flipRail, den, getUp, sitBack, pickFloor, holdE, letGoE, SOUND, get atDesk() { return atDesk; }, keysDown, paper, D, desk, view, sheets, things, flights, aloft, hinge, motions, scars, stiff, get lifting() { return lifting; }, get prying() { return prying; }, FEEL, tick, frame, fit, state, load, changed, setMode, wake,
+window.collage = { get windNow() { return WG; }, flipRail, den, getUp, sitBack, pickFloor, holdE, letGoE, SOUND, get atDesk() { return atDesk; }, keysDown, paper, D, desk, view, sheets, things, flights, aloft, hinge, motions, scars, stiff, get lifting() { return lifting; }, get prying() { return prying; }, FEEL, tick, frame, fit, state, load, changed, setMode, wake,
     turns, hops, twists, restOf, plates, audit, get undo() { return undo; }, get force() { return force; }, get hover() { return hover; }, get turning() { return bigTurn; },
     get pile() { return pile; }, mags, away, get tut() { return tut; }, get locked() { return locked; }, get drag() { return drag; }, get hand() { return hand; }, set clock(t) { clock = t; },
     sand() { scars.length = 0; localStorage.removeItem(SCARS); D.scars(scars); wake(); } };

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import * as D from './desk.js?v=68';
-import * as field from './field.js?v=68';
+import * as D from './desk.js?v=71';
+import * as field from './field.js?v=71';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z), FAR = 70000;
 const smooth = t => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
@@ -223,3 +223,4 @@ export function take(it) {
 export function forget(it) { const i = items.indexOf(it), j = held.indexOf(it); if (i >= 0) items.splice(i, 1); if (j >= 0) held.splice(j, 1); it.obj.removeFromParent(); }
 export const busy = () => up() || eyes.shut > 0 || items.some(it => !it.still);
 export const gustHere = (x = me.x, z = me.z) => field.gustHere(x, z);
+export const BLOWS = (() => { const [x, z] = field.GRASS.wind, k = Math.hypot(x, z); return { x: x / k, z: z / k }; })();
