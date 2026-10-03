@@ -65,7 +65,12 @@
     #lid-bottom { bottom: -20vh; transform: translateY(100%); }
     #dot { position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #fff; mix-blend-mode: difference; pointer-events: none; display: none; transition: transform .15s; }
     body.away #dot { display: block; }
-    #dot.near { transform: scale(2.6); }
+    #pages { position: fixed; z-index: 5; height: 16px; margin: 0; padding: 0; appearance: none; -webkit-appearance: none; background: transparent; display: none; cursor: pointer; }
+    #pages.on { display: block; }
+    #pages::-webkit-slider-runnable-track { height: 2px; background: rgba(244, 239, 226, .5); border-radius: 1px; }
+    #pages::-moz-range-track { height: 2px; background: rgba(244, 239, 226, .5); border-radius: 1px; }
+    #pages::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; margin-top: -4px; border-radius: 50%; background: #f4efe2; box-shadow: 0 1px 3px rgba(0, 0, 0, .45); }
+    #pages::-moz-range-thumb { width: 10px; height: 10px; border: 0; border-radius: 50%; background: #f4efe2; box-shadow: 0 1px 3px rgba(0, 0, 0, .45); }    #dot.near { transform: scale(2.6); }
     body.tutorial #bar { display: none; }
     body.tutorial #say { bottom: auto; top: 18px; font-size: .95rem; padding: 7px 16px; }
     #aim { position: fixed; width: 15px; height: 15px; margin: -7.5px 0 0 -7.5px; pointer-events: none; display: none; mix-blend-mode: difference;
@@ -111,7 +116,7 @@
 <div id="tell"><div class="head"><span class="part"></span><span><span class="count"></span><span class="ok">Done &#10003;</span></span></div><div class="bar"></div><div class="text"></div><div class="go">Click to continue</div></div>
 <div id="point"><svg viewBox="0 0 34 46"><path d="M17 3v30M6 24l11 14 11-14" fill="none" stroke="#1a1a18" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 3v30M6 24l11 14 11-14" fill="none" stroke="#f5f2ec" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
 <button id="skip">Skip tutorial</button>
-<div id="dot"></div>
+<div id="dot"></div><input id="pages" type="range" min="0" max="1" step="1" value="0">
 <div id="lid-top" class="lid"></div><div id="lid-bottom" class="lid"></div>
 <div id="aim"></div>
 <div id="force"></div>
@@ -127,9 +132,9 @@
 </form></div>
 
 <script type="module">
-import * as paper from './paper.js?v=54';
-import * as D from './desk.js?v=54';
-import * as den from './room.js?v=54';
+import * as paper from './paper.js?v=57';
+import * as D from './desk.js?v=57';
+import * as den from './room.js?v=57';
 const { desk, inv, apply, turn, translate, rotateAbout } = paper;
 
 const IN = 2.54, TAU = Math.PI * 2, DEG = Math.PI / 180;
@@ -158,6 +163,7 @@ const FEEL = {
     thread: .5,
     toss: 140,
     overhang: 12,
+    seek: 7,
     riffle: [.35, 3],
     hold: .22,
     wind: .7,
@@ -322,7 +328,7 @@ const magOf = q => q.bound ? mags.find(t => t.mag.key === q.bound.key) : null;
 const upLeaves = m => { const i = m.turned, T = m.turn; return (T ? (T.side > 0 ? [i - 1, i, i + 1] : [i - 2, i - 1, i]) : [i - 1, i]).filter(k => k >= 0 && k < m.list.length); };
 function leafOut(t, name, side) {
     const m = t.mag, sh = sheets[name], sp = spineOf(t), o = toWorld(t, -m.off + (m.bind > 0 ? 0 : -m.w), -m.h / 2), P = paper.mul(rotateAbout(o, t.ang), translate(o.x, o.y));
-    ready(sh);
+    if (!seeking(m)) ready(sh);
     const pieces = m.cut[name] ? m.cut[name].map(p => paper.unshelve(p, P)) : [Object.assign(paper.addPiece(name, m.w, m.h, P), { bound: { key: m.key, name } })];
     delete m.cut[name]; m.out.add(name);
     if ((side < 0) !== !!m.over) { paper.flip(pieces, sp); if (t.ang) paper.moveBy(pieces, rotateAbout(sp, 2 * t.ang)); }
@@ -387,7 +393,7 @@ function remag(t) {
     for (const name of [...m.out]) if (!want.includes(name)) leafIn(t, name);
     for (const k of ups) if (!m.out.has(m.list[k])) leafOut(t, m.list[k], k < m.turned ? -1 : 1);
     const n = m.list.length, up = ups, hiR = up.filter(k => k >= m.turned).length, R = n - m.turned - hiR, L = m.turned - (up.length - hiR), right = sheets[m.list[m.turned + hiR]], left = sheets[m.list[m.turned - 1 - (up.length - hiR)]];
-    for (const sh of [right, left, sheets[m.list[m.turned + hiR + 1]], sheets[m.list[m.turned - 2 - (up.length - hiR)]], sheets[m.list[n - 1]]]) if (sh) ready(sh);
+    if (!seeking(m)) for (const sh of [right, left, sheets[m.list[m.turned + hiR + 1]], sheets[m.list[m.turned - 2 - (up.length - hiR)]], sheets[m.list[n - 1]]]) if (sh) ready(sh);
     const shown = new Set(desk.pieces.map(q => q.sheet).concat(den.items.concat(den.held).flatMap(it => (it.pieces || []).map(e => e.p.sheet))));
     m.list.forEach((name, i) => { const sh = sheets[name]; if (sh.url && sh.front && !m.out.has(name) && !shown.has(name) && i > 0 && i < m.list.length - 1 && (i < m.turned - 5 || i > m.turned + 4)) { D.forget(sh); sh.front = sh.back = null; } });
     D.scrap(t.obj);
@@ -500,6 +506,31 @@ function turnPage(t, side) {
     wake(); tutDid('pages');
     return true;
 }
+
+const pagesEl = document.getElementById('pages'); let pagesMag = null, pagesOff = 0, pagesHeld = false;
+const seeking = m => m.goal != null && Math.abs(m.goal - m.turned) > 2;
+function seek(t) {
+    const m = t.mag;
+    if (m.goal == null || m.turn || m.shut || m.flip) return;
+    if (m.goal === m.turned) { m.goal = null; return; }
+    const side = m.goal > m.turned ? 1 : -1;
+    if (turnPage(t, side)) m.turn.k = Math.min(FEEL.seek, 1.5 + .7 * Math.abs(m.goal - m.turned)); else m.goal = null;
+}
+function pagesBar() {
+    const over = atDesk && !tut && !drag && !hand && mouse ? mags.find(t => t.obj.visible && !t.carried && t.mag.w && onThing(t, mouse)) : null;
+    if (over) { pagesMag = over; pagesOff = 0; } else if (pagesMag && !pagesHeld && !pagesEl.matches(':hover') && (pagesOff += 1) > 20) pagesMag = null;
+    const t = pagesMag;
+    if (!t || !atDesk || t.carried || !t.obj.visible) { pagesEl.classList.remove('on'); return; }
+    const m = t.mag, top = t.h + t.obj.userData.tall, pts = ringOf(t).map(p => D.screenOf(p, top)), x0 = Math.min(...pts.map(p => p.x)), x1 = Math.max(...pts.map(p => p.x)), y1 = Math.max(...pts.map(p => p.y));
+    const w = Math.max(140, (x1 - x0) * .8);
+    Object.assign(pagesEl.style, { left: (x0 + x1) / 2 - w / 2 + 'px', top: Math.min(innerHeight - 30, y1 + 10) + 'px', width: w + 'px', direction: m.dir * Math.cos(t.ang) >= 0 ? 'ltr' : 'rtl' });
+    pagesEl.max = m.list.length;
+    if (!pagesHeld) pagesEl.value = m.goal ?? m.turned;
+    pagesEl.classList.add('on');
+}
+pagesEl.addEventListener('pointerdown', () => { pagesHeld = true; });
+addEventListener('pointerup', () => { if (pagesHeld) { pagesHeld = false; pagesEl.blur(); } });
+pagesEl.addEventListener('input', () => { const t = pagesMag; if (!t) return; t.mag.goal = +pagesEl.value; lastMag = t; seek(t); wake(); });
 function shutMag(t) {
     const m = t.mag;
     if (m.turn || m.shut || m.flip || !m.w || m.turned <= 0) return false;
@@ -2039,7 +2070,8 @@ function tick(dt) {
         T.a = Math.min(Math.PI, T.a + (1 + 8 * Math.sin(T.a)) * dt * (T.k || 1));
         if (!T.flipped && T.a >= Math.PI / 2) { const ps = boundTo(m, T.name).concat(T.ride.filter(q => desk.pieces.includes(q))), sp = spineOf(t); paper.raise(ps); paper.flip(ps, sp); if (t.ang) paper.moveBy(ps, rotateAbout(sp, 2 * t.ang)); paper.raise(looseOn(t).filter(q => !T.ride.includes(q) && !T.keep.includes(q))); T.flipped = true; }
         if (T.a >= Math.PI) { m.turned += T.side; m.turn = null; shutIn(t, T); remag(t); if (T.did) { undo.push(last); redo = []; unsaved = true; } last = state(); if (T.did) bar();
-            if (riffle?.t === t && keysDown.has(riffle.key) && riffle.side === T.side && turnPage(t, T.side)) m.turn.k = Math.min(FEEL.riffle[1], 1 + FEEL.riffle[0] * ++riffle.n); else if (riffle?.t === t) riffle = null; }
+            if (riffle?.t === t && keysDown.has(riffle.key) && riffle.side === T.side && turnPage(t, T.side)) m.turn.k = Math.min(FEEL.riffle[1], 1 + FEEL.riffle[0] * ++riffle.n); else if (riffle?.t === t) riffle = null;
+            if (!m.turn) seek(t); }
     }
     for (const t of mags) {
         const m = t.mag, Z = m.shut; if (!Z || !dt) continue;
@@ -2366,6 +2398,7 @@ function tick(dt) {
     const show = (hand?.kind === 'scalpel' || hand?.kind === 'glue') && (ctrl || performance.now() < forceUntil);
     forceEl.classList.toggle('on', !!show);
     if (show) { forceEl.textContent = hand.kind === 'glue' ? DAB[dab].name : FORCE[force].name; forceEl.style.left = ms.x + 26 + 'px'; forceEl.style.top = ms.y - 34 + 'px'; }
+    pagesBar();
     D.render();
 }
 

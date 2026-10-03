@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import * as D from './desk.js?v=54';
-import * as field from './field.js?v=54';
+import * as D from './desk.js?v=57';
+import * as field from './field.js?v=57';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z), FAR = 70000;
 const smooth = t => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };

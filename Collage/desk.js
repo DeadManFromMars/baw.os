@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import * as paper from './paper.js?v=54';
+import * as paper from './paper.js?v=57';
 
 const S = paper.S, TAU = Math.PI * 2, IN = 2.54, V = (x, y, z) => new THREE.Vector3(x, y, z);
 const LENS = 20;
