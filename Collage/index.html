@@ -133,9 +133,9 @@
 </form></div>
 
 <script type="module">
-import * as paper from './paper.js?v=61';
-import * as D from './desk.js?v=61';
-import * as den from './room.js?v=61';
+import * as paper from './paper.js?v=62';
+import * as D from './desk.js?v=62';
+import * as den from './room.js?v=62';
 const { desk, inv, apply, turn, translate, rotateAbout } = paper;
 
 const IN = 2.54, TAU = Math.PI * 2, DEG = Math.PI / 180;
@@ -170,6 +170,7 @@ const FEEL = {
     riffle: [.35, 3],
     hold: .22,
     wind: .7,
+    space: .5,
     over: [30, 55],
     drag: 260,
     heft: 7,
@@ -2070,18 +2071,19 @@ function roomSeen() {
     if (!atDesk) dotEl.classList.toggle('near', !!den.inSight() || den.atFront());
 }
 
-const SOUND = { wind: null };
+const SOUND = { wind: null, space: null }, HEARD = { wind: /^wind/i, space: /^(space|open)/i };
 async function findSounds() {
     let names = [];
     try { const r = await fetch('sounds/'); if (r.ok) names = [...(await r.text()).matchAll(/href="([^"?/]+\.(?:mp3|ogg|wav|m4a|flac))"/gi)].map(m => decodeURIComponent(m[1])); else { const j = await fetch('sounds/sounds.json'); if (j.ok) names = await j.json(); } } catch {}
-    const wind = names.find(n => /^wind/i.test(n));
-    if (wind) { const a = new Audio('sounds/' + encodeURIComponent(wind)); a.loop = true; a.volume = 0; a.preload = 'auto'; a.onerror = () => { SOUND.wind = null; }; SOUND.wind = a; }
+    for (const k in HEARD) { const n = names.find(n => HEARD[k].test(n)); if (n) { const a = new Audio('sounds/' + encodeURIComponent(n)); a.loop = true; a.volume = 0; a.preload = 'auto'; a.onerror = () => { SOUND[k] = null; }; SOUND[k] = a; } }
 }
 function windLoud(level) {
-    const a = SOUND.wind; if (!a) return;
-    const v = Math.max(0, Math.min(1, level)) * FEEL.wind;
-    a.volume = v;
-    if (v > .002 && a.paused) a.play().catch(() => {}); else if (v <= .002 && !a.paused) a.pause();
+    for (const k in HEARD) {
+        const a = SOUND[k]; if (!a) continue;
+        const v = Math.max(0, Math.min(1, level)) * FEEL[k];
+        a.volume = v;
+        if (v > .002 && a.paused) a.play().catch(() => {}); else if (v <= .002 && !a.paused) a.pause();
+    }
 }
 
 let awake = false, idle = 0, lastFrame = 0;

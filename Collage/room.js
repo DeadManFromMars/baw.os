@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import * as D from './desk.js?v=61';
-import * as field from './field.js?v=61';
+import * as D from './desk.js?v=62';
+import * as field from './field.js?v=62';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z), FAR = 70000;
 const smooth = t => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
@@ -23,8 +23,11 @@ export const WALK = {
 export const LAMP = {
     high: 300,
     see: 12,
-    wait: 1.2, close: 6.5,
+    wait: 1.2, close: 18,
+    fight: [[0, 0], [.2, .42], [.3, .22], [.52, .68], [.61, .5], [.8, .9], [.84, .8], [.9, .93], [1, 1]],
+    grace: .3,
     open: .5,
+    hear: [2.2, .6],
     shut: .7, blink: [.14, .1, .7],
 };
 const mat = (color, rough = .9) => new THREE.MeshStandardMaterial({ color, roughness: rough });
@@ -83,15 +86,15 @@ export function atFront() {
 }
 
 export const eyes = { shut: 0, level: 0 };
-let stare = 0, looked = 0, blink = null;
+let stare = 0, looked = 0, away = 0, blink = null;
+const fought = s => { const F = LAMP.fight; for (let i = 1; i < F.length; i++) if (s <= F[i][0]) { const [a, p] = F[i - 1], [b, q] = F[i], u = (s - a) / (b - a || 1); return p + (q - p) * u * u * (3 - 2 * u); } return 1; };
 function lampAndEyes(dt, cam) {
     if (world === 'dream') { if (!blink) { eyes.shut = 0; eyes.level += (1 - eyes.level) * Math.min(1, dt * 1.5); } }
     else if (!blink) {
         cam.getWorldDirection(gaze); toLamp.copy(lamp.position).sub(cam.position).normalize();
         const at = me.t >= 1 && gaze.dot(toLamp) > Math.cos(LAMP.see * Math.PI / 180);
-        if (at) { looked += dt; if (looked > LAMP.wait) stare = Math.min(1, stare + dt / LAMP.close); }
-        else { looked = 0; stare = Math.max(0, stare - dt / LAMP.open); }
-        eyes.shut = smooth(stare); eyes.level = stare * .55;
+        if (at) { away = 0; looked += dt; if (looked > LAMP.wait) stare = Math.min(1, stare + dt / LAMP.close); eyes.shut = fought(stare); eyes.level = Math.pow(stare, LAMP.hear[0]) * LAMP.hear[1]; }
+        else if ((away += dt) > LAMP.grace) { looked = stare = 0; eyes.shut = Math.max(0, eyes.shut - dt / LAMP.open); eyes.level = Math.max(0, eyes.level - dt * LAMP.hear[1] / LAMP.open); }
         if (stare >= 1) blink = { t: 0, gone: false };
     }
     if (blink) {
@@ -99,7 +102,7 @@ function lampAndEyes(dt, cam) {
         if (!b.gone && b.t >= LAMP.shut * .5) { b.gone = true; dream(toLamp); }
         const u = b.t - LAMP.shut;
         eyes.shut = u < 0 ? 1 : u < a ? 1 - .82 * smooth(u / a) : u < a + c ? .18 + .82 * smooth((u - a) / c) : 1 - smooth((u - a - c) / o);
-        eyes.level = Math.min(1, .55 + .45 * b.t / (LAMP.shut + a + c + o));
+        eyes.level = Math.min(1, LAMP.hear[1] + (1 - LAMP.hear[1]) * b.t / (LAMP.shut + a + c + o));
         if (u >= a + c + o) { blink = null; stare = looked = 0; eyes.shut = 0; }
     }
 }
