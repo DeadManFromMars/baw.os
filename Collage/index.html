@@ -101,7 +101,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/clipper-lib@6.4.2/clipper.js"></script>
 <script type="importmap">
-    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js" } }
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }
 </script>
 </head>
 <body>
@@ -127,9 +127,9 @@
 </form></div>
 
 <script type="module">
-import * as paper from './paper.js?v=46';
-import * as D from './desk.js?v=46';
-import * as den from './room.js?v=46';
+import * as paper from './paper.js?v=54';
+import * as D from './desk.js?v=54';
+import * as den from './room.js?v=54';
 const { desk, inv, apply, turn, translate, rotateAbout } = paper;
 
 const IN = 2.54, TAU = Math.PI * 2, DEG = Math.PI / 180;
@@ -158,6 +158,7 @@ const FEEL = {
     thread: .5,
     toss: 140,
     overhang: 12,
+    riffle: [.35, 3],
     hold: .22,
     wind: .7,
     over: [30, 55],
@@ -303,7 +304,7 @@ function restack() {
     warm();
 }
 
-const mags = []; let lastMag = null;
+const mags = []; let lastMag = null, riffle = null;
 
 const LIFTS = () => [cutter, pileT, padT, ...mags].filter(Boolean);
 const belowOf = t => t.below ||= { has: x => x.under === t.kind };
@@ -348,6 +349,33 @@ function spineTint(m) {
         return m.tint = `rgb(${sum.map(v => Math.round(v * 4 / d.length)).join(', ')})`;
     } catch { return m.tint = BLACK; }
 }
+
+const holes = new Map(), keptIds = new WeakMap(); let nextKept = 0;
+const keptId = o => { let v = keptIds.get(o); if (v === undefined) keptIds.set(o, v = ++nextKept); return v; };
+function holeSig(m, k, face, step) {
+    let s = '';
+    for (let j = k, n = 0; j >= 0 && j < m.list.length && n < 7; j += step, n++) { const name = m.list[j], cut = m.cut[name]; s += name + ':' + (D.drawable(sheets[name]?.[face]) ? 1 : 0) + ':' + (cut ? keptId(cut) : 0) + ';'; if (!cut) break; }
+    return s;
+}
+function holed(m, k, face, step, depth = 0) {
+    const name = m.list[k], sh = sheets[name], img = sh?.[face], cut = m.cut[name];
+    if (!sh || !cut) return img;
+    const at = m.key + '|' + k + '|' + face, sig = holeSig(m, k, face, step), was = holes.get(at);
+    if (was?.sig === sig) return was.img;
+    if (was) D.untex(was.img);
+    const deeper = depth < 6 && k + step >= 0 && k + step < m.list.length ? holed(m, k + step, face, step, depth + 1) : null;
+    const W = D.drawable(img) ? (img.naturalWidth || img.width) : 1024, sc = Math.min(1, 1600 / Math.max(W, W * m.h / m.w)), cw = Math.round(W * sc), ch = Math.round(cw * m.h / m.w);
+    const cv = canvasOf(cw, ch), g = cv.getContext('2d'), px = cw / m.w, back = face === 'back';
+    g.fillStyle = PAPER; g.fillRect(0, 0, cw, ch);
+    if (D.drawable(deeper)) g.drawImage(deeper, 0, 0, cw, ch);
+    const path = new Path2D();
+    for (const p of cut) for (const r of p.paths) { r.forEach((q, i) => { const x = (back ? m.w - q.X / paper.S : q.X / paper.S) * px, y = q.Y / paper.S * px; if (i) path.lineTo(x, y); else path.moveTo(x, y); }); path.closePath(); }
+    g.save(); g.clip(path, 'evenodd');
+    if (D.drawable(img)) g.drawImage(img, 0, 0, cw, ch); else g.fillRect(0, 0, cw, ch);
+    g.restore();
+    holes.set(at, { sig, img: cv });
+    return cv;
+}
 function remag(t) {
     const m = t.mag;
     if (t.away) { t.obj.visible = false; return; }
@@ -365,7 +393,8 @@ function remag(t) {
     D.scrap(t.obj);
     if (m.shut) ready(sheets[m.list[0]]);
     const fr = m.over ? 'back' : 'front', bk = m.over ? 'front' : 'back';
-    t.obj = D.makeMag({ w: m.w, h: m.h, dir: m.dir, off: m.off, L, R, both: off === 0, right: right?.[fr], left: left?.[bk], paper: PAPER, spine: spineTint(m), swing: !!m.shut, under: m.shut && sheets[m.list[0]][fr] });
+    const kR = m.turned + hiR, kL = m.turned - 1 - (up.length - hiR);
+    t.obj = D.makeMag({ w: m.w, h: m.h, dir: m.dir, off: m.off, L, R, both: off === 0, right: right && holed(m, kR, fr, 1), left: left && holed(m, kL, bk, -1), paper: PAPER, spine: spineTint(m), swing: !!m.shut, under: m.shut && sheets[m.list[0]][fr] });
     t.obj.userData.thing = t; t.obj.visible = n > 0 && !t.away; D.scene.add(t.obj); layBig(t);
     m.under = { R, L };
     if (m.shut) D.magSwing(t.obj, -m.dir * m.shut.a, swingUp(m) * m.shut.a / Math.PI);
@@ -1470,7 +1499,7 @@ function againstFence(pieces, tools) {
     const go = inside ? wall - s.lo : -(s.hi + C.h / 2 + .05), t = { x: down.x * go, y: down.y * go };
     if (Math.abs(go) > 1e-6 && !carry(pieces, tools, translate(t.x, t.y))) t.x = t.y = 0;
     for (const q of pieces) { if (square) twists.set(q, { c: { x: c.x + t.x, y: c.y + t.y }, rem: -by, v: 0 }); shifts.set(q, { x: -t.x, y: -t.y }); }
-    for (const o of tools) if (square) o.tw = { c: { x: c.x + t.x, y: c.y + t.y }, rem: -by, v: 0 };
+    for (const o of tools) { if (square) o.tw = { c: { x: c.x + t.x, y: c.y + t.y }, rem: -by, v: 0 }; if (t.x || t.y) o.ease = posed(o); }
 }
 function bear(d, T) {
     carry(d.pieces, d.tools, T); Object.assign(d.t, apply(T, d.t)); d.t.ang += Math.atan2(T[1], T[0]);
@@ -1478,7 +1507,8 @@ function bear(d, T) {
 }
 function setDown(t) {
     const c = t.carried, box = boxOf(t), poly = polyOf(box), W = D.DESK.w / 2, H = D.DESK.h / 2;
-    if (ringOf(t).every(p => Math.abs(p.x) <= W && Math.abs(p.y) <= H)) {
+    const onCutter = t !== cutter && cutter.obj.visible && !cutter.away && (touching(box, boxOf(cutter))?.depth || 0) > .05;
+    if (!onCutter && ringOf(t).every(p => Math.abs(p.x) <= W && Math.abs(p.y) <= H)) {
         lifted(t);
         for (const q of desk.pieces) if (!c.pieces.has(q) && !flying(q) && q.leaves.some(l => paper.overPlate(l, poly) > .05)) q.under = t.kind;
         for (const o of things) if (o !== t && o !== hand && !BIG.includes(o.kind) && !c.tools.has(o) && o.obj.visible && loose(o) && o.state === 'rest' && (touching(box, boxOf(o))?.depth || 0) > .05) o.under = t.kind;
@@ -1796,7 +1826,7 @@ addEventListener('keydown', e => {
     else if (key === 'q' || key === 'e') spin(key === 'q' ? -1 : 1, e.shiftKey);
     else if (key === 'a' || key === 'd') {
         const t = drag?.kind === 'thing' && drag.t.mag ? drag.t : mags.find(t => t.obj.visible && onThing(t, mouse));
-        if (t) { lastMag = t; turnPage(t, (key === 'a' ? 1 : -1) * (t.mag.dir * Math.cos(t.ang) >= 0 ? 1 : -1)); }
+        if (t) { lastMag = t; const side = (key === 'a' ? 1 : -1) * (t.mag.dir * Math.cos(t.ang) >= 0 ? 1 : -1); if (turnPage(t, side) && !e.repeat) riffle = { t, key, side, n: 0 }; }
     }
     else if (key === 's') { const t = drag?.kind === 'thing' && drag.t.mag ? drag.t : mags.find(t => t.obj.visible && onThing(t, mouse)); if (t) { lastMag = t; shutMag(t); } }
     else if (e.repeat) return;
@@ -1953,7 +1983,9 @@ function floorLoad(list = []) {
         }
     }
 }
-function roomDown(e) { glance = { moved: 0, locking: false }; if (!document.pointerLockElement) try { const p = canvas.requestPointerLock?.(); glance.locking = true; p?.then?.(() => {}, () => { if (glance) glance.locking = false; }); } catch { glance.locking = false; } wake(); }
+const relock = () => { try { if (!atDesk && document.pointerLockElement !== canvas) canvas.requestPointerLock?.()?.catch?.(() => {}); } catch {} };
+function roomDown(e) { glance = { moved: 0, locking: false }; if (document.pointerLockElement !== canvas) try { const p = canvas.requestPointerLock?.(); glance.locking = true; p?.then?.(() => {}, () => { if (glance) glance.locking = false; setTimeout(relock, 150); }); } catch { glance.locking = false; setTimeout(relock, 150); } wake(); }
+addEventListener('focus', () => { if (begun && !atDesk) setTimeout(relock, 50); });
 function roomMove(e) {
     if (document.pointerLockElement === canvas) den.look(e.movementX, e.movementY, den.WALK.look);
     else if (glance && e.buttons & 1) { den.look(e.movementX, e.movementY, den.WALK.drag); glance.moved += Math.abs(e.movementX) + Math.abs(e.movementY); }
@@ -2004,9 +2036,10 @@ function tick(dt) {
     }
     for (const t of mags) {
         const m = t.mag, T = m.turn; if (!T || !dt) continue;
-        T.a = Math.min(Math.PI, T.a + (1 + 8 * Math.sin(T.a)) * dt);
+        T.a = Math.min(Math.PI, T.a + (1 + 8 * Math.sin(T.a)) * dt * (T.k || 1));
         if (!T.flipped && T.a >= Math.PI / 2) { const ps = boundTo(m, T.name).concat(T.ride.filter(q => desk.pieces.includes(q))), sp = spineOf(t); paper.raise(ps); paper.flip(ps, sp); if (t.ang) paper.moveBy(ps, rotateAbout(sp, 2 * t.ang)); paper.raise(looseOn(t).filter(q => !T.ride.includes(q) && !T.keep.includes(q))); T.flipped = true; }
-        if (T.a >= Math.PI) { m.turned += T.side; m.turn = null; shutIn(t, T); remag(t); if (T.did) { undo.push(last); redo = []; unsaved = true; } last = state(); if (T.did) bar(); }
+        if (T.a >= Math.PI) { m.turned += T.side; m.turn = null; shutIn(t, T); remag(t); if (T.did) { undo.push(last); redo = []; unsaved = true; } last = state(); if (T.did) bar();
+            if (riffle?.t === t && keysDown.has(riffle.key) && riffle.side === T.side && turnPage(t, T.side)) m.turn.k = Math.min(FEEL.riffle[1], 1 + FEEL.riffle[0] * ++riffle.n); else if (riffle?.t === t) riffle = null; }
     }
     for (const t of mags) {
         const m = t.mag, Z = m.shut; if (!Z || !dt) continue;
@@ -2659,7 +2692,7 @@ function audit() {
     for (const t of things) {
         if (![t.x, t.y, t.h, t.ang, t.pitch].every(Number.isFinite)) { bad.push(`${t.kind}: lost (not a number)`); continue; }
         if (t === hand || t.away) continue;
-        if (t.state !== 'drag' && !drag?.tools?.includes(t) && !flights.some(f => f.tools.includes(t)) && (Math.abs(t.x) > D.DESK.w / 2 + .01 || Math.abs(t.y) > D.DESK.h / 2 + .01)) bad.push(`${t.kind}: off the desk`);
+        if (t.state !== 'drag' && !t.ease && !drag?.tools?.includes(t) && !flights.some(f => f.tools.includes(t)) && (Math.abs(t.x) > D.DESK.w / 2 + .01 || Math.abs(t.y) > D.DESK.h / 2 + .01)) bad.push(`${t.kind}: off the desk`);
         if (t.h < -.001 || t.h > (BIG.includes(t.kind) ? TOP : 20)) bad.push(`${t.kind}: ${t.h.toFixed(2)} cm up`);
         if (lie.includes(t) && !t.easing && t.h < restOf(t, ground).h - .05) bad.push(`${t.kind}: sunk into what it's lying on`);
     }
@@ -2669,10 +2702,11 @@ function audit() {
         if (c && c.depth > slack) bad.push(`${b.kind} is inside ${a.kind} (by ${c.depth.toFixed(2)} cm)`);
     }
     for (const l of paper.stack()) if (D.topOf(l) > TOP + 2) bad.push(`paper (piece ${l.piece.id}): ${D.topOf(l).toFixed(2)} cm up`);
-    for (const q of desk.pieces) { const c = middle([q]); if (!flights.some(f => (f.bin || f.tossed) && f.pieces.includes(q)) && (Math.abs(c.x) > D.DESK.w / 2 + .5 || Math.abs(c.y) > D.DESK.h / 2 + .5)) bad.push(`paper (piece ${q.id}): off the desk`); }
+    const moving = new Set([...things.flatMap(t => t.carried ? [...t.carried.pieces] : []), ...(drag?.kind === 'fold' || drag?.kind === 'open' ? [drag.piece] : []), ...motions.map(m => m.piece)]);
+    for (const q of desk.pieces) { const c = middle([q]); if (!moving.has(q) && !flights.some(f => (f.bin || f.tossed) && f.pieces.includes(q)) && (Math.abs(c.x) > D.DESK.w / 2 + .5 || Math.abs(c.y) > D.DESK.h / 2 + .5)) bad.push(`paper (piece ${q.id}): off the desk`); }
     return bad.concat(D.sunk());
 }
-window.collage = { den, getUp, sitBack, pickFloor, holdE, letGoE, SOUND, get atDesk() { return atDesk; }, keysDown, paper, D, desk, view, sheets, things, flights, aloft, hinge, motions, scars, stiff, get lifting() { return lifting; }, get prying() { return prying; }, FEEL, tick, frame, fit, state, load, changed, setMode, wake,
+window.collage = { flipRail, den, getUp, sitBack, pickFloor, holdE, letGoE, SOUND, get atDesk() { return atDesk; }, keysDown, paper, D, desk, view, sheets, things, flights, aloft, hinge, motions, scars, stiff, get lifting() { return lifting; }, get prying() { return prying; }, FEEL, tick, frame, fit, state, load, changed, setMode, wake,
     turns, hops, twists, restOf, plates, audit, get undo() { return undo; }, get force() { return force; }, get hover() { return hover; }, get turning() { return bigTurn; },
     get pile() { return pile; }, mags, away, get tut() { return tut; }, get locked() { return locked; }, get drag() { return drag; }, get hand() { return hand; }, set clock(t) { clock = t; },
     sand() { scars.length = 0; localStorage.removeItem(SCARS); D.scars(scars); wake(); } };

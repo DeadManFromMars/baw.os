@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import * as D from './desk.js?v=46';
-import * as field from './field.js?v=46';
+import * as D from './desk.js?v=54';
+import * as field from './field.js?v=54';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z), FAR = 70000;
 const smooth = t => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
@@ -51,7 +51,7 @@ export function build() {
     const t0 = performance.now(); field.build(D.scene, SLAB, FLOOR); took.field = performance.now() - t0;
     D.scene.add(g, darkRoom, D.eye());
 
-    const pump = () => { const t = performance.now(), left = field.more(6); took.grass += performance.now() - t; if (left) setTimeout(pump, 30); else setTimeout(ready, 200); };
+    const pump = () => { const t = performance.now(), left = field.more(6); took.grass += performance.now() - t; if (left) setTimeout(pump, 30); else field.statues().catch(e => console.warn('the stone hands could not be made', e)).finally(() => setTimeout(ready, 200)); };
     const ready = () => { if (world !== 'dark' || up()) return; const t = performance.now(), was = lamp.visible; lamp.visible = true; field.show(true); D.compile(); field.show(false); lamp.visible = was; took.ready = performance.now() - t; };
     setTimeout(pump, 500);
 }

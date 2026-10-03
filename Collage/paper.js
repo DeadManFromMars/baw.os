@@ -215,7 +215,19 @@ function stuck(piece) {
     return out.length ? run(CT.ctIntersection, union(out), piece.paths) : [];
 }
 const onDesk = (piece, region) => union(piece.leaves.flatMap(l => mapInt(run(CT.ctIntersection, l.paths, region), l.W)));
+
+const objIds = new WeakMap(); let nextObj = 0;
+const idOf = o => { let v = objIds.get(o); if (v === undefined) objIds.set(o, v = ++nextObj); return v; };
+const shapeKey = p => p.id + '.' + idOf(p.leaves) + '.' + p.leaves.map(l => idOf(l.W)).join('.');
+const keep = { glued: { key: null, val: null }, hooked: { key: null, val: null } };
+function kept(slot, key, make) { const k = keep[slot]; if (k.key !== key) { k.key = key; k.val = make(); } return k.val; }
 function glued() {
+    if (!desk.bonds.length) return [];
+    const fams = new Set(desk.bonds.flatMap(b => [b.a, b.b]));
+    const key = desk.bonds.map(b => b.a + ':' + b.b + ':' + idOf(b.ra) + ':' + idOf(b.rb)).join(',') + '|' + desk.pieces.filter(p => fams.has(p.fam)).map(shapeKey).join(',');
+    return kept('glued', key, gluedNow);
+}
+function gluedNow() {
     const out = [];
     for (const b of desk.bonds) {
         const side = (fam, r) => desk.pieces.filter(p => p.fam === fam).map(p => [p, onDesk(p, r)]).filter(([, w]) => w.length);
@@ -262,6 +274,10 @@ export function stuckAt(p, r) {
 }
 export const peel = (piece, pts, r) => unglue(piece, kerf(pts.length > 1 ? pts : [pts[0], { x: pts[0].x + 0.002, y: pts[0].y }], r * S, 40));
 function hooked() {
+    if (!desk.pieces.some(x => x.leaves.length > 1)) return [];
+    return kept('hooked', desk.pieces.map(p => shapeKey(p) + '.' + p.leaves.map(zOf).join('.')).join(','), hookedNow);
+}
+function hookedNow() {
     const out = [];
     for (const x of desk.pieces) if (x.leaves.length > 1) for (const y of desk.pieces) {
         if (y !== x && y.leaves.some(o => x.leaves.some(l => zOf(l) > zOf(o) && overlap(l, o) > TOUCH) && x.leaves.some(l => zOf(l) < zOf(o) && overlap(l, o) > TOUCH))) out.push([x, y]);
@@ -846,10 +862,10 @@ export function press(aloft) {
     all.forEach((l, i) => {
         for (const up of [true, false]) {
             const face = up === l.back ? 'back' : 'front';
-            let reach = l.piece.glue[face].length ? mapInt(run(CT.ctIntersection, l.piece.glue[face], l.paths), l.W) : [];
+            let reach = l.piece.glue[face].length ? mapInt(run(CT.ctIntersection, l.piece.glue[face], l.paths), l.W) : [], rb = reach.length ? boxOf(toDesk(reach, IDENT)) : null;
             for (const o of up ? all.slice(i + 1) : all.slice(0, i).reverse()) {
                 if (!reach.length) break;
-                if (apart(boxOf(toDesk(reach, IDENT)), o.box)) continue;
+                if (apart(rb, o.box)) continue;
                 const touch = run(CT.ctIntersection, reach, wint(o));
                 if (area(touch) > TOUCH) {
                     const mine = mapInt(touch, inv(l.W));
@@ -857,7 +873,7 @@ export function press(aloft) {
                     l.piece.glue = { ...l.piece.glue, [face]: run(CT.ctDifference, l.piece.glue[face], mine) };
                     l.piece.rev++; made++;
                 }
-                reach = run(CT.ctDifference, reach, wint(o));
+                reach = run(CT.ctDifference, reach, wint(o)); if (reach.length) rb = boxOf(toDesk(reach, IDENT));
             }
         }
     });

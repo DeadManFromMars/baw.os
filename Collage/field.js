@@ -186,6 +186,92 @@ function rock() {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, 60, d), [side, side, top, side, side, side]); m.position.set(slab.cx, slab.top - 30, slab.cz); m.receiveShadow = true;
     return m;
 }
+
+const GENTLE = {
+    open:    { index: [.05, .04, .02, .12], middle: [.04, .04, .02, 0], ring: [.06, .05, .03, .1], pinky: [.08, .06, .04, .22], thumb: [-.1, -.2, .05, .05] },
+    relaxed: { index: [.22, .3, .18, .04], middle: [.28, .4, .22, 0], ring: [.34, .46, .26, .04], pinky: [.42, .5, .3, .08], thumb: [0, .25, .1, .03] },
+    reach:   { index: [.08, .16, .1, .16], middle: [.1, .18, .12, 0], ring: [.14, .22, .14, .12], pinky: [.18, .26, .16, .26], thumb: [-.05, -.25, .05, .1] },
+    cupped:  { index: [.5, .45, .25, .02], middle: [.55, .5, .28, 0], ring: [.6, .55, .3, .03], pinky: [.65, .6, .32, .06], thumb: [.35, .35, .2, .1] },
+    sleep:   { index: [.45, .7, .4, .03], middle: [.55, .8, .45, 0], ring: [.65, .85, .5, .03], pinky: [.75, .9, .5, .07], thumb: [.2, .45, .25, .15] },
+    lifted:  { index: [.05, .1, .05, .05], middle: [.35, .45, .2, 0], ring: [.25, .35, .18, .05], pinky: [.1, .15, .08, .2], thumb: [.25, .1, .3, .2] },
+    fall:    { index: [.15, .25, .15, .2], middle: [.2, .3, .2, 0], ring: [.25, .35, .2, .18], pinky: [.3, .4, .25, .32], thumb: [-.05, -.3, .05, .05] },
+};
+export const STATUES = [
+    { pose: 'open',    a: -18,  d: 125, tall: 11,  sink: .12, lean: [.03, 0],     turn: .3 },
+    { pose: 'relaxed', a: 34,   d: 72,  tall: 6,   sink: .35, lean: [.14, .05],   turn: 2.1 },
+    { pose: 'reach',   a: 82,   d: 140, tall: 9,   sink: .16, lean: [-.06, .1],   turn: -1 },
+    { pose: 'cupped',  a: 140,  d: 46,  tall: 4,   sink: .55, lean: [.28, -.1],   turn: .8 },
+    { pose: 'sleep',   a: -64,  d: 96,  tall: 7,   sink: .2,  lean: [0, .32],     turn: 1.6, broken: { n: [.25, 1, .1], at: .8 } },
+    { pose: 'lifted',  a: -122, d: 160, tall: 10,  sink: .13, lean: [.02, 0],     turn: 2.8 },
+    { pose: 'fall',    a: 172,  d: 112, tall: 8,   sink: .3,  lean: [.42, .18],   turn: -2.2, broken: { n: [-.3, 1, .2], at: .72 } },
+    { pose: 'open',    a: -150, d: 62,  tall: 5,   sink: .5,  lean: [1.15, .1],   turn: .4 },
+    { pose: 'relaxed', a: 12,   d: 178, tall: 12,  sink: .1,  lean: [-.04, .05],  turn: 3.6, broken: { n: [.1, 1, -.35], at: .82 } },
+    { pose: 'reach',   a: 108,  d: 95,  tall: 3.5, sink: .72, lean: [.1, -.2],    turn: 1.1 },
+    { pose: 'cupped',  a: -40,  d: 48,  tall: 4.5, sink: .45, lean: [.2, .3],     turn: -.6, broken: { n: [.4, 1, 0], at: .76 } },
+];
+export const STONE = { color: '#a29c90', soil: '#4a4632', grit: .09, mottle: .2 };
+const NOISE = `
+float hash3(vec3 p) { p = fract(p * .3183099 + .1); p *= 17.; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float vnoise(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3. - 2. * f);
+    return mix(mix(mix(hash3(i), hash3(i + vec3(1, 0, 0)), f.x), mix(hash3(i + vec3(0, 1, 0)), hash3(i + vec3(1, 1, 0)), f.x), f.y),
+               mix(mix(hash3(i + vec3(0, 0, 1)), hash3(i + vec3(1, 0, 1)), f.x), mix(hash3(i + vec3(0, 1, 1)), hash3(i + vec3(1, 1, 1)), f.x), f.y), f.z); }
+float fbm3(vec3 p) { return .5 * vnoise(p) + .3 * vnoise(p * 2.1) + .2 * vnoise(p * 4.3); }`;
+function stoneMat(base, cut) {
+    const m = new THREE.MeshStandardMaterial({ color: STONE.color, roughness: .94, metalness: 0, side: cut ? THREE.DoubleSide : THREE.FrontSide });
+    const u = { uBase: { value: base }, uCut: { value: cut ? new THREE.Vector4(...cut) : new THREE.Vector4(0, 1, 0, 1e9) }, uSoil: { value: new THREE.Color(STONE.soil) }, uGrit: { value: STONE.grit }, uMottle: { value: STONE.mottle } };
+    m.onBeforeCompile = s => {
+        Object.assign(s.uniforms, u);
+        s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vW; varying vec3 vO;')
+            .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvW = (modelMatrix * vec4(transformed, 1.)).xyz; vO = transformed;');
+        s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vW; varying vec3 vO; uniform float uBase, uGrit, uMottle; uniform vec4 uCut; uniform vec3 uSoil;' + NOISE)
+            .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+                if (dot(vO, normalize(uCut.xyz)) > uCut.w + (vnoise(vO * 70.) - .5) * .014 + (vnoise(vO * 220.) - .5) * .005) discard;      `)
+            .replace('#include <color_fragment>', `#include <color_fragment>
+                float mot = fbm3(vW * .006) + .35 * vnoise(vW * .05);
+                diffuseColor.rgb *= 1. + uMottle * (mot - .65);
+                diffuseColor.rgb *= 1. - .14 * smoothstep(.55, .9, vnoise(vec3(vW.x * .03, vW.y * .002, vW.z * .03)));
+                diffuseColor.rgb = mix(diffuseColor.rgb, uSoil, .4 * smoothstep(uBase + 55., uBase - 25., vW.y));
+                if (!gl_FrontFacing) diffuseColor.rgb *= .45;`)
+            .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+                vec3 gp = vW * .45; float e = .35;
+                vec3 grit = vec3(vnoise(gp + vec3(e, 0, 0)) - vnoise(gp - vec3(e, 0, 0)), vnoise(gp + vec3(0, e, 0)) - vnoise(gp - vec3(0, e, 0)), vnoise(gp + vec3(0, 0, e)) - vnoise(gp - vec3(0, 0, e)));
+                normal = normalize(normal + uGrit * (viewMatrix * vec4(grit, 0.)).xyz);`);
+    };
+    m.customProgramCacheKey = () => 'stone';
+    return m;
+}
+function bake(rig, root) {
+    const mesh = rig.mesh, src = mesh.geometry, pos = src.attributes.position, v = new THREE.Vector3(), out = new Float32Array(pos.count * 3);
+    root.updateMatrixWorld(true); mesh.skeleton.update();
+    const wrist = rig.bone('wrist').getWorldPosition(new THREE.Vector3());
+    for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i); mesh.applyBoneTransform(i, v); v.applyMatrix4(mesh.matrixWorld).sub(wrist); out[3 * i] = -v.x; out[3 * i + 1] = -v.y; out[3 * i + 2] = v.z; }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(out, 3)); if (src.index) g.setIndex(src.index.clone());
+    g.computeVertexNormals(); g.computeBoundingBox(); g.computeBoundingSphere();
+    return g;
+}
+let stoneHands = null;
+export async function statues() {
+    if (stoneHands || !root) return;
+    const H = await import('./hand.js');
+    await H.loadHand();
+    const { root: model, rig } = H.makeHand({ mat: () => new THREE.MeshBasicMaterial() });
+    const shapes = {}, pad = th => [...th, 0, 0, 0, 0, 0, 0].slice(0, 6);
+    for (const name of new Set(STATUES.map(s => s.pose))) { const P = GENTLE[name]; H.pose(rig, { ...P, thumb: pad(P.thumb) }, 0, 0); shapes[name] = bake(rig, model); }
+    const open = (shapes.open || Object.values(shapes)[0]).boundingBox, len = open.max.y - open.min.y;
+    stoneHands = new THREE.Group();
+    for (const s of STATUES) {
+        const g = shapes[s.pose], k = s.tall * 100 / len, a = s.a * Math.PI / 180, x = slab.cx + Math.sin(a) * s.d * 100, z = slab.cz - Math.cos(a) * s.d * 100, y = ground(x, z);
+        const n = s.broken?.n, cut = n ? [...n, (g.boundingBox.min.y + (g.boundingBox.max.y - g.boundingBox.min.y) * s.broken.at) * n[1] / Math.hypot(...n)] : null;
+        const m = new THREE.Mesh(g, stoneMat(y, cut));
+        m.scale.setScalar(k); m.rotation.set(s.lean[0], s.turn, s.lean[1], 'YXZ'); m.position.set(x, y, z); m.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(m, true); m.position.y += y - box.min.y - s.sink * (box.max.y - box.min.y);
+        stoneHands.add(m);
+    }
+    root.add(stoneHands);
+    took.stone = stoneHands.children.length;
+}
+export const took = {};
+
 let blades = null, streaks = null, root = null, theScene = null;
 const haze = new THREE.FogExp2(HAZE.color, HAZE.density);
 export function build(scene, bounds, top) {

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import * as paper from './paper.js?v=46';
+import * as paper from './paper.js?v=54';
 
 const S = paper.S, TAU = Math.PI * 2, IN = 2.54, V = (x, y, z) => new THREE.Vector3(x, y, z);
 const LENS = 20;
@@ -25,7 +25,8 @@ function tex(img) {
     return t;
 }
 export function warm(sh) { const m = matsOf(sh); for (const mat of [m.front, m.back]) if (mat.map && renderer) renderer.initTexture(mat.map); }
-const drawable = img => img && (img instanceof HTMLCanvasElement || (img.complete && img.naturalWidth > 0));
+export const drawable = img => img && (img instanceof HTMLCanvasElement || (img.complete && img.naturalWidth > 0));
+export function untex(img) { const t = img && texes.get(img); if (t) { t.dispose(); texes.delete(img); } }
 
 let renderer, camera;
 export const scene = new THREE.Scene();
