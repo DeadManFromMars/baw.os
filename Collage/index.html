@@ -66,7 +66,8 @@
     #dot { position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #fff; mix-blend-mode: difference; pointer-events: none; display: none; transition: transform .15s; }
     body.away #dot { display: block; }
     #pages { position: fixed; z-index: 5; height: 16px; margin: 0; padding: 0; appearance: none; -webkit-appearance: none; background: transparent; display: none; cursor: pointer; }
-    #pages.on { display: block; }
+    #pages.on, #pagenum.on { display: block; }
+    #pagenum { position: fixed; z-index: 5; display: none; pointer-events: none; font-size: .66rem; letter-spacing: .06em; white-space: nowrap; color: rgba(244, 239, 226, .82); text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
     #pages::-webkit-slider-runnable-track { height: 2px; background: rgba(244, 239, 226, .5); border-radius: 1px; }
     #pages::-moz-range-track { height: 2px; background: rgba(244, 239, 226, .5); border-radius: 1px; }
     #pages::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; margin-top: -4px; border-radius: 50%; background: #f4efe2; box-shadow: 0 1px 3px rgba(0, 0, 0, .45); }
@@ -116,7 +117,7 @@
 <div id="tell"><div class="head"><span class="part"></span><span><span class="count"></span><span class="ok">Done &#10003;</span></span></div><div class="bar"></div><div class="text"></div><div class="go">Click to continue</div></div>
 <div id="point"><svg viewBox="0 0 34 46"><path d="M17 3v30M6 24l11 14 11-14" fill="none" stroke="#1a1a18" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 3v30M6 24l11 14 11-14" fill="none" stroke="#f5f2ec" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
 <button id="skip">Skip tutorial</button>
-<div id="dot"></div><input id="pages" type="range" min="0" max="1" step="1" value="0">
+<div id="dot"></div><input id="pages" type="range" min="0" max="1" step="1" value="0"><div id="pagenum"></div>
 <div id="lid-top" class="lid"></div><div id="lid-bottom" class="lid"></div>
 <div id="aim"></div>
 <div id="force"></div>
@@ -132,9 +133,9 @@
 </form></div>
 
 <script type="module">
-import * as paper from './paper.js?v=60';
-import * as D from './desk.js?v=60';
-import * as den from './room.js?v=60';
+import * as paper from './paper.js?v=61';
+import * as D from './desk.js?v=61';
+import * as den from './room.js?v=61';
 const { desk, inv, apply, turn, translate, rotateAbout } = paper;
 
 const IN = 2.54, TAU = Math.PI * 2, DEG = Math.PI / 180;
@@ -524,7 +525,7 @@ function turnPage(t, side) {
     return true;
 }
 
-const pagesEl = document.getElementById('pages'); let pagesMag = null, pagesOff = 0, pagesHeld = false;
+const pagesEl = document.getElementById('pages'), pageNum = document.getElementById('pagenum'); let pagesMag = null, pagesOff = 0, pagesHeld = false;
 const seeking = m => m.goal != null && Math.abs(m.goal - m.turned) > 2;
 function seek(t) {
     const m = t.mag;
@@ -550,13 +551,16 @@ function pagesBar() {
     const over = atDesk && !tut && !drag && !hand && mouse ? mags.find(t => t.obj.visible && !t.carried && t.mag.w && onThing(t, mouse)) : null;
     if (over) { pagesMag = over; pagesOff = 0; } else if (pagesMag && !pagesHeld && !pagesEl.matches(':hover') && (pagesOff += 1) > 20) pagesMag = null;
     const t = pagesMag;
-    if (!t || !atDesk || t.carried || !t.obj.visible) { pagesEl.classList.remove('on'); return; }
+    if (!t || !atDesk || t.carried || !t.obj.visible) { pagesEl.classList.remove('on'); pageNum.classList.remove('on'); return; }
     const m = t.mag, top = t.h + t.obj.userData.tall, pts = ringOf(t).map(p => D.screenOf(p, top)), x0 = Math.min(...pts.map(p => p.x)), x1 = Math.max(...pts.map(p => p.x)), y1 = Math.max(...pts.map(p => p.y));
     const w = Math.max(140, (x1 - x0) * .8);
     Object.assign(pagesEl.style, { left: (x0 + x1) / 2 - w / 2 + 'px', top: Math.min(innerHeight - 30, y1 + 10) + 'px', width: w + 'px', direction: m.dir * Math.cos(t.ang) >= 0 ? 'ltr' : 'rtl' });
     pagesEl.max = m.list.length;
     if (!pagesHeld) pagesEl.value = m.goal ?? m.turned;
     pagesEl.classList.add('on');
+    const n = m.list.length, at = +pagesEl.value, page = at <= 0 ? 1 : at >= n ? 2 * n : 2 * at + 1;
+    pageNum.textContent = page + ' / ' + 2 * n;
+    Object.assign(pageNum.style, { left: (x0 + x1) / 2 + w / 2 + 10 + 'px', top: Math.min(innerHeight - 30, y1 + 10) - 1 + 'px' }); pageNum.classList.add('on');
 }
 let pagesWait = [];
 const pagesGo = (t, now) => {
