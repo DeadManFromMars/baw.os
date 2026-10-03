@@ -132,9 +132,9 @@
 </form></div>
 
 <script type="module">
-import * as paper from './paper.js?v=57';
-import * as D from './desk.js?v=57';
-import * as den from './room.js?v=57';
+import * as paper from './paper.js?v=58';
+import * as D from './desk.js?v=58';
+import * as den from './room.js?v=58';
 const { desk, inv, apply, turn, translate, rotateAbout } = paper;
 
 const IN = 2.54, TAU = Math.PI * 2, DEG = Math.PI / 180;
@@ -164,6 +164,7 @@ const FEEL = {
     toss: 140,
     overhang: 12,
     seek: 7,
+    skip: 2,
     riffle: [.35, 3],
     hold: .22,
     wind: .7,
@@ -514,7 +515,20 @@ function seek(t) {
     if (m.goal == null || m.turn || m.shut || m.flip) return;
     if (m.goal === m.turned) { m.goal = null; return; }
     const side = m.goal > m.turned ? 1 : -1;
+    if (Math.abs(m.goal - m.turned) > FEEL.skip && m.turned > 0 && m.turned < m.list.length && !skipTo(t, m.goal - side)) { m.goal = null; return; }
     if (turnPage(t, side)) m.turn.k = Math.min(FEEL.seek, 1.5 + .7 * Math.abs(m.goal - m.turned)); else m.goal = null;
+}
+function skipTo(t, k) {
+    const m = t.mag;
+    if (k === m.turned) return true;
+    const why = magStuck(t, k > m.turned ? 1 : -1); if (why) { say(why); return false; }
+    const S = spreadPaper(t, k > m.turned ? 1 : -1), key = gapKey(m, m.turned), ps = S.ride.concat(S.keep).filter(q => desk.pieces.includes(q) && !q.bound);
+    if (key) keepIn(t, key, ps);
+    m.turned = k; remag(t);
+    const out = letOut(t, gapKey(m, k));
+    if (ps.length || out) { undo.push(last); redo = []; unsaved = true; bar(); }
+    last = state(); wake();
+    return true;
 }
 function pagesBar() {
     const over = atDesk && !tut && !drag && !hand && mouse ? mags.find(t => t.obj.visible && !t.carried && t.mag.w && onThing(t, mouse)) : null;
